@@ -16,13 +16,15 @@ namespace MovieManager.Client.Views;
 
 public partial class ImportExportView : UserControl
 {
+    private readonly MovieDbContext _context;
     private readonly IImportExportService _importExportService;
 
     public ImportExportView()
     {
         InitializeComponent();
-        var context = DbHelper.CreateContext();
-        _importExportService = new ImportExportService(context);
+        _context = DbHelper.CreateContext();
+        _importExportService = new ImportExportService(_context);
+        Unloaded += (s, e) => _context.Dispose();
     }
 
     private void Log(string m) => LogBox.Dispatcher.Invoke(() => { LogBox.Text += $"[{DateTime.Now:HH:mm:ss}] {m}\n"; LogBox.ScrollToEnd(); });

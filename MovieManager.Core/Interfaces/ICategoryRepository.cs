@@ -16,4 +16,5 @@ public interface ICategoryRepository
     Task<bool> DeleteAsync(int id);
     Task<bool> ExistsAsync(int id);
     Task<bool> HasMoviesAsync(int id);
+    Task<int> GetMovieCountAsync(int id);
 }

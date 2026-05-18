@@ -79,6 +79,21 @@ public class CategoryService : ICategoryService
         if (category.ParentId == category.Id)
             throw new InvalidOperationException("不能将自身设为父分类");
 
+        // 检测循环引用：沿父链向上遍历，确保不会形成环
+        if (category.ParentId.HasValue)
+        {
+            var visited = new HashSet<int> { category.Id };
+            var currentId = category.ParentId.Value;
+            while (currentId != 0)
+            {
+                if (!visited.Add(currentId))
+                    throw new InvalidOperationException("不能创建循环的父分类关系");
+                var parent = await _categoryRepo.GetByIdAsync(currentId);
+                if (parent == null) break;
+                currentId = parent.ParentId ?? 0;
+            }
+        }
+
         return await _categoryRepo.UpdateAsync(category);
     }
 
@@ -106,6 +121,6 @@ public class CategoryService : ICategoryService
         if (!await _categoryRepo.ExistsAsync(categoryId))
             throw new InvalidOperationException($"分类 ID {categoryId} 不存在");
 
-        return await _categoryRepo.HasMoviesAsync(categoryId) ? 1 : 0; // 简化，实际应做 count
+        return await _categoryRepo.GetMovieCountAsync(categoryId);
     }
 }

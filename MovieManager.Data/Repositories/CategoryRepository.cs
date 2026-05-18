@@ -88,4 +88,9 @@ public class CategoryRepository : ICategoryRepository
     {
         return await _context.Movies.AnyAsync(m => m.CategoryId == id);
     }
+
+    public async Task<int> GetMovieCountAsync(int id)
+    {
+        return await _context.Movies.CountAsync(m => m.CategoryId == id);
+    }
 }

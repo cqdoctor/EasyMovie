@@ -7,6 +7,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using MovieManager.Core.Interfaces;
 using MovieManager.Core.Services;
+using MovieManager.Data;
 using MovieManager.Data.Repositories;
 using MovieManager.Tools.MovieApi;
 
@@ -14,6 +15,7 @@ namespace MovieManager.Client.Views;
 
 public partial class OnlineSearchView : UserControl
 {
+    private readonly MovieDbContext _context;
     private readonly MovieApiService _apiService;
     private readonly IMovieService _movieService;
     public event EventHandler? MovieAdded;
@@ -21,12 +23,13 @@ public partial class OnlineSearchView : UserControl
     public OnlineSearchView(string? tmdbApiKey = null)
     {
         InitializeComponent();
-        var context = DbHelper.CreateContext();
-        _movieService = new MovieService(new MovieRepository(context), new TagRepository(context));
+        _context = DbHelper.CreateContext();
+        _movieService = new MovieService(new MovieRepository(_context), new TagRepository(_context));
         var douban = new DoubanApiClient();
         IMovieApiClient? tmdb = !string.IsNullOrWhiteSpace(tmdbApiKey) ? new TmdbApiClient(tmdbApiKey) : null;
         _apiService = new MovieApiService(douban, tmdb);
         SourceLabel.Text = string.IsNullOrWhiteSpace(tmdbApiKey) ? "豆瓣" : "豆瓣/TMDB";
+        Unloaded += (s, e) => _context.Dispose();
     }
 
     private async Task DoSearchAsync()

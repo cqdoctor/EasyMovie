@@ -17,4 +17,5 @@ public interface ITagRepository
     Task<List<Tag>> GetTagsForMovieAsync(int movieId);
     Task AddMovieTagsAsync(int movieId, List<int> tagIds);
     Task RemoveMovieTagsAsync(int movieId, List<int> tagIds);
+    Task<int> GetMovieCountAsync(int tagId);
 }

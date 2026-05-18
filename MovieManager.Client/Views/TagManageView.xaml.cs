@@ -8,12 +8,14 @@ using System.Windows.Media;
 using MovieManager.Core.Interfaces;
 using MovieManager.Core.Models;
 using MovieManager.Core.Services;
+using MovieManager.Data;
 using MovieManager.Data.Repositories;
 
 namespace MovieManager.Client.Views;
 
 public partial class TagManageView : UserControl
 {
+    private readonly MovieDbContext _context;
     private readonly ITagService _tagService;
     private Tag? _selectedTag;
     private string _selectedColor = "#5C6BC0";
@@ -21,9 +23,10 @@ public partial class TagManageView : UserControl
     public TagManageView()
     {
         InitializeComponent();
-        var context = DbHelper.CreateContext();
-        _tagService = new TagService(new TagRepository(context));
+        _context = DbHelper.CreateContext();
+        _tagService = new TagService(new TagRepository(_context));
         Loaded += async (s, e) => await InitAsync();
+        Unloaded += (s, e) => _context.Dispose();
     }
 
     private async Task InitAsync() { BuildColorPicker(); await LoadTagsAsync(); DeleteBtn.Visibility = Visibility.Collapsed; }

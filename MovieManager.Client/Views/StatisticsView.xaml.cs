@@ -15,14 +15,16 @@ namespace MovieManager.Client.Views;
 
 public partial class StatisticsView : UserControl
 {
+    private readonly MovieDbContext _context;
     private readonly IStatisticsService _statsService;
 
     public StatisticsView()
     {
         InitializeComponent();
-        var context = DbHelper.CreateContext();
-        _statsService = new StatisticsService(context);
+        _context = DbHelper.CreateContext();
+        _statsService = new StatisticsService(_context);
         Loaded += async (s, e) => await LoadAsync();
+        Unloaded += (s, e) => _context.Dispose();
     }
 
     private async Task LoadAsync()

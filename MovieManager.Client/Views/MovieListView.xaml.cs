@@ -10,6 +10,7 @@ using MovieManager.Core.Enums;
 using MovieManager.Core.Interfaces;
 using MovieManager.Core.Models;
 using MovieManager.Core.Services;
+using MovieManager.Data;
 using MovieManager.Data.Repositories;
 using MovieManager.Tools.ImportExport;
 using MovieManager.Tools.MovieApi;
@@ -18,6 +19,7 @@ namespace MovieManager.Client.Views;
 
 public partial class MovieListView : UserControl
 {
+    private readonly MovieDbContext _context;
     private readonly IMovieService _movieService;
     private readonly ICategoryService _categoryService;
     private readonly ITagService _tagService;
@@ -29,14 +31,15 @@ public partial class MovieListView : UserControl
     public MovieListView()
     {
         InitializeComponent();
-        var context = DbHelper.CreateContext();
-        var movieRepo = new MovieRepository(context);
-        var categoryRepo = new CategoryRepository(context);
-        var tagRepo = new TagRepository(context);
+        _context = DbHelper.CreateContext();
+        var movieRepo = new MovieRepository(_context);
+        var categoryRepo = new CategoryRepository(_context);
+        var tagRepo = new TagRepository(_context);
         _movieService = new MovieService(movieRepo, tagRepo);
         _categoryService = new CategoryService(categoryRepo);
         _tagService = new TagService(tagRepo);
         Loaded += async (s, e) => await LoadDataAsync();
+        Unloaded += (s, e) => _context.Dispose();
     }
 
     private async Task LoadDataAsync()
@@ -67,7 +70,7 @@ public partial class MovieListView : UserControl
         var (keyword, categoryId, status) = GetFilterValues();
         var sortInfo = GetSortInfo();
         var year = GetYearFilter();
-        var (movies, total) = await _movieService.SearchAsync(keyword, categoryId, null, year, year, null, status, sortInfo.sortBy, sortInfo.sortDesc, _currentPage, PageSize);
+        var (movies, total) = await _movieService.SearchAsync(keyword, categoryId, null, year, null, null, status, sortInfo.sortBy, sortInfo.sortDesc, _currentPage, PageSize);
         _totalCount = total;
         if (_isCardView) RenderCardView(movies); else MovieDataGrid.ItemsSource = movies;
         var totalPages = (int)Math.Ceiling((double)total / PageSize);
@@ -287,6 +290,8 @@ public partial class MovieListView : UserControl
                 var douban = new DoubanApiClient();
                 var maoyan = new MovieManager.Tools.MovieApi.MaoyanApiClient();
                 var tmdbKey = AppSettings.TmdbApiKey;
+                // WARNING: 此处使用了公共测试 API Key 作为 fallback，仅用于开发/测试环境
+                // 生产环境应在设置页配置自己的 TMDB API Key: https://www.themoviedb.org/settings/api
                 var tmdb = new TmdbApiClient(!string.IsNullOrEmpty(tmdbKey) ? tmdbKey : "1f54bd990f1cdfb230adb312546d765d");
                 // 猫眼优先 -> 豆瓣 -> TMDB
                 var api = new MovieApiService(maoyan, tmdb);

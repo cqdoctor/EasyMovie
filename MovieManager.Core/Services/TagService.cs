@@ -59,7 +59,6 @@ public class TagService : ITagService
         if (!await _tagRepo.ExistsAsync(tagId))
             throw new InvalidOperationException($"标签 ID {tagId} 不存在");
 
-        var tags = await _tagRepo.GetByIdsAsync(new List<int> { tagId });
-        return tags.Count; // 简化
+        return await _tagRepo.GetMovieCountAsync(tagId);
     }
 }

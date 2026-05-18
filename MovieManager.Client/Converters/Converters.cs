@@ -12,7 +12,7 @@ public class NullToVisibilityConverter : IValueConverter
 {
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
     {
-        return value != null ? Visibility.Visible : Visibility.Collapsed;
+        return value == null ? Visibility.Visible : Visibility.Collapsed;
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
@@ -20,13 +20,13 @@ public class NullToVisibilityConverter : IValueConverter
 }
 
 /// <summary>
-/// Null → Collapsed，非 Null → Visible（反向）
+/// 非 Null → Visible，Null → Collapsed（反向）
 /// </summary>
 public class NullToCollapsedConverter : IValueConverter
 {
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
     {
-        return value == null ? Visibility.Visible : Visibility.Collapsed;
+        return value != null ? Visibility.Visible : Visibility.Collapsed;
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)

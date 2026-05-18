@@ -7,12 +7,14 @@ using System.Windows.Controls;
 using MovieManager.Core.Interfaces;
 using MovieManager.Core.Models;
 using MovieManager.Core.Services;
+using MovieManager.Data;
 using MovieManager.Data.Repositories;
 
 namespace MovieManager.Client.Views;
 
 public partial class CategoryManageView : UserControl
 {
+    private readonly MovieDbContext _context;
     private readonly ICategoryService _categoryService;
     private Category? _selectedCategory;
     private bool _isAddingChild;
@@ -21,9 +23,10 @@ public partial class CategoryManageView : UserControl
     public CategoryManageView()
     {
         InitializeComponent();
-        var context = DbHelper.CreateContext();
-        _categoryService = new CategoryService(new CategoryRepository(context));
+        _context = DbHelper.CreateContext();
+        _categoryService = new CategoryService(new CategoryRepository(_context));
         Loaded += async (s, e) => await LoadTreeAsync();
+        Unloaded += (s, e) => _context.Dispose();
     }
 
     private async Task LoadTreeAsync()

@@ -52,11 +52,10 @@ public class TmdbApiClient : IMovieApiClient
             var results = new List<MovieSearchResult>();
             foreach (var r in raw.Results)
             {
-                var detail = await GetDetailAsync(r.Id.ToString(), ct);
-                results.Add(detail ?? new MovieSearchResult
+                results.Add(new MovieSearchResult
                 {
                     Title = r.Title ?? r.OriginalTitle ?? "",
-                    OriginalTitle = r.OriginalTitle,
+                    OriginalTitle = r.OriginalTitle != r.Title ? r.OriginalTitle : null,
                     Year = TryParseYear(r.ReleaseDate),
                     Synopsis = r.Overview,
                     PosterUrl = string.IsNullOrEmpty(r.PosterPath)

@@ -93,4 +93,9 @@ public class TagRepository : ITagRepository
         _context.MovieTags.RemoveRange(toRemove);
         await _context.SaveChangesAsync();
     }
+
+    public async Task<int> GetMovieCountAsync(int tagId)
+    {
+        return await _context.MovieTags.CountAsync(mt => mt.TagId == tagId);
+    }
 }

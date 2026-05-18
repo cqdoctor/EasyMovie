@@ -261,10 +261,8 @@ public class ImportExportService : IImportExportService
             {
                 foreach (var movie in backup.Movies)
                 {
-                    var oldId = movie.Id;
                     movie.Id = 0;
 
-                    // 重新映射分类
                     if (movie.CategoryId.HasValue && catIdMap.ContainsKey(movie.CategoryId.Value))
                         movie.CategoryId = catIdMap[movie.CategoryId.Value];
                     else
@@ -276,11 +274,12 @@ public class ImportExportService : IImportExportService
                     movie.UpdatedAt = DateTime.UtcNow;
 
                     _context.Movies.Add(movie);
-                    await _context.SaveChangesAsync();
-
                     result.SuccessCount++;
                     result.ImportedMovies.Add(movie);
                 }
+
+                if (result.SuccessCount > 0)
+                    await _context.SaveChangesAsync();
             }
 
             return result;
@@ -297,19 +296,12 @@ public class ImportExportService : IImportExportService
 
     public async Task BackupDatabaseAsync(string backupPath)
     {
-        // SQLite 数据库文件直接复制
-        var dbPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "MovieManager.db");
-        if (!File.Exists(dbPath))
-        {
-            // 查找连接字符串中的路径
-            dbPath = "MovieManager.db";
-        }
+        var dbPath = GetActualDbPath();
 
         var dir = Path.GetDirectoryName(backupPath);
         if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
             Directory.CreateDirectory(dir);
 
-        // 确保没有活跃的写操作
         await _context.Database.CloseConnectionAsync();
 
         File.Copy(dbPath, backupPath, true);
@@ -320,13 +312,25 @@ public class ImportExportService : IImportExportService
         if (!File.Exists(backupPath))
             throw new FileNotFoundException("备份文件不存在", backupPath);
 
-        var dbPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "MovieManager.db");
-        if (!File.Exists(dbPath))
-            dbPath = "MovieManager.db";
+        var dbPath = GetActualDbPath();
 
         await _context.Database.CloseConnectionAsync();
 
         File.Copy(backupPath, dbPath, true);
+    }
+
+    private static string GetActualDbPath()
+    {
+        var dbDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "MovieManager");
+        var dbPath = Path.Combine(dbDir, "MovieManager.db");
+        if (File.Exists(dbPath)) return dbPath;
+
+        var fallback = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "MovieManager.db");
+        if (File.Exists(fallback)) return fallback;
+
+        return dbPath;
     }
 
     // ═══════════════════ 辅助方法 ═══════════════════
