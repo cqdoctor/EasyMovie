@@ -1,0 +1,99 @@
+<Window x:Class="MovieManager.Client.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+        mc:Ignorable="d"
+        Title="🎬 MovieManager" Height="720" Width="1280"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource MaterialDesignPaper}">
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="220" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!-- 左侧导航栏 -->
+        <Border Grid.Column="0"
+                Background="{DynamicResource MaterialDesignDarkBackground}"
+                CornerRadius="0">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="80" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!-- Logo -->
+                <StackPanel Grid.Row="0" VerticalAlignment="Center" Margin="16,0">
+                    <TextBlock Text="🎬" FontSize="32" />
+                    <TextBlock Text="MovieManager" FontSize="16"
+                               FontWeight="Bold" Foreground="White" />
+                </StackPanel>
+
+                <!-- 导航菜单 -->
+                <ListBox Grid.Row="1"
+                         x:Name="NavListBox"
+                         Style="{StaticResource MaterialDesignListBox}"
+                         SelectionChanged="NavListBox_SelectionChanged"
+                         Margin="0,8">
+                    <ListBoxItem Tag="Movies">
+                        <StackPanel Orientation="Horizontal">
+                            <materialDesign:PackIcon Kind="MovieOpen" Margin="0,0,12,0" />
+                            <TextBlock Text="电影库" />
+                        </StackPanel>
+                    </ListBoxItem>
+                    <ListBoxItem Tag="Categories">
+                        <StackPanel Orientation="Horizontal">
+                            <materialDesign:PackIcon Kind="Shape" Margin="0,0,12,0" />
+                            <TextBlock Text="分类管理" />
+                        </StackPanel>
+                    </ListBoxItem>
+                    <ListBoxItem Tag="Tags">
+                        <StackPanel Orientation="Horizontal">
+                            <materialDesign:PackIcon Kind="Tag" Margin="0,0,12,0" />
+                            <TextBlock Text="标签管理" />
+                        </StackPanel>
+                    </ListBoxItem>
+                    <ListBoxItem Tag="Statistics">
+                        <StackPanel Orientation="Horizontal">
+                            <materialDesign:PackIcon Kind="ChartBar" Margin="0,0,12,0" />
+                            <TextBlock Text="统计面板" />
+                        </StackPanel>
+                    </ListBoxItem>
+                    <ListBoxItem Tag="ImportExport">
+                        <StackPanel Orientation="Horizontal">
+                            <materialDesign:PackIcon Kind="Import" Margin="0,0,12,0" />
+                            <TextBlock Text="导入导出" />
+                        </StackPanel>
+                    </ListBoxItem>
+                </ListBox>
+
+                <!-- 底部设置 -->
+                <StackPanel Grid.Row="2" Margin="16,16">
+                    <Separator Foreground="{DynamicResource MaterialDesignDivider}" Margin="0,0,0,8" />
+                    <Button Style="{StaticResource MaterialDesignFlatButton}"
+                            Foreground="White"
+                            HorizontalAlignment="Left"
+                            Click="Settings_Click">
+                        <StackPanel Orientation="Horizontal">
+                            <materialDesign:PackIcon Kind="Cog" Margin="0,0,8,0" />
+                            <TextBlock Text="设置" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- 右侧内容区 -->
+        <Border Grid.Column="1"
+                Background="{DynamicResource MaterialDesignBackground}"
+                CornerRadius="12,0,0,12"
+                Margin="-8,0,0,0"
+                Padding="24">
+            <ContentControl x:Name="ContentArea" />
+        </Border>
+    </Grid>
+</Window>

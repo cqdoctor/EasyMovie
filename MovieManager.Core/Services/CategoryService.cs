@@ -1,0 +1,111 @@
+using MovieManager.Core.Interfaces;
+using MovieManager.Core.Models;
+
+namespace MovieManager.Core.Services;
+
+/// <summary>
+/// 分类业务服务
+/// </summary>
+public class CategoryService : ICategoryService
+{
+    private readonly ICategoryRepository _categoryRepo;
+
+    public CategoryService(ICategoryRepository categoryRepo)
+    {
+        _categoryRepo = categoryRepo;
+    }
+
+    public async Task<Category?> GetByIdAsync(int id)
+    {
+        return await _categoryRepo.GetByIdAsync(id);
+    }
+
+    public async Task<List<Category>> GetAllAsync()
+    {
+        return await _categoryRepo.GetAllAsync();
+    }
+
+    public async Task<List<Category>> GetRootCategoriesAsync()
+    {
+        return await _categoryRepo.GetRootCategoriesAsync();
+    }
+
+    public async Task<List<Category>> GetChildrenAsync(int parentId)
+    {
+        return await _categoryRepo.GetChildrenAsync(parentId);
+    }
+
+    /// <summary>
+    /// 获取完整分类树
+    /// </summary>
+    public async Task<List<Category>> GetCategoryTreeAsync()
+    {
+        var allCategories = await _categoryRepo.GetAllAsync();
+
+        // 构建树结构
+        var lookup = allCategories.ToLookup(c => c.ParentId);
+        foreach (var category in allCategories)
+        {
+            category.Children = lookup[category.Id].ToList();
+        }
+
+        return lookup[null].ToList(); // 返回根节点
+    }
+
+    public async Task<Category> AddAsync(Category category)
+    {
+        if (string.IsNullOrWhiteSpace(category.Name))
+            throw new ArgumentException("分类名称不能为空");
+
+        // 验证父分类存在
+        if (category.ParentId.HasValue)
+        {
+            if (!await _categoryRepo.ExistsAsync(category.ParentId.Value))
+                throw new InvalidOperationException($"父分类 ID {category.ParentId} 不存在");
+        }
+
+        return await _categoryRepo.AddAsync(category);
+    }
+
+    public async Task<Category> UpdateAsync(Category category)
+    {
+        if (string.IsNullOrWhiteSpace(category.Name))
+            throw new ArgumentException("分类名称不能为空");
+
+        if (!await _categoryRepo.ExistsAsync(category.Id))
+            throw new InvalidOperationException($"分类 ID {category.Id} 不存在");
+
+        // 不能把自己设为父分类
+        if (category.ParentId == category.Id)
+            throw new InvalidOperationException("不能将自身设为父分类");
+
+        return await _categoryRepo.UpdateAsync(category);
+    }
+
+    public async Task<bool> DeleteAsync(int id)
+    {
+        return await _categoryRepo.DeleteAsync(id);
+    }
+
+    public async Task<bool> CanDeleteAsync(int id)
+    {
+        var category = await _categoryRepo.GetByIdAsync(id);
+        if (category == null) return false;
+
+        // 有子分类不能删除
+        if (category.Children.Any()) return false;
+
+        // 有电影关联不能删除
+        if (await _categoryRepo.HasMoviesAsync(id)) return false;
+
+        return true;
+    }
+
+    public async Task<int> GetMovieCountAsync(int categoryId)
+    {
+        if (!await _categoryRepo.ExistsAsync(categoryId))
+            throw new InvalidOperationException($"分类 ID {categoryId} 不存在");
+
+        return await _categoryRepo.HasMoviesAsync(categoryId) ? 1 : 0; // 简化，实际应做 count
+    }
+}

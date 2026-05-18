@@ -1,0 +1,36 @@
+## Build results
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+
+## Visual Studio
+.vs/
+*.user
+*.suo
+*.cache
+*.vsidx
+*.vspscc
+*.vssscc
+
+## IDE
+.idea/
+.vscode/
+
+## NuGet
+*.nupkg
+packages/
+
+## Database
+*.db
+
+## Logs
+logs/
+
+## OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+## Test results
+TestResults/
