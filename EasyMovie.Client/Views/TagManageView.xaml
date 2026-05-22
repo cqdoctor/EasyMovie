@@ -1,0 +1,81 @@
+﻿<UserControl x:Class="EasyMovie.Client.Views.TagManageView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+             mc:Ignorable="d"
+             d:DesignHeight="600" d:DesignWidth="900">
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="380" />
+        </Grid.ColumnDefinitions>
+
+        <Border Grid.Column="0" Background="{DynamicResource MaterialDesignCardBackground}"
+                CornerRadius="8" Padding="16" Margin="0,0,16,0">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <Grid Grid.Row="0" Margin="0,0,0,12">
+                    <TextBlock Text="🏷️ 标签列表" FontSize="18" FontWeight="Bold" VerticalAlignment="Center" />
+                    <Button Style="{StaticResource MaterialDesignIconForegroundButton}"
+                            HorizontalAlignment="Right" Click="AddTag_Click" ToolTip="添加标签">
+                        <materialDesign:PackIcon Kind="TagPlus" />
+                    </Button>
+                </Grid>
+                <ListBox x:Name="TagListBox" Grid.Row="1" SelectionChanged="TagListBox_SelectionChanged"
+                         Style="{StaticResource MaterialDesignListBox}">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal">
+                                <Border Width="16" Height="16" CornerRadius="4"
+                                        Background="{Binding Color, FallbackValue=Gray}"
+                                        VerticalAlignment="Center" Margin="0,0,10,0" />
+                                <TextBlock Text="{Binding Name}" VerticalAlignment="Center" FontSize="14" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
+        </Border>
+
+        <Border Grid.Column="1" Background="{DynamicResource MaterialDesignCardBackground}"
+                CornerRadius="8" Padding="24">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <TextBlock x:Name="FormTitle" Grid.Row="0" Text="选择一个标签，或添加新标签"
+                           FontSize="20" FontWeight="Bold" Margin="0,0,0,24" />
+                <TextBox x:Name="TagNameBox" Grid.Row="1"
+                         materialDesign:HintAssist.Hint="标签名称 *"
+                         Style="{StaticResource MaterialDesignFloatingHintTextBox}" Margin="0,0,0,16" />
+                <Grid Grid.Row="2" Margin="0,0,0,16">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0" Text="标签颜色" FontSize="13"
+                               Foreground="{DynamicResource MaterialDesignHintForeground}" Margin="0,0,0,8" />
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" x:Name="ColorPicker" />
+                </Grid>
+                <Border x:Name="ColorPreview" Grid.Row="3" Width="80" Height="80" CornerRadius="8"
+                        Background="Gray" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="0,8,0,0" />
+                <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+                    <Button x:Name="DeleteBtn" Content="删除" Style="{StaticResource MaterialDesignFlatButton}"
+                            Foreground="{DynamicResource MaterialDesignErrorForeground}"
+                            Click="DeleteTag_Click" Margin="0,0,8,0" />
+                    <Button Content="保存" Style="{StaticResource MaterialDesignRaisedButton}" Click="SaveTag_Click" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

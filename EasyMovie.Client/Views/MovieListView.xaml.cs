@@ -1,0 +1,698 @@
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Net;
+using System.Net.Http;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
+using MaterialDesignThemes.Wpf;
+using EasyMovie.Core.Enums;
+using EasyMovie.Core.Interfaces;
+using EasyMovie.Core.Models;
+using EasyMovie.Core.Services;
+using EasyMovie.Data;
+using EasyMovie.Data.Repositories;
+using EasyMovie.Tools.ImportExport;
+using EasyMovie.Tools.MovieApi;
+
+namespace EasyMovie.Client.Views;
+
+public partial class MovieListView : UserControl
+{
+    private readonly MovieDbContext _context;
+    private readonly IMovieService _movieService;
+    private readonly ICategoryService _categoryService;
+    private readonly ITagService _tagService;
+    private readonly MainWindow? _mainWindow;
+    private int _currentPage = 1;
+    private const int PageSize = 20;
+    private int _totalCount;
+    private bool _isCardView;
+
+    public MovieListView(MainWindow? mainWindow = null)
+    {
+        InitializeComponent();
+        _mainWindow = mainWindow;
+        _context = DbHelper.CreateContext();
+        var movieRepo = new MovieRepository(_context);
+        var categoryRepo = new CategoryRepository(_context);
+        var tagRepo = new TagRepository(_context);
+        _movieService = new MovieService(movieRepo, tagRepo);
+        _categoryService = new CategoryService(categoryRepo);
+        _tagService = new TagService(tagRepo);
+        Loaded += async (s, e) => await LoadDataAsync();
+        Unloaded += (s, e) => _context.Dispose();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        try { await RebuildSearchIndexAsync(); await AutoAssignCountryCategoriesAsync(); await LoadCategoriesAsync(); await LoadYearsAsync(); await LoadMoviesAsync(); }
+        catch (Exception ex) { MessageBox.Show("加载失败: " + ex.Message); }
+    }
+
+    /// <summary>为缺少搜索索引的电影重建拼音索引</summary>
+    private async Task RebuildSearchIndexAsync()
+    {
+        var movies = await _movieService.GetAllAsync();
+        var needUpdate = movies.Where(m => string.IsNullOrEmpty(m.SearchIndex)).ToList();
+        if (needUpdate.Count == 0) return;
+        foreach (var m in needUpdate)
+        {
+            m.SearchIndex = PinyinIndexHelper.BuildSearchIndex(m.Title, m.OriginalTitle, m.Director, m.Cast);
+            await _movieService.UpdateAsync(m);
+        }
+    }
+
+    private static readonly HashSet<string> JunkCategoryNames = new(StringComparer.Ordinal)
+    {
+        "人收藏", "人评论", "人看", "人想看", "人看过", "人评价", "人关注", "人推荐"
+    };
+
+    private static bool IsValidCategoryName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return false;
+        if (int.TryParse(name, out _)) return false;
+        if (JunkCategoryNames.Any(j => name.Contains(j))) return false;
+        return true;
+    }
+
+    private async Task AutoAssignCountryCategoriesAsync()
+    {
+        var movies = await _movieService.GetAllAsync();
+
+        // 1. 先清理无效分类（纯数字、垃圾词）：将关联电影设为无分类，然后删除分类
+        var allCats = await _categoryService.GetAllAsync();
+        var invalidCats = allCats.Where(c => !IsValidCategoryName(c.Name)).ToList();
+        foreach (var cat in invalidCats)
+        {
+            var catMovies = movies.Where(m => m.CategoryId == cat.Id).ToList();
+            foreach (var m in catMovies) { m.CategoryId = null; await _movieService.UpdateAsync(m); }
+            try { await _categoryService.DeleteAsync(cat.Id); } catch { }
+        }
+
+        // 2. 为有国家信息但无分类的电影自动分配分类
+        var uncatMovies = movies.Where(m => !m.CategoryId.HasValue && !string.IsNullOrWhiteSpace(m.Country)).ToList();
+        foreach (var movie in uncatMovies)
+        {
+            var firstCountry = movie.Country!.Split('/', ' ', '·')
+                .FirstOrDefault(c => IsValidCategoryName(c.Trim()))?.Trim();
+            if (string.IsNullOrEmpty(firstCountry) || !IsValidCategoryName(firstCountry)) continue;
+            try
+            {
+                var category = await _categoryService.GetOrCreateByNameAsync(firstCountry);
+                movie.CategoryId = category.Id;
+                await _movieService.UpdateAsync(movie);
+            }
+            catch { }
+        }
+    }
+
+    private async Task LoadCategoriesAsync()
+    {
+        var categories = await _categoryService.GetAllAsync();
+        CategoryFilter.Items.Clear();
+        CategoryFilter.Items.Add(new ComboBoxItem { Content = "全部分类" });
+        CategoryFilter.Items.Add(new ComboBoxItem { Content = "未分类", Tag = -1 });
+        foreach (var cat in categories) CategoryFilter.Items.Add(new ComboBoxItem { Content = cat.Name, Tag = cat.Id });
+        CategoryFilter.SelectedIndex = 0;
+    }
+
+    private async Task LoadYearsAsync()
+    {
+        YearFilter.Items.Clear();
+        YearFilter.Items.Add(new ComboBoxItem { Content = "全部年份" });
+        var allMovies = await _movieService.GetAllAsync();
+        var years = allMovies.Where(m => m.Year > 0).Select(m => m.Year).Distinct().OrderByDescending(y => y).ToList();
+        foreach (var year in years) YearFilter.Items.Add(new ComboBoxItem { Content = year.ToString(), Tag = year });
+        YearFilter.SelectedIndex = 0;
+    }
+
+    private async Task LoadMoviesAsync()
+    {
+        var (keyword, categoryId, status) = GetFilterValues();
+        var sortInfo = GetSortInfo();
+        var year = GetYearFilter();
+        var (movies, total) = await _movieService.SearchAsync(keyword, categoryId, null, year, year, null, status, sortInfo.sortBy, sortInfo.sortDesc, _currentPage, PageSize);
+        _totalCount = total;
+        if (_isCardView) RenderCardView(movies); else MovieDataGrid.ItemsSource = movies;
+        var totalPages = (int)Math.Ceiling((double)total / PageSize);
+        PageInfo.Text = "共 " + total + " 部 · 第 " + _currentPage + "/" + Math.Max(1, totalPages) + " 页";
+        PrevPageBtn.IsEnabled = _currentPage > 1;
+        NextPageBtn.IsEnabled = _currentPage < totalPages;
+        var hasMovies = movies.Any();
+        MovieDataGrid.Visibility = !_isCardView && hasMovies ? Visibility.Visible : Visibility.Collapsed;
+        CardScrollViewer.Visibility = _isCardView && hasMovies ? Visibility.Visible : Visibility.Collapsed;
+        EmptyLabel.Visibility = hasMovies ? Visibility.Collapsed : Visibility.Visible;
+
+        if (_isCardView) CardScrollViewer.ScrollToTop();
+        else if (MovieDataGrid.Items.Count > 0) MovieDataGrid.ScrollIntoView(MovieDataGrid.Items[0]);
+    }
+
+    private (string? keyword, int? categoryId, WatchStatus? status) GetFilterValues()
+    {
+        string? keyword = string.IsNullOrWhiteSpace(SearchBox.Text) ? null : SearchBox.Text.Trim();
+        int? categoryId = null;
+        if (CategoryFilter.SelectedItem is ComboBoxItem ci && ci.Tag is int cid) categoryId = cid;
+        WatchStatus? status = null;
+        if (StatusFilter.SelectedItem is ComboBoxItem si && si.Tag is string st) status = st switch { "WantToWatch" => WatchStatus.WantToWatch, "Watching" => WatchStatus.Watching, "Watched" => WatchStatus.Watched, _ => null };
+        return (keyword, categoryId, status);
+    }
+
+    private int? GetYearFilter()
+    {
+        if (YearFilter.SelectedItem is ComboBoxItem yi && yi.Tag is int y) return y;
+        return null;
+    }
+
+    private (string? sortBy, bool sortDesc) GetSortInfo()
+    {
+        if (SortFilter.SelectedItem is ComboBoxItem si && si.Tag is string st) { var p = st.Split('_'); if (p.Length == 2) return (p[0], p[1] == "desc"); }
+        return ("createdat", true);
+    }
+
+    private void MovieDataGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (sender is DataGrid grid && grid.SelectedItem is Movie movie)
+            _mainWindow?.ShowMovieDetail(movie);
+    }
+
+    private void MovieDataGrid_PreviewMouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (sender is not DataGrid grid) return;
+        var hit = VisualTreeHelper.HitTest(grid, e.GetPosition(grid));
+        if (hit == null) return;
+        var dep = hit.VisualHit;
+        while (dep != null)
+        {
+            if (dep is DataGridRow row)
+            {
+                row.IsSelected = true;
+                grid.SelectedItem = row.Item;
+                return;
+            }
+            if (dep is System.Windows.Media.Visual v) dep = System.Windows.Media.VisualTreeHelper.GetParent(v);
+            else break;
+        }
+    }
+
+    private void RenderCardView(List<Movie> movies)
+    {
+        CardPanel.Children.Clear();
+        foreach (var movie in movies)
+        {
+            var card = new Card { Width = 200, Height = 320, Margin = new Thickness(8), Cursor = System.Windows.Input.Cursors.Hand };
+            var stack = new StackPanel();
+            stack.Children.Add(new Border { Height = 220, Background = System.Windows.Media.Brushes.Gray });
+            stack.Children.Add(new TextBlock { Text = movie.Title, FontWeight = FontWeights.Bold, FontSize = 14, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(8, 8, 8, 2) });
+            stack.Children.Add(new TextBlock { Text = movie.Year + " · " + (movie.Rating.HasValue ? "⭐" + movie.Rating : "未评分"), FontSize = 12, Margin = new Thickness(8, 0, 8, 0) });
+            var st = movie.WatchStatus switch { WatchStatus.WantToWatch => "想看", WatchStatus.Watching => "在看", WatchStatus.Watched => "已看", _ => "" };
+            stack.Children.Add(new TextBlock { Text = st, FontSize = 11, Margin = new Thickness(8, 4, 8, 8) });
+            card.Content = stack;
+            card.MouseLeftButtonUp += (s, e) => { _mainWindow?.ShowMovieDetail(movie); OpenDetailView(movie.Id); };
+            card.Tag = movie.Id;
+            CardPanel.Children.Add(card);
+        }
+    }
+
+    private static Window CreateThemedWindow(string title, double width, double height)
+    {
+        return new Window
+        {
+            Title = title,
+            Width = width,
+            Height = height,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Owner = Window.GetWindow(Application.Current.MainWindow),
+            Background = (System.Windows.Media.Brush)Application.Current.FindResource("MaterialDesignPaper")
+        };
+    }
+
+    private void OpenDetailView(int movieId)
+    {
+        var detailView = new MovieDetailView(movieId, _movieService, _categoryService, _tagService);
+        detailView.MovieSaved += async (s, e) => await LoadMoviesAsync();
+        detailView.MovieDeleted += async (s, e) => await LoadMoviesAsync();
+        var w = CreateThemedWindow("电影详情", 700, 780);
+        w.Content = detailView;
+        w.ResizeMode = ResizeMode.CanResize;
+        w.ShowDialog();
+    }
+
+    private async void SearchBox_TextChanged(object sender, TextChangedEventArgs e) { _currentPage = 1; await LoadMoviesAsync(); }
+    private async void Filter_Changed(object sender, SelectionChangedEventArgs e) { _currentPage = 1; await LoadMoviesAsync(); }
+    private async void TableViewBtn_Click(object sender, RoutedEventArgs e) { _isCardView = false; await LoadMoviesAsync(); }
+    private async void CardViewBtn_Click(object sender, RoutedEventArgs e) { _isCardView = true; await LoadMoviesAsync(); }
+    private void AddMovie_Click(object sender, RoutedEventArgs e) => OpenDetailView(0);
+
+    private void OnlineSearch_Click(object sender, RoutedEventArgs e)
+    {
+        var sv = new OnlineSearchView();
+        sv.MovieAdded += async (s, ev) => await LoadMoviesAsync();
+        var w = CreateThemedWindow("在线搜索", 800, 650);
+        w.Content = sv;
+        w.ShowDialog();
+    }
+
+    private void MovieDataGrid_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e) { if (MovieDataGrid.SelectedItem is Movie m) OpenDetailView(m.Id); }
+    private void EditMovie_Click(object sender, RoutedEventArgs e) { if (sender is Button b && b.Tag is int id) OpenDetailView(id); }
+    private async void DeleteMovie_Click(object sender, RoutedEventArgs e) { if (sender is Button b && b.Tag is int id && MessageBox.Show("确定删除？", "确认", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes) { await _movieService.DeleteAsync(id); await LoadMoviesAsync(); } }
+    private async void PlayMovie_Click(object sender, RoutedEventArgs e) { if (sender is Button b && b.Tag is int id) { var m = await _movieService.GetByIdAsync(id); if (m?.FilePath != null && File.Exists(m.FilePath)) System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = m.FilePath, UseShellExecute = true }); else MessageBox.Show("该电影没有关联视频文件。"); } }
+
+    private async void FetchInfo_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button b && b.Tag is int id)
+        {
+            b.IsEnabled = false;
+            _mainWindow?.SetStatus("获取信息中...", true);
+            try
+            {
+                var m = await _movieService.GetByIdAsync(id);
+                if (m == null || string.IsNullOrWhiteSpace(m.Title)) { _mainWindow?.SetStatus("电影不存在"); return; }
+
+                var cookie = EasyMovie.Core.AppSettings.DoubanCookie;
+                var tmdbKey = EasyMovie.Core.AppSettings.TmdbApiKey;
+                var keyword = EasyMovie.Tools.MovieApi.DoubanApiClient.ExtractChineseKeyword(m.Title);
+                var engHint = EasyMovie.Tools.MovieApi.DoubanApiClient.ExtractEnglishHint(m.Title);
+
+                EasyMovie.Core.Interfaces.MovieSearchResult? info = null;
+                var source = "";
+
+                // 1. 尝试豆瓣
+                if (!string.IsNullOrEmpty(cookie))
+                {
+                    try
+                    {
+                        _mainWindow?.SetStatus("豆瓣搜索: " + keyword + "...", true);
+                        var douban = new EasyMovie.Tools.MovieApi.DoubanApiClient();
+                        var sr = await douban.SearchAsync(new EasyMovie.Core.Interfaces.MovieSearchRequest { Keyword = m.Title, Page = 1, PageSize = 5 });
+                        if (sr.Results.Count > 0)
+                        {
+                            EasyMovie.Core.Interfaces.MovieSearchResult? best = null;
+                            if (!string.IsNullOrEmpty(engHint))
+                                foreach (var r in sr.Results)
+                                    if (!string.IsNullOrEmpty(r.OriginalTitle) && r.OriginalTitle.Contains(engHint, StringComparison.OrdinalIgnoreCase)) { best = r; break; }
+                            if (best == null) best = sr.Results[0];
+                            info = await douban.GetDetailAsync(best.ExternalId ?? "") ?? best;
+                            source = "douban";
+                        }
+                    }
+                    catch { }
+                }
+
+                // 2. 豆瓣无结果或关键信息缺失 → TMDB 备选
+                bool needsMoreInfo(string? dir, string? country, string? poster) =>
+                    string.IsNullOrEmpty(dir) || string.IsNullOrEmpty(country) || string.IsNullOrEmpty(poster);
+
+                if (info == null || needsMoreInfo(info.Director, info.Country, info.PosterUrl))
+                {
+                    try
+                    {
+                        var tmdb = new EasyMovie.Tools.MovieApi.TmdbApiClient();
+                        var tmdbQueries = new List<string>();
+                        if (!string.IsNullOrEmpty(engHint)) tmdbQueries.Add(engHint);
+                        if (!string.IsNullOrEmpty(keyword) && keyword != engHint) tmdbQueries.Add(keyword);
+                        if (tmdbQueries.Count == 0) tmdbQueries.Add(m.Title);
+
+                        foreach (var q in tmdbQueries)
+                        {
+                            _mainWindow?.SetStatus("TMDB搜索: " + q + "...", true);
+                            var sr = await tmdb.SearchAsync(new EasyMovie.Core.Interfaces.MovieSearchRequest { Keyword = q, Page = 1, PageSize = 10 });
+                            if (sr.Results.Count > 0)
+                            {
+                                // 匹配逻辑：年份+标题 → 用户选择 → 第一个
+                                var best = sr.Results[0];
+                                if (!string.IsNullOrEmpty(engHint))
+                                {
+                                    // 先尝试标题+年份同时匹配
+                                    if (m.Year > 0)
+                                        foreach (var r in sr.Results)
+                                            if (!string.IsNullOrEmpty(r.OriginalTitle) && r.OriginalTitle.Contains(engHint, StringComparison.OrdinalIgnoreCase) && r.Year == m.Year) { best = r; break; }
+
+                                    // 年份未匹配：多个同名结果时让用户选择
+                                    if (best.Year != m.Year || m.Year == 0)
+                                    {
+                                        var titleMatches = sr.Results
+                                            .Where(r => !string.IsNullOrEmpty(r.OriginalTitle) && r.OriginalTitle.Contains(engHint, StringComparison.OrdinalIgnoreCase))
+                                            .ToList();
+                                        if (titleMatches.Count > 1)
+                                        {
+                                            var items = titleMatches.Select(r => $"{r.Title} ({r.Year}) - {r.OriginalTitle}").ToArray();
+                                            var choice = Application.Current.Dispatcher.Invoke(() =>
+                                            {
+                                                var dlg = CreateThemedWindow("选择电影版本", 500, 300);
+                                                var tb = new TextBlock { Text = $"\"{m.Title}\" 搜索到多个版本，请选择：", Margin = new Thickness(10), TextWrapping = TextWrapping.Wrap };
+                                                var lb = new ListBox { Margin = new Thickness(10, 0, 10, 10) };
+                                                foreach (var item in items) lb.Items.Add(item);
+                                                lb.SelectedIndex = 0;
+                                                var btn = new Button { Content = "确定", Width = 80, Height = 30, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(10) };
+                                                btn.Click += (s, e) => { dlg.DialogResult = true; dlg.Close(); };
+                                                var panel = new StackPanel();
+                                                panel.Children.Add(tb);
+                                                panel.Children.Add(lb);
+                                                panel.Children.Add(btn);
+                                                dlg.Content = panel;
+                                                return dlg.ShowDialog() == true ? lb.SelectedIndex : -1;
+                                            });
+                                            if (choice >= 0 && choice < titleMatches.Count) best = titleMatches[choice];
+                                            else { _mainWindow?.SetStatus("已取消"); return; }
+                                        }
+                                        else if (titleMatches.Count == 1) best = titleMatches[0];
+                                    }
+                                }
+                                var tmdbInfo = await tmdb.GetDetailAsync(best.ExternalId ?? "") ?? best;
+                                // 用 TMDB 结果补充豆瓣缺失的字段（覆盖已有数据）
+                                if (info == null) { info = tmdbInfo; source = "tmdb"; }
+                                else
+                                {
+                                    if (!string.IsNullOrEmpty(tmdbInfo.Director)) info.Director = tmdbInfo.Director;
+                                    if (!string.IsNullOrEmpty(tmdbInfo.Country)) info.Country = tmdbInfo.Country;
+                                    if (!string.IsNullOrEmpty(tmdbInfo.PosterUrl)) info.PosterUrl = tmdbInfo.PosterUrl;
+                                    if (!string.IsNullOrEmpty(tmdbInfo.Cast)) info.Cast = tmdbInfo.Cast;
+                                    if (!string.IsNullOrEmpty(tmdbInfo.Synopsis)) info.Synopsis = tmdbInfo.Synopsis;
+                                    if (tmdbInfo.Year > 0) info.Year = tmdbInfo.Year;
+                                    if (tmdbInfo.Runtime.HasValue) info.Runtime = tmdbInfo.Runtime;
+                                }
+                                break;
+                            }
+                        }
+                    }
+                    catch (Exception ex) { _mainWindow?.SetStatus("TMDB异常: " + ex.Message); await Task.Delay(2000); }
+                }
+
+                if (info == null) { _mainWindow?.SetStatus("❌ 未找到: " + keyword); await Task.Delay(3000); return; }
+
+                var updated = false;
+                // 用新数据覆盖：新数据有效且与旧数据不同时更新
+                if (!string.IsNullOrEmpty(info.Director) && info.Director != m.Director) { m.Director = info.Director; updated = true; }
+                if (!string.IsNullOrEmpty(info.Cast) && info.Cast != m.Cast) { m.Cast = info.Cast; updated = true; }
+                if (!string.IsNullOrEmpty(info.Country) && info.Country != m.Country) { m.Country = info.Country; updated = true; }
+                if (!string.IsNullOrEmpty(info.Language) && info.Language != m.Language) { m.Language = info.Language; updated = true; }
+                if (!string.IsNullOrEmpty(info.Synopsis) && info.Synopsis != m.Synopsis) { m.Synopsis = info.Synopsis; updated = true; }
+                if (!string.IsNullOrEmpty(info.PosterUrl) && info.PosterUrl != m.PosterUrl)
+                {
+                    m.PosterUrl = info.PosterUrl;
+                    updated = true;
+                    // 下载海报存入数据库
+                    try
+                    {
+                        var imgClient = new HttpClient(new HttpClientHandler { AutomaticDecompression = System.Net.DecompressionMethods.All }) { Timeout = TimeSpan.FromSeconds(10) };
+                        imgClient.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36");
+                        if (info.PosterUrl.Contains("themoviedb.org") || info.PosterUrl.Contains("tmdb.org"))
+                            imgClient.DefaultRequestHeaders.Add("Referer", "https://www.themoviedb.org/");
+                        else if (info.PosterUrl.Contains("douban"))
+                            imgClient.DefaultRequestHeaders.Add("Referer", "https://movie.douban.com/");
+                        var posterBytes = await imgClient.GetByteArrayAsync(info.PosterUrl);
+                        m.PosterData = posterBytes;
+                    }
+                    catch { }
+                }
+                if (info.Runtime.HasValue && info.Runtime != m.Runtime) { m.Runtime = info.Runtime; updated = true; }
+                if (info.Year > 0 && info.Year != m.Year) { m.Year = info.Year; updated = true; }
+                if (source == "douban" && !string.IsNullOrEmpty(info.ExternalId) && info.ExternalId != m.DoubanId) { m.DoubanId = info.ExternalId; updated = true; }
+                if (source == "tmdb" && !string.IsNullOrEmpty(info.ExternalId) && info.ExternalId != m.TmdbId) { m.TmdbId = info.ExternalId; updated = true; }
+
+                if (!string.IsNullOrEmpty(info.Country) && !m.CategoryId.HasValue)
+                {
+                    var firstCountry = info.Country.Split('/', ' ', '·').FirstOrDefault(c => IsValidCategoryName(c.Trim()))?.Trim();
+                    if (!string.IsNullOrEmpty(firstCountry) && IsValidCategoryName(firstCountry))
+                    {
+                        try
+                        {
+                            var category = await _categoryService.GetOrCreateByNameAsync(firstCountry);
+                            m.CategoryId = category.Id;
+                            updated = true;
+                        }
+                        catch { }
+                    }
+                }
+
+                if (updated) { await _movieService.UpdateAsync(m); _mainWindow?.ShowMovieDetail(m); await LoadMoviesAsync(); _mainWindow?.SetStatus("✅ 已更新(" + source + "): " + m.Title); }
+                else _mainWindow?.SetStatus("ℹ️ 无需更新: " + m.Title);
+            }
+            catch (Exception ex) { _mainWindow?.SetStatus("❌ 获取失败: " + ex.Message); }
+            finally
+            {
+                b.IsEnabled = true;
+                await Task.Delay(2000);
+                _mainWindow?.ClearStatus();
+            }
+        }
+    }
+
+    private async void FetchAll_Click(object sender, RoutedEventArgs e)
+    {
+        var cookie = EasyMovie.Core.AppSettings.DoubanCookie;
+        var tmdbKey = EasyMovie.Core.AppSettings.TmdbApiKey;
+
+        var (keyword, categoryId, status) = GetFilterValues();
+        var sortInfo = GetSortInfo();
+        var year = GetYearFilter();
+        var (all, _) = await _movieService.SearchAsync(keyword, categoryId, null, year, year, null, status, sortInfo.sortBy, sortInfo.sortDesc, 1, 1000);
+        var needFetch = all.Where(m => string.IsNullOrEmpty(m.Director) || !m.CategoryId.HasValue || string.IsNullOrEmpty(m.Country) || string.IsNullOrEmpty(m.PosterUrl)).ToList();
+        if (needFetch.Count == 0) { MessageBox.Show("所有电影已有信息"); return; }
+
+        _mainWindow?.SetStatus("批量获取中...", true);
+        var douban = !string.IsNullOrEmpty(cookie) ? new EasyMovie.Tools.MovieApi.DoubanApiClient() : null;
+        var tmdb = new EasyMovie.Tools.MovieApi.TmdbApiClient();
+        var done = 0;
+        foreach (var m in needFetch)
+        {
+            try
+            {
+                var kw = EasyMovie.Tools.MovieApi.DoubanApiClient.ExtractChineseKeyword(m.Title);
+                var engHint = EasyMovie.Tools.MovieApi.DoubanApiClient.ExtractEnglishHint(m.Title);
+                EasyMovie.Core.Interfaces.MovieSearchResult? info = null;
+                var source = "";
+
+                // 1. 尝试豆瓣
+                if (douban != null)
+                {
+                    try
+                    {
+                        _mainWindow?.SetStatus($"({++done}/{needFetch.Count}) 豆瓣: {kw}...", true);
+                        var sr = await douban.SearchAsync(new EasyMovie.Core.Interfaces.MovieSearchRequest { Keyword = m.Title, Page = 1, PageSize = 3 });
+                        if (sr.Results.Count > 0)
+                        {
+                            EasyMovie.Core.Interfaces.MovieSearchResult? best = null;
+                            if (!string.IsNullOrEmpty(engHint))
+                                foreach (var r in sr.Results)
+                                    if (!string.IsNullOrEmpty(r.OriginalTitle) && r.OriginalTitle.Contains(engHint, StringComparison.OrdinalIgnoreCase)) { best = r; break; }
+                            if (best == null) best = sr.Results[0];
+                            info = await douban.GetDetailAsync(best.ExternalId ?? "") ?? best;
+                            source = "douban";
+                        }
+                    }
+                    catch { }
+                }
+                else { done++; }
+
+                // 2. 豆瓣无结果或关键信息缺失 → TMDB
+                bool needsMoreInfo(string? dir, string? country, string? poster) =>
+                    string.IsNullOrEmpty(dir) || string.IsNullOrEmpty(country) || string.IsNullOrEmpty(poster);
+
+                if (info == null || needsMoreInfo(info.Director, info.Country, info.PosterUrl))
+                {
+                    try
+                    {
+                        var tmdbQueries = new List<string>();
+                        if (!string.IsNullOrEmpty(engHint)) tmdbQueries.Add(engHint);
+                        if (!string.IsNullOrEmpty(kw) && kw != engHint) tmdbQueries.Add(kw);
+                        if (tmdbQueries.Count == 0) tmdbQueries.Add(m.Title);
+
+                        foreach (var q in tmdbQueries)
+                        {
+                            _mainWindow?.SetStatus($"({done}/{needFetch.Count}) TMDB: {q}...", true);
+                            var sr = await tmdb.SearchAsync(new EasyMovie.Core.Interfaces.MovieSearchRequest { Keyword = q, Page = 1, PageSize = 10 });
+                            if (sr.Results.Count > 0)
+                            {
+                                var best = sr.Results[0];
+                                if (!string.IsNullOrEmpty(engHint))
+                                {
+                                    if (m.Year > 0)
+                                        foreach (var r in sr.Results)
+                                            if (!string.IsNullOrEmpty(r.OriginalTitle) && r.OriginalTitle.Contains(engHint, StringComparison.OrdinalIgnoreCase) && r.Year == m.Year) { best = r; break; }
+                                    // 批量获取时不弹选择框，选最新版
+                                    if (best.Year != m.Year || m.Year == 0)
+                                    {
+                                        var titleMatches = sr.Results
+                                            .Where(r => !string.IsNullOrEmpty(r.OriginalTitle) && r.OriginalTitle.Contains(engHint, StringComparison.OrdinalIgnoreCase))
+                                            .ToList();
+                                        if (titleMatches.Count > 0)
+                                            best = titleMatches.OrderByDescending(r => r.Year).First();
+                                    }
+                                }
+                                var tmdbInfo = await tmdb.GetDetailAsync(best.ExternalId ?? "") ?? best;
+                                if (info == null) { info = tmdbInfo; source = "tmdb"; }
+                                else
+                                {
+                                    if (!string.IsNullOrEmpty(tmdbInfo.Director)) info.Director = tmdbInfo.Director;
+                                    if (!string.IsNullOrEmpty(tmdbInfo.Country)) info.Country = tmdbInfo.Country;
+                                    if (!string.IsNullOrEmpty(tmdbInfo.PosterUrl)) info.PosterUrl = tmdbInfo.PosterUrl;
+                                    if (!string.IsNullOrEmpty(tmdbInfo.Cast)) info.Cast = tmdbInfo.Cast;
+                                    if (!string.IsNullOrEmpty(tmdbInfo.Synopsis)) info.Synopsis = tmdbInfo.Synopsis;
+                                    if (tmdbInfo.Year > 0) info.Year = tmdbInfo.Year;
+                                    if (tmdbInfo.Runtime.HasValue) info.Runtime = tmdbInfo.Runtime;
+                                }
+                                break;
+                            }
+                        }
+                    }
+                    catch { }
+                }
+
+                if (info == null) continue;
+
+                if (!string.IsNullOrEmpty(info.Director) && info.Director != m.Director) m.Director = info.Director;
+                if (!string.IsNullOrEmpty(info.Cast) && info.Cast != m.Cast) m.Cast = info.Cast;
+                if (!string.IsNullOrEmpty(info.Country) && info.Country != m.Country) m.Country = info.Country;
+                if (!string.IsNullOrEmpty(info.Language) && info.Language != m.Language) m.Language = info.Language;
+                if (!string.IsNullOrEmpty(info.Synopsis) && info.Synopsis != m.Synopsis) m.Synopsis = info.Synopsis;
+                if (!string.IsNullOrEmpty(info.PosterUrl) && info.PosterUrl != m.PosterUrl)
+                {
+                    m.PosterUrl = info.PosterUrl;
+                    try
+                    {
+                        var imgClient = new HttpClient(new HttpClientHandler { AutomaticDecompression = System.Net.DecompressionMethods.All }) { Timeout = TimeSpan.FromSeconds(10) };
+                        imgClient.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36");
+                        if (info.PosterUrl.Contains("themoviedb.org") || info.PosterUrl.Contains("tmdb.org"))
+                            imgClient.DefaultRequestHeaders.Add("Referer", "https://www.themoviedb.org/");
+                        else if (info.PosterUrl.Contains("douban"))
+                            imgClient.DefaultRequestHeaders.Add("Referer", "https://movie.douban.com/");
+                        m.PosterData = await imgClient.GetByteArrayAsync(info.PosterUrl);
+                    }
+                    catch { }
+                }
+                if (info.Runtime.HasValue && info.Runtime != m.Runtime) m.Runtime = info.Runtime;
+                if (info.Year > 0 && info.Year != m.Year) m.Year = info.Year;
+                if (source == "douban" && !string.IsNullOrEmpty(info.ExternalId) && info.ExternalId != m.DoubanId) m.DoubanId = info.ExternalId;
+                if (source == "tmdb" && !string.IsNullOrEmpty(info.ExternalId) && info.ExternalId != m.TmdbId) m.TmdbId = info.ExternalId;
+
+                if (!string.IsNullOrEmpty(info.Country) && !m.CategoryId.HasValue)
+                {
+                    var firstCountry = info.Country.Split('/', ' ', '·').FirstOrDefault(c => IsValidCategoryName(c.Trim()))?.Trim();
+                    if (!string.IsNullOrEmpty(firstCountry) && IsValidCategoryName(firstCountry))
+                    {
+                        try
+                        {
+                            var category = await _categoryService.GetOrCreateByNameAsync(firstCountry);
+                            m.CategoryId = category.Id;
+                        }
+                        catch { }
+                    }
+                }
+
+                await _movieService.UpdateAsync(m);
+                await LoadMoviesAsync();
+            }
+            catch { }
+            await Task.Delay(1500);
+        }
+        _mainWindow?.ClearStatus();
+        await LoadMoviesAsync();
+    }
+    private async void PrevPage_Click(object sender, RoutedEventArgs e) { if (_currentPage > 1) { _currentPage--; await LoadMoviesAsync(); } }
+    private async void NextPage_Click(object sender, RoutedEventArgs e) { var tp = (int)Math.Ceiling((double)_totalCount / PageSize); if (_currentPage < tp) { _currentPage++; await LoadMoviesAsync(); } }
+
+    private static readonly HashSet<string> VideoExts = new(StringComparer.OrdinalIgnoreCase) { ".mp4",".mkv",".avi",".mov",".wmv",".flv",".webm",".m4v",".mpg",".mpeg",".ts",".rmvb" };
+
+    private async void ImportFolder_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var dlg = new Microsoft.Win32.OpenFolderDialog { Title = "选择包含视频文件的文件夹" };
+            string? path = null;
+            try { if (dlg.ShowDialog() == true) path = dlg.FolderName; } catch { }
+            if (string.IsNullOrEmpty(path) || !Directory.Exists(path)) { MessageBox.Show("请选择有效文件夹"); return; }
+
+            _mainWindow?.SetStatus("批量获取中...", true);
+            var files = Directory.GetFiles(path, "*.*", SearchOption.AllDirectories).Where(f => VideoExts.Contains(Path.GetExtension(f))).ToList();
+            var addedIds = new List<int>();
+
+            // 阶段1: 快速导入所有文件 (跳过已存在的)
+            var existingPaths = new HashSet<string>((await _movieService.GetAllAsync()).Where(m => m.FilePath != null).Select(m => m.FilePath!));
+            for (int i = 0; i < files.Count; i++)
+            {
+                if (existingPaths.Contains(files[i])) { _mainWindow?.SetStatus("(" + (i + 1) + "/" + files.Count + ") 跳过重复: " + Path.GetFileName(files[i]), true); continue; }
+                _mainWindow?.SetStatus("(" + (i + 1) + "/" + files.Count + ") " + Path.GetFileName(files[i]), true);
+                try
+                {
+                    var (title, year) = new FolderImportService().ParseFileName(files[i]);
+                    var m = await _movieService.AddAsync(new Movie { Title = title, Year = year ?? 0, FilePath = files[i], CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow });
+                    addedIds.Add(m.Id);
+                }
+                catch { }
+            }
+
+            // 刷新列表让用户看到
+            await LoadMoviesAsync();
+
+            // 阶段2: 逐个获取豆瓣信息
+            if (addedIds.Count > 0)
+            {
+                var douban = new DoubanApiClient();
+                var maoyan = new EasyMovie.Tools.MovieApi.MaoyanApiClient();
+                var tmdb = new TmdbApiClient();
+                // 猫眼优先 -> 豆瓣 -> TMDB
+                var api = new MovieApiService(maoyan, tmdb);
+                var done = 0;
+                foreach (var id in addedIds)
+                {
+                    var m = await _movieService.GetByIdAsync(id);
+                    if (m == null || string.IsNullOrWhiteSpace(m.Title)) { done++; continue; }
+                    _mainWindow?.SetStatus("获取信息 (" + (++done) + "/" + addedIds.Count + "): " + m.Title, true);
+                    try
+                    {
+                        var sr = await api.SearchAsync(m.Title, 1, 1);
+                        if (sr.Results.Count > 0)
+                        {
+                            var info = await api.GetDetailAsync(sr.Results[0].ExternalId ?? "", sr.Results[0].Source) ?? sr.Results[0];
+                            if (!string.IsNullOrEmpty(info.Director)) m.Director = info.Director;
+                            if (!string.IsNullOrEmpty(info.Cast)) m.Cast = info.Cast;
+                            if (!string.IsNullOrEmpty(info.Country)) m.Country = info.Country;
+                            if (!string.IsNullOrEmpty(info.Synopsis)) m.Synopsis = info.Synopsis;
+                            if (!string.IsNullOrEmpty(info.PosterUrl))
+                            {
+                                m.PosterUrl = info.PosterUrl;
+                                try
+                                {
+                                    var imgClient = new HttpClient(new HttpClientHandler { AutomaticDecompression = System.Net.DecompressionMethods.All }) { Timeout = TimeSpan.FromSeconds(10) };
+                                    imgClient.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36");
+                                    if (info.PosterUrl.Contains("themoviedb.org") || info.PosterUrl.Contains("tmdb.org"))
+                                        imgClient.DefaultRequestHeaders.Add("Referer", "https://www.themoviedb.org/");
+                                    else if (info.PosterUrl.Contains("douban"))
+                                        imgClient.DefaultRequestHeaders.Add("Referer", "https://movie.douban.com/");
+                                    m.PosterData = await imgClient.GetByteArrayAsync(info.PosterUrl);
+                                }
+                                catch { }
+                            }
+                            if (info.Runtime.HasValue) m.Runtime = info.Runtime;
+                            if (info.Year > 0 && m.Year == 0) m.Year = info.Year;
+                            if (info.Source == "douban") m.DoubanId = info.ExternalId;
+                            else if (info.Source == "tmdb") m.TmdbId = info.ExternalId;
+
+                            if (!string.IsNullOrEmpty(info.Country) && !m.CategoryId.HasValue)
+                            {
+                                var firstCountry = info.Country.Split('/', ' ', '·').FirstOrDefault(c => IsValidCategoryName(c.Trim()))?.Trim();
+                                if (!string.IsNullOrEmpty(firstCountry) && IsValidCategoryName(firstCountry))
+                                {
+                                    try { var category = await _categoryService.GetOrCreateByNameAsync(firstCountry); m.CategoryId = category.Id; } catch { }
+                                }
+                            }
+
+                            await _movieService.UpdateAsync(m);
+                            await LoadMoviesAsync(); // 每部更新后立即刷新列表
+                        }
+                    }
+                    catch { }
+                    await Task.Delay(600);
+                }
+            }
+
+            _mainWindow?.ClearStatus();
+        }
+        catch (Exception ex) { _mainWindow?.ClearStatus(); MessageBox.Show("导入失败: " + ex.Message); }
+    }
+}

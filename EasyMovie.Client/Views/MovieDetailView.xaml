@@ -1,0 +1,78 @@
+﻿<UserControl x:Class="EasyMovie.Client.Views.MovieDetailView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+             mc:Ignorable="d"
+             d:DesignHeight="650" d:DesignWidth="650">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <Grid Margin="24">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <TextBlock Grid.Row="0" Text="{Binding TitleText}" FontSize="24"
+                       FontWeight="Bold" Margin="0,0,0,24" />
+
+            <StackPanel Grid.Row="1">
+                <TextBox x:Name="TitleBox" materialDesign:HintAssist.Hint="片名 *"
+                         Style="{StaticResource MaterialDesignFloatingHintTextBox}" Margin="0,0,0,12" />
+                <TextBox x:Name="OriginalTitleBox" materialDesign:HintAssist.Hint="原始片名"
+                         Style="{StaticResource MaterialDesignFloatingHintTextBox}" Margin="0,0,0,12" />
+                <Grid Margin="0,0,0,12">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="12" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <TextBox x:Name="YearBox" Grid.Column="0" materialDesign:HintAssist.Hint="年份" Style="{StaticResource MaterialDesignFloatingHintTextBox}" />
+                    <TextBox x:Name="RuntimeBox" Grid.Column="2" materialDesign:HintAssist.Hint="片长（分钟）" Style="{StaticResource MaterialDesignFloatingHintTextBox}" />
+                </Grid>
+                <Grid Margin="0,0,0,12">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="12" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <TextBox x:Name="DirectorBox" Grid.Column="0" materialDesign:HintAssist.Hint="导演" Style="{StaticResource MaterialDesignFloatingHintTextBox}" />
+                    <TextBox x:Name="CountryBox" Grid.Column="2" materialDesign:HintAssist.Hint="国家/地区" Style="{StaticResource MaterialDesignFloatingHintTextBox}" />
+                </Grid>
+                <TextBox x:Name="CastBox" materialDesign:HintAssist.Hint="主演（逗号分隔）"
+                         Style="{StaticResource MaterialDesignFloatingHintTextBox}" Margin="0,0,0,12" />
+                <TextBox x:Name="SynopsisBox" materialDesign:HintAssist.Hint="剧情简介"
+                         Style="{StaticResource MaterialDesignFloatingHintTextBox}" TextWrapping="Wrap" AcceptsReturn="True"
+                         MinHeight="60" MaxHeight="100" Margin="0,0,0,12" />
+                <ComboBox x:Name="CategoryCombo" materialDesign:HintAssist.Hint="分类"
+                          Style="{StaticResource MaterialDesignFloatingHintComboBox}" Margin="0,0,0,12" />
+                <Border Background="{DynamicResource MaterialDesignBackground}" CornerRadius="4" Padding="12" Margin="0,0,0,12">
+                    <Grid><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                        <TextBlock Grid.Row="0" Text="🏷️ 标签" FontSize="13" Foreground="{DynamicResource MaterialDesignHintForeground}" Margin="0,0,0,8" />
+                        <WrapPanel x:Name="TagPanel" Grid.Row="1" /></Grid>
+                </Border>
+                <Grid Margin="0,0,0,12">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="12" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <ComboBox x:Name="RatingCombo" Grid.Column="0" materialDesign:HintAssist.Hint="个人评分" Style="{StaticResource MaterialDesignFloatingHintComboBox}" />
+                    <ComboBox x:Name="StatusCombo" Grid.Column="2" materialDesign:HintAssist.Hint="观看状态"
+                              Style="{StaticResource MaterialDesignFloatingHintComboBox}" SelectionChanged="StatusCombo_SelectionChanged">
+                        <ComboBoxItem Content="想看" Tag="WantToWatch" /><ComboBoxItem Content="在看" Tag="Watching" /><ComboBoxItem Content="已看" Tag="Watched" />
+                    </ComboBox>
+                </Grid>
+                <DatePicker x:Name="WatchDatePicker" materialDesign:HintAssist.Hint="观看日期"
+                            Style="{StaticResource MaterialDesignFloatingHintDatePicker}" Margin="0,0,0,12" IsEnabled="False" />
+                <CheckBox x:Name="FavoriteCheck" Content="⭐ 收藏" Style="{StaticResource MaterialDesignCheckBox}" Margin="0,0,0,12" />
+                <TextBox x:Name="FilePathBox" materialDesign:HintAssist.Hint="本地视频文件路径"
+                         Style="{StaticResource MaterialDesignFloatingHintTextBox}" Margin="0,0,0,4" />
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                    <Button Content="浏览..." Style="{StaticResource MaterialDesignFlatButton}" Click="BrowseFile_Click" Margin="0,0,8,0" />
+                    <Button x:Name="PlayFileBtn" Content="▶ 播放" Style="{StaticResource MaterialDesignFlatButton}" Click="PlayFile_Click" />
+                </StackPanel>
+                <TextBox x:Name="NotesBox" materialDesign:HintAssist.Hint="笔记"
+                         Style="{StaticResource MaterialDesignFloatingHintTextBox}" TextWrapping="Wrap" AcceptsReturn="True"
+                         MinHeight="50" MaxHeight="100" Margin="0,0,0,12" />
+            </StackPanel>
+
+            <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+                <Button x:Name="DeleteBtn" Content="删除" Style="{StaticResource MaterialDesignFlatButton}"
+                        Foreground="{DynamicResource MaterialDesignErrorForeground}" Click="DeleteBtn_Click" Margin="0,0,8,0" />
+                <Button Content="取消" Style="{StaticResource MaterialDesignFlatButton}" Click="CancelBtn_Click" Margin="0,0,8,0" />
+                <Button Content="保存" Style="{StaticResource MaterialDesignRaisedButton}" Click="SaveBtn_Click" />
+            </StackPanel>
+        </Grid>
+    </ScrollViewer>
+</UserControl>
