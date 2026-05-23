@@ -1,7 +1,9 @@
-﻿using System;
+using System;
 using System.Globalization;
+using System.IO;
 using System.Windows;
 using System.Windows.Data;
+using System.Windows.Media.Imaging;
 
 namespace EasyMovie.Client.Converters;
 
@@ -79,6 +81,34 @@ public class FilePathIconConverter : IValueConverter
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
     {
         return value is string path && !string.IsNullOrEmpty(path) ? "🎬" : "-";
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
+/// <summary>
+/// byte[] (PosterData) → BitmapImage，null → DependencyProperty.UnsetValue
+/// </summary>
+public class PosterImageConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is byte[] data && data.Length > 0)
+        {
+            try
+            {
+                var image = new BitmapImage();
+                image.BeginInit();
+                image.CacheOption = BitmapCacheOption.OnLoad;
+                image.StreamSource = new MemoryStream(data);
+                image.EndInit();
+                image.Freeze();
+                return image;
+            }
+            catch { }
+        }
+        return DependencyProperty.UnsetValue;
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
