@@ -1,4 +1,4 @@
-﻿using System.Text.RegularExpressions;
+using System.Text.RegularExpressions;
 using EasyMovie.Core.Interfaces;
 using EasyMovie.Core.Models;
 
@@ -64,7 +64,7 @@ public class FolderImportService : IFolderImportService
         result.VideoFiles = files.Count;
 
         // 获取所有已有电影的文件路径用于去重
-        var (existing, _) = await movieService.SearchAsync(null, null, null, null, null, null, null, null, false, 1, int.MaxValue);
+        var (existing, _) = await movieService.SearchAsync(null, null, null, null, null, null, null, null, null, null, null, null, null, null, false, 1, int.MaxValue);
         var existingPaths = existing.Where(m => m.FilePath != null).Select(m => m.FilePath!).ToHashSet();
 
         foreach (var file in files)

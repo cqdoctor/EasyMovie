@@ -96,92 +96,183 @@
         <!-- 搜索 & 筛选栏 -->
         <Border Grid.Row="1"
                 Background="{DynamicResource MaterialDesignCardBackground}"
-                CornerRadius="8" Padding="16" Margin="0,0,0,8">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="140" />
-                    <ColumnDefinition Width="140" />
-                    <ColumnDefinition Width="140" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
+                CornerRadius="8" Padding="16,12,16,8" Margin="0,0,0,4">
+            <StackPanel>
+                <!-- 第一行：搜索 + 基本筛选 + 视图切换 -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="120" />
+                        <ColumnDefinition Width="120" />
+                        <ColumnDefinition Width="120" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
 
-                <!-- 搜索框 -->
-                <TextBox x:Name="SearchBox"
-                         Grid.Column="0"
-                         materialDesign:HintAssist.Hint="搜索片名、导演、演员..."
-                         Style="{StaticResource MaterialDesignFloatingHintTextBox}"
-                         TextChanged="SearchBox_TextChanged"
-                         Margin="0,0,12,0" />
+                    <!-- 搜索框 -->
+                    <TextBox x:Name="SearchBox"
+                             Grid.Column="0"
+                             materialDesign:HintAssist.Hint="搜索片名、导演、演员..."
+                             Style="{StaticResource MaterialDesignFloatingHintTextBox}"
+                             TextChanged="SearchBox_TextChanged"
+                             Margin="0,0,12,0" />
 
-                <!-- 分类筛选 -->
-                <ComboBox x:Name="CategoryFilter"
-                          Grid.Column="1"
-                          materialDesign:HintAssist.Hint="分类"
-                          Style="{StaticResource MaterialDesignFloatingHintComboBox}"
-                          Width="130" Margin="0,0,12,0"
-                          SelectionChanged="Filter_Changed" />
+                    <!-- 分类筛选 -->
+                    <ComboBox x:Name="CategoryFilter"
+                              Grid.Column="1"
+                              materialDesign:HintAssist.Hint="分类"
+                              Style="{StaticResource MaterialDesignFloatingHintComboBox}"
+                              Width="120" Margin="0,0,8,0"
+                              SelectionChanged="Filter_Changed" />
 
-                <!-- 观看状态筛选 -->
-                <ComboBox x:Name="StatusFilter"
-                          Grid.Column="2"
-                          materialDesign:HintAssist.Hint="状态"
-                          Style="{StaticResource MaterialDesignFloatingHintComboBox}"
-                          Width="120" Margin="0,0,12,0"
-                          SelectionChanged="Filter_Changed">
-                    <ComboBoxItem Content="全部" />
-                    <ComboBoxItem Content="想看" Tag="WantToWatch" />
-                    <ComboBoxItem Content="在看" Tag="Watching" />
-                    <ComboBoxItem Content="已看" Tag="Watched" />
-                </ComboBox>
+                    <!-- 观看状态筛选 -->
+                    <ComboBox x:Name="StatusFilter"
+                              Grid.Column="2"
+                              materialDesign:HintAssist.Hint="状态"
+                              Style="{StaticResource MaterialDesignFloatingHintComboBox}"
+                              Width="100" Margin="0,0,8,0"
+                              SelectionChanged="Filter_Changed">
+                        <ComboBoxItem Content="全部" />
+                        <ComboBoxItem Content="想看" Tag="WantToWatch" />
+                        <ComboBoxItem Content="在看" Tag="Watching" />
+                        <ComboBoxItem Content="已看" Tag="Watched" />
+                    </ComboBox>
 
-                <!-- 年份筛选 -->
-                <ComboBox x:Name="YearFilter"
-                          Grid.Column="3"
-                          materialDesign:HintAssist.Hint="年份"
-                          Style="{StaticResource MaterialDesignFloatingHintComboBox}"
-                          Width="120" Margin="0,0,12,0"
-                          SelectionChanged="Filter_Changed" />
+                    <!-- 年份筛选 -->
+                    <ComboBox x:Name="YearFilter"
+                              Grid.Column="3"
+                              materialDesign:HintAssist.Hint="年份"
+                              Style="{StaticResource MaterialDesignFloatingHintComboBox}"
+                              Width="100" Margin="0,0,8,0"
+                              SelectionChanged="Filter_Changed" />
 
-                <!-- 排序 -->
-                <ComboBox x:Name="SortFilter"
-                          Grid.Column="4"
-                          materialDesign:HintAssist.Hint="排序"
-                          Style="{StaticResource MaterialDesignFloatingHintComboBox}"
-                          Width="120" Margin="0,0,12,0"
-                          SelectionChanged="Filter_Changed">
-                    <ComboBoxItem Content="添加时间↓" Tag="createdat_desc" />
-                    <ComboBoxItem Content="添加时间↑" Tag="createdat_asc" />
-                    <ComboBoxItem Content="评分↓" Tag="rating_desc" />
-                    <ComboBoxItem Content="评分↑" Tag="rating_asc" />
-                    <ComboBoxItem Content="年份↓" Tag="year_desc" />
-                    <ComboBoxItem Content="年份↑" Tag="year_asc" />
-                    <ComboBoxItem Content="片名 A-Z" Tag="title_asc" />
-                </ComboBox>
+                    <!-- 排序 -->
+                    <ComboBox x:Name="SortFilter"
+                              Grid.Column="4"
+                              materialDesign:HintAssist.Hint="排序"
+                              Style="{StaticResource MaterialDesignFloatingHintComboBox}"
+                              Width="110" Margin="0,0,8,0"
+                              SelectionChanged="Filter_Changed">
+                        <ComboBoxItem Content="添加时间↓" Tag="createdat_desc" />
+                        <ComboBoxItem Content="添加时间↑" Tag="createdat_asc" />
+                        <ComboBoxItem Content="评分↓" Tag="rating_desc" />
+                        <ComboBoxItem Content="评分↑" Tag="rating_asc" />
+                        <ComboBoxItem Content="年份↓" Tag="year_desc" />
+                        <ComboBoxItem Content="年份↑" Tag="year_asc" />
+                        <ComboBoxItem Content="片名 A-Z" Tag="title_asc" />
+                    </ComboBox>
 
-                <!-- 视图切换 -->
-                <StackPanel Grid.Column="5" Orientation="Horizontal">
-                    <Button x:Name="TableViewBtn"
-                            Style="{StaticResource MaterialDesignIconForegroundButton}"
-                            Click="TableViewBtn_Click"
-                            ToolTip="列表视图">
-                        <materialDesign:PackIcon Kind="ViewList" />
-                    </Button>
-                    <Button x:Name="CardViewBtn"
-                            Style="{StaticResource MaterialDesignIconForegroundButton}"
-                            Click="CardViewBtn_Click"
-                            ToolTip="卡片视图">
-                        <materialDesign:PackIcon Kind="ViewGrid" />
-                    </Button>
-                    <Button x:Name="PosterViewBtn"
-                            Style="{StaticResource MaterialDesignIconForegroundButton}"
-                            Click="PosterViewBtn_Click"
-                            ToolTip="海报墙">
-                        <materialDesign:PackIcon Kind="ImageMultiple" />
-                    </Button>
-                </StackPanel>
-            </Grid>
+                    <!-- 高级筛选展开按钮 -->
+                    <ToggleButton x:Name="AdvancedFilterToggle"
+                                  Grid.Column="5"
+                                  Style="{StaticResource MaterialDesignActionToggleButton}"
+                                  ToolTip="高级筛选"
+                                  Margin="0,0,4,0"
+                                  Checked="AdvancedFilterToggle_Changed"
+                                  Unchecked="AdvancedFilterToggle_Changed">
+                        <materialDesign:PackIcon Kind="FilterVariant" />
+                    </ToggleButton>
+
+                    <!-- 视图切换 -->
+                    <StackPanel Grid.Column="6" Orientation="Horizontal">
+                        <Button x:Name="TableViewBtn"
+                                Style="{StaticResource MaterialDesignIconForegroundButton}"
+                                Click="TableViewBtn_Click"
+                                ToolTip="列表视图">
+                            <materialDesign:PackIcon Kind="ViewList" />
+                        </Button>
+                        <Button x:Name="CardViewBtn"
+                                Style="{StaticResource MaterialDesignIconForegroundButton}"
+                                Click="CardViewBtn_Click"
+                                ToolTip="卡片视图">
+                            <materialDesign:PackIcon Kind="ViewGrid" />
+                        </Button>
+                        <Button x:Name="PosterViewBtn"
+                                Style="{StaticResource MaterialDesignIconForegroundButton}"
+                                Click="PosterViewBtn_Click"
+                                ToolTip="海报墙">
+                            <materialDesign:PackIcon Kind="ImageMultiple" />
+                        </Button>
+                    </StackPanel>
+                </Grid>
+
+                <!-- 高级筛选面板（默认折叠） -->
+                <Expander x:Name="AdvancedFilterPanel"
+                          IsExpanded="False"
+                          Margin="0,8,0,0"
+                          Header="">
+                    <UniformGrid Columns="4" Margin="0,4,0,0">
+                        <!-- 年份范围 -->
+                        <StackPanel Margin="0,0,12,8">
+                            <TextBlock Text="年份范围" FontSize="12" Foreground="{DynamicResource MaterialDesignHintForeground}" Margin="0,0,0,4" />
+                            <StackPanel Orientation="Horizontal">
+                                <TextBox x:Name="YearFromBox" Width="60" materialDesign:HintAssist.Hint="从" Style="{StaticResource MaterialDesignFloatingHintTextBox}" Margin="0,0,4,0" />
+                                <TextBlock Text="-" VerticalAlignment="Center" Margin="0,0,4,0" />
+                                <TextBox x:Name="YearToBox" Width="60" materialDesign:HintAssist.Hint="到" Style="{StaticResource MaterialDesignFloatingHintTextBox}" />
+                            </StackPanel>
+                        </StackPanel>
+
+                        <!-- 评分范围 -->
+                        <StackPanel Margin="0,0,12,8">
+                            <TextBlock Text="评分范围" FontSize="12" Foreground="{DynamicResource MaterialDesignHintForeground}" Margin="0,0,0,4" />
+                            <StackPanel Orientation="Horizontal">
+                                <TextBox x:Name="RatingMinBox" Width="60" materialDesign:HintAssist.Hint="最低" Style="{StaticResource MaterialDesignFloatingHintTextBox}" Margin="0,0,4,0" />
+                                <TextBlock Text="-" VerticalAlignment="Center" Margin="0,0,4,0" />
+                                <TextBox x:Name="RatingMaxBox" Width="60" materialDesign:HintAssist.Hint="最高" Style="{StaticResource MaterialDesignFloatingHintTextBox}" />
+                            </StackPanel>
+                        </StackPanel>
+
+                        <!-- 国家 -->
+                        <StackPanel Margin="0,0,12,8">
+                            <TextBlock Text="国家/地区" FontSize="12" Foreground="{DynamicResource MaterialDesignHintForeground}" Margin="0,0,0,4" />
+                            <ComboBox x:Name="CountryFilter"
+                                      materialDesign:HintAssist.Hint="全部国家"
+                                      Style="{StaticResource MaterialDesignFloatingHintComboBox}"
+                                      Width="140" />
+                        </StackPanel>
+
+                        <!-- 语言 -->
+                        <StackPanel Margin="0,0,12,8">
+                            <TextBlock Text="语言" FontSize="12" Foreground="{DynamicResource MaterialDesignHintForeground}" Margin="0,0,0,4" />
+                            <ComboBox x:Name="LanguageFilter"
+                                      materialDesign:HintAssist.Hint="全部语言"
+                                      Style="{StaticResource MaterialDesignFloatingHintComboBox}"
+                                      Width="140" />
+                        </StackPanel>
+
+                        <!-- 片长范围 -->
+                        <StackPanel Margin="0,0,12,8">
+                            <TextBlock Text="片长(分钟)" FontSize="12" Foreground="{DynamicResource MaterialDesignHintForeground}" Margin="0,0,0,4" />
+                            <StackPanel Orientation="Horizontal">
+                                <TextBox x:Name="RuntimeMinBox" Width="60" materialDesign:HintAssist.Hint="最短" Style="{StaticResource MaterialDesignFloatingHintTextBox}" Margin="0,0,4,0" />
+                                <TextBlock Text="-" VerticalAlignment="Center" Margin="0,0,4,0" />
+                                <TextBox x:Name="RuntimeMaxBox" Width="60" materialDesign:HintAssist.Hint="最长" Style="{StaticResource MaterialDesignFloatingHintTextBox}" />
+                            </StackPanel>
+                        </StackPanel>
+
+                        <!-- 导演 -->
+                        <StackPanel Margin="0,0,12,8">
+                            <TextBlock Text="导演" FontSize="12" Foreground="{DynamicResource MaterialDesignHintForeground}" Margin="0,0,0,4" />
+                            <ComboBox x:Name="DirectorFilter"
+                                      materialDesign:HintAssist.Hint="全部导演"
+                                      Style="{StaticResource MaterialDesignFloatingHintComboBox}"
+                                      Width="140"
+                                      IsEditable="True" />
+                        </StackPanel>
+
+                        <!-- 操作按钮 -->
+                        <StackPanel Margin="0,0,12,8" VerticalAlignment="Bottom" Orientation="Horizontal">
+                            <Button Content="应用筛选" Style="{StaticResource MaterialDesignRaisedButton}"
+                                    Click="ApplyAdvancedFilter_Click" Margin="0,0,8,0" />
+                            <Button Content="重置" Style="{StaticResource MaterialDesignFlatButton}"
+                                    Click="ResetAdvancedFilter_Click" Margin="0,0,8,0" />
+                            <Button Content="保存筛选" Style="{StaticResource MaterialDesignFlatButton}"
+                                    Click="SaveFilter_Click" ToolTip="保存当前筛选条件" />
+                        </StackPanel>
+                    </UniformGrid>
+                </Expander>
+            </StackPanel>
         </Border>
 
         <!-- 电影列表 / 卡片视图 -->

@@ -50,7 +50,7 @@ public partial class MovieListView : UserControl
 
     private async Task LoadDataAsync()
     {
-        try { await RebuildSearchIndexAsync(); await AutoAssignCountryCategoriesAsync(); await LoadCategoriesAsync(); await LoadYearsAsync(); await LoadMoviesAsync(); }
+        try { await RebuildSearchIndexAsync(); await AutoAssignCountryCategoriesAsync(); await LoadCategoriesAsync(); await LoadYearsAsync(); await LoadAdvancedFilterOptionsAsync(); await LoadMoviesAsync(); }
         catch (Exception ex) { MessageBox.Show("加载失败: " + ex.Message); }
     }
 
@@ -136,7 +136,13 @@ public partial class MovieListView : UserControl
         var (keyword, categoryId, status) = GetFilterValues();
         var sortInfo = GetSortInfo();
         var year = GetYearFilter();
-        var (movies, total) = await _movieService.SearchAsync(keyword, categoryId, null, year, year, null, status, sortInfo.sortBy, sortInfo.sortDesc, _currentPage, PageSize);
+        var adv = GetAdvancedFilterValues();
+        var (movies, total) = await _movieService.SearchAsync(
+            keyword, categoryId, null,
+            adv.yearFrom ?? year, adv.yearTo ?? year,
+            adv.ratingMin, adv.ratingMax, status,
+            adv.country, adv.language, adv.runtimeMin, adv.runtimeMax, adv.director,
+            sortInfo.sortBy, sortInfo.sortDesc, _currentPage, PageSize);
         _totalCount = total;
         if (_isCardView) RenderCardView(movies); else if (_isPosterView) PosterWall.ItemsSource = movies; else MovieDataGrid.ItemsSource = movies;
         var totalPages = (int)Math.Ceiling((double)total / PageSize);
@@ -174,6 +180,201 @@ public partial class MovieListView : UserControl
     {
         if (SortFilter.SelectedItem is ComboBoxItem si && si.Tag is string st) { var p = st.Split('_'); if (p.Length == 2) return (p[0], p[1] == "desc"); }
         return ("createdat", true);
+    }
+
+    /// <summary>高级筛选参数</summary>
+    private record AdvancedFilterValues(
+        int? yearFrom, int? yearTo, int? ratingMin, int? ratingMax,
+        string? country, string? language, int? runtimeMin, int? runtimeMax, string? director);
+
+    private AdvancedFilterValues GetAdvancedFilterValues()
+    {
+        int? yearFrom = int.TryParse(YearFromBox?.Text?.Trim(), out var yf) ? yf : null;
+        int? yearTo = int.TryParse(YearToBox?.Text?.Trim(), out var yt) ? yt : null;
+        int? ratingMin = int.TryParse(RatingMinBox?.Text?.Trim(), out var rmin) ? rmin : null;
+        int? ratingMax = int.TryParse(RatingMaxBox?.Text?.Trim(), out var rmax) ? rmax : null;
+        int? runtimeMin = int.TryParse(RuntimeMinBox?.Text?.Trim(), out var rtmin) ? rtmin : null;
+        int? runtimeMax = int.TryParse(RuntimeMaxBox?.Text?.Trim(), out var rtmax) ? rtmax : null;
+
+        string? country = null;
+        if (CountryFilter?.SelectedItem is ComboBoxItem ci && ci.Tag is string c && c != "_all") country = c;
+
+        string? language = null;
+        if (LanguageFilter?.SelectedItem is ComboBoxItem li && li.Tag is string l && l != "_all") language = l;
+
+        string? director = null;
+        if (DirectorFilter?.SelectedItem is ComboBoxItem di && di.Tag is string d && d != "_all") director = d;
+        else if (DirectorFilter?.SelectedItem is ComboBoxItem diAll && diAll.Tag is string da && da == "_all") director = null;
+        else if (!string.IsNullOrWhiteSpace(DirectorFilter?.Text?.Trim())) director = DirectorFilter.Text.Trim();
+
+        return new AdvancedFilterValues(yearFrom, yearTo, ratingMin, ratingMax, country, language, runtimeMin, runtimeMax, director);
+    }
+
+    private async Task LoadAdvancedFilterOptionsAsync()
+    {
+        var allMovies = await _movieService.GetAllAsync();
+
+        // 国家
+        CountryFilter.Items.Clear();
+        CountryFilter.Items.Add(new ComboBoxItem { Content = "全部国家", Tag = "_all" });
+        var countries = allMovies
+            .Where(m => !string.IsNullOrWhiteSpace(m.Country))
+            .SelectMany(m => m.Country!.Split('/', ' ', '·', ','))
+            .Select(c => c.Trim())
+            .Where(c => !string.IsNullOrEmpty(c) && IsValidCategoryName(c))
+            .Distinct()
+            .OrderBy(c => c)
+            .ToList();
+        foreach (var c in countries) CountryFilter.Items.Add(new ComboBoxItem { Content = c, Tag = c });
+        CountryFilter.SelectedIndex = 0;
+
+        // 语言
+        LanguageFilter.Items.Clear();
+        LanguageFilter.Items.Add(new ComboBoxItem { Content = "全部语言", Tag = "_all" });
+        var languages = allMovies
+            .Where(m => !string.IsNullOrWhiteSpace(m.Language))
+            .SelectMany(m => m.Language!.Split('/', ' ', '·', ','))
+            .Select(l => l.Trim())
+            .Where(l => !string.IsNullOrEmpty(l))
+            .Distinct()
+            .OrderBy(l => l)
+            .ToList();
+        foreach (var l in languages) LanguageFilter.Items.Add(new ComboBoxItem { Content = l, Tag = l });
+        LanguageFilter.SelectedIndex = 0;
+
+        // 导演
+        DirectorFilter.Items.Clear();
+        DirectorFilter.Items.Add(new ComboBoxItem { Content = "全部导演", Tag = "_all" });
+        var directors = allMovies
+            .Where(m => !string.IsNullOrWhiteSpace(m.Director))
+            .SelectMany(m => m.Director!.Split('/', ','))
+            .Select(d => d.Trim())
+            .Where(d => !string.IsNullOrEmpty(d))
+            .Distinct()
+            .OrderBy(d => d)
+            .ToList();
+        foreach (var d in directors) DirectorFilter.Items.Add(new ComboBoxItem { Content = d, Tag = d });
+        DirectorFilter.SelectedIndex = 0;
+    }
+
+    private void AdvancedFilterToggle_Changed(object sender, RoutedEventArgs e)
+    {
+        AdvancedFilterPanel.IsExpanded = AdvancedFilterToggle.IsChecked == true;
+    }
+
+    private async void ApplyAdvancedFilter_Click(object sender, RoutedEventArgs e)
+    {
+        _currentPage = 1;
+        await LoadMoviesAsync();
+    }
+
+    private async void ResetAdvancedFilter_Click(object sender, RoutedEventArgs e)
+    {
+        YearFromBox.Text = "";
+        YearToBox.Text = "";
+        RatingMinBox.Text = "";
+        RatingMaxBox.Text = "";
+        RuntimeMinBox.Text = "";
+        RuntimeMaxBox.Text = "";
+        CountryFilter.SelectedIndex = 0;
+        LanguageFilter.SelectedIndex = 0;
+        DirectorFilter.SelectedIndex = 0;
+        _currentPage = 1;
+        await LoadMoviesAsync();
+    }
+
+    private void SaveFilter_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = CreateThemedWindow("保存筛选条件", 350, 160);
+        var panel = new StackPanel { Margin = new Thickness(16) };
+        panel.Children.Add(new TextBlock { Text = "为当前筛选条件命名：", Margin = new Thickness(0, 0, 0, 8) });
+        var nameBox = new TextBox { Style = (Style)Application.Current.FindResource("MaterialDesignFloatingHintTextBox") };
+        MaterialDesignThemes.Wpf.HintAssist.SetHint(nameBox, "筛选名称");
+        panel.Children.Add(nameBox);
+        var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 12, 0, 0) };
+        var cancelBtn = new Button { Content = "取消", Style = (Style)Application.Current.FindResource("MaterialDesignFlatButton"), Margin = new Thickness(0, 0, 8, 0) };
+        cancelBtn.Click += (s, ev) => { dlg.Close(); };
+        var saveBtn = new Button { Content = "保存", Style = (Style)Application.Current.FindResource("MaterialDesignRaisedButton") };
+        saveBtn.Click += (s, ev) =>
+        {
+            var name = nameBox.Text?.Trim();
+            if (string.IsNullOrEmpty(name)) { MessageBox.Show("请输入名称"); return; }
+            var filter = new SavedFilter
+            {
+                Name = name,
+                Keyword = SearchBox.Text?.Trim(),
+                CategoryId = CategoryFilter.SelectedItem is ComboBoxItem ci && ci.Tag is int cid ? cid : (int?)null,
+                Status = StatusFilter.SelectedItem is ComboBoxItem si && si.Tag is string st ? st : null,
+                YearFrom = int.TryParse(YearFromBox.Text?.Trim(), out var yf) ? yf : (int?)null,
+                YearTo = int.TryParse(YearToBox.Text?.Trim(), out var yt) ? yt : (int?)null,
+                RatingMin = int.TryParse(RatingMinBox.Text?.Trim(), out var rmin) ? rmin : (int?)null,
+                RatingMax = int.TryParse(RatingMaxBox.Text?.Trim(), out var rmax) ? rmax : (int?)null,
+                Country = CountryFilter.SelectedItem is ComboBoxItem cci && cci.Tag is string c && c != "_all" ? c : null,
+                Language = LanguageFilter.SelectedItem is ComboBoxItem li && li.Tag is string l && l != "_all" ? l : null,
+                RuntimeMin = int.TryParse(RuntimeMinBox.Text?.Trim(), out var rtmin) ? rtmin : (int?)null,
+                RuntimeMax = int.TryParse(RuntimeMaxBox.Text?.Trim(), out var rtmax) ? rtmax : (int?)null,
+                Director = DirectorFilter.SelectedItem is ComboBoxItem di && di.Tag is string d && d != "_all" ? d : null,
+                SortBy = GetSortInfo().sortBy,
+                SortDesc = GetSortInfo().sortDesc
+            };
+            var filters = SavedFilter.LoadAll();
+            filters.Add(filter);
+            SavedFilter.SaveAll(filters);
+            dlg.Close();
+            MessageBox.Show("筛选条件已保存");
+        };
+        btnPanel.Children.Add(cancelBtn);
+        btnPanel.Children.Add(saveBtn);
+        panel.Children.Add(btnPanel);
+        dlg.Content = panel;
+        dlg.ShowDialog();
+    }
+
+    /// <summary>保存的筛选条件</summary>
+    private class SavedFilter
+    {
+        public string Name { get; set; } = "";
+        public string? Keyword { get; set; }
+        public int? CategoryId { get; set; }
+        public string? Status { get; set; }
+        public int? YearFrom { get; set; }
+        public int? YearTo { get; set; }
+        public int? RatingMin { get; set; }
+        public int? RatingMax { get; set; }
+        public string? Country { get; set; }
+        public string? Language { get; set; }
+        public int? RuntimeMin { get; set; }
+        public int? RuntimeMax { get; set; }
+        public string? Director { get; set; }
+        public string? SortBy { get; set; }
+        public bool SortDesc { get; set; }
+
+        private static readonly string SavePath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "EasyMovie", "saved_filters.json");
+
+        public static List<SavedFilter> LoadAll()
+        {
+            try
+            {
+                if (!File.Exists(SavePath)) return new List<SavedFilter>();
+                var json = File.ReadAllText(SavePath);
+                return System.Text.Json.JsonSerializer.Deserialize<List<SavedFilter>>(json) ?? new List<SavedFilter>();
+            }
+            catch { return new List<SavedFilter>(); }
+        }
+
+        public static void SaveAll(List<SavedFilter> filters)
+        {
+            try
+            {
+                var dir = Path.GetDirectoryName(SavePath);
+                if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
+                var json = System.Text.Json.JsonSerializer.Serialize(filters, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+                File.WriteAllText(SavePath, json);
+            }
+            catch { }
+        }
     }
 
     private void MovieDataGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -524,7 +725,7 @@ public partial class MovieListView : UserControl
         var (keyword, categoryId, status) = GetFilterValues();
         var sortInfo = GetSortInfo();
         var year = GetYearFilter();
-        var (all, _) = await _movieService.SearchAsync(keyword, categoryId, null, year, year, null, status, sortInfo.sortBy, sortInfo.sortDesc, 1, 1000);
+        var (all, _) = await _movieService.SearchAsync(keyword, categoryId, null, year, year, null, null, status, null, null, null, null, null, sortInfo.sortBy, sortInfo.sortDesc, 1, 1000);
         var needFetch = all.Where(m => string.IsNullOrEmpty(m.Director) || !m.CategoryId.HasValue || string.IsNullOrEmpty(m.Country) || string.IsNullOrEmpty(m.PosterUrl)).ToList();
         if (needFetch.Count == 0) { MessageBox.Show("所有电影已有信息"); return; }
 

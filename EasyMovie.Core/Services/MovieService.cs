@@ -1,4 +1,4 @@
-﻿using EasyMovie.Core.Enums;
+using EasyMovie.Core.Enums;
 using EasyMovie.Core.Interfaces;
 using EasyMovie.Core.Models;
 
@@ -30,15 +30,17 @@ public class MovieService : IMovieService
 
     public async Task<(List<Movie> Movies, int TotalCount)> SearchAsync(
         string? keyword, int? categoryId, List<int>? tagIds,
-        int? yearFrom, int? yearTo, int? ratingMin, WatchStatus? status,
+        int? yearFrom, int? yearTo, int? ratingMin, int? ratingMax, WatchStatus? status,
+        string? country, string? language, int? runtimeMin, int? runtimeMax, string? director,
         string? sortBy, bool sortDesc, int page, int pageSize)
     {
         var totalCount = await _movieRepo.CountAsync(keyword, categoryId, tagIds,
-            yearFrom, yearTo, ratingMin, status);
+            yearFrom, yearTo, ratingMin, ratingMax, status, country, language, runtimeMin, runtimeMax, director);
 
         var skip = (page - 1) * pageSize;
         var movies = await _movieRepo.SearchAsync(keyword, categoryId, tagIds,
-            yearFrom, yearTo, ratingMin, status, sortBy, sortDesc, skip, pageSize);
+            yearFrom, yearTo, ratingMin, ratingMax, status, country, language, runtimeMin, runtimeMax, director,
+            sortBy, sortDesc, skip, pageSize);
 
         return (movies, totalCount);
     }
@@ -149,6 +151,6 @@ public class MovieService : IMovieService
 
     public async Task<int> GetTotalCountAsync()
     {
-        return await _movieRepo.CountAsync(null, null, null, null, null, null, null);
+        return await _movieRepo.CountAsync(null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 }

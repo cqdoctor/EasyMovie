@@ -1,4 +1,4 @@
-﻿using EasyMovie.Core.Enums;
+using EasyMovie.Core.Enums;
 using EasyMovie.Core.Models;
 
 namespace EasyMovie.Core.Interfaces;
@@ -12,7 +12,8 @@ public interface IMovieService
     Task<List<Movie>> GetAllAsync();
     Task<(List<Movie> Movies, int TotalCount)> SearchAsync(
         string? keyword, int? categoryId, List<int>? tagIds,
-        int? yearFrom, int? yearTo, int? ratingMin, WatchStatus? status,
+        int? yearFrom, int? yearTo, int? ratingMin, int? ratingMax, WatchStatus? status,
+        string? country, string? language, int? runtimeMin, int? runtimeMax, string? director,
         string? sortBy, bool sortDesc, int page, int pageSize);
     Task<Movie> AddAsync(Movie movie);
     Task<Movie> UpdateAsync(Movie movie);
