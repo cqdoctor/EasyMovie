@@ -58,53 +58,53 @@
 
         <!-- 标题栏 -->
         <Grid Grid.Row="0" Margin="0,0,0,16">
-            <TextBlock Text="🎬 电影库" FontSize="28" FontWeight="Bold"
+            <TextBlock Text="{DynamicResource MovieLib_Title}" FontSize="28" FontWeight="Bold"
                        VerticalAlignment="Center" />
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                 <Button x:Name="RecommendToggleBtn"
                         Style="{StaticResource MaterialDesignFlatButton}"
                         Click="RecommendToggle_Click"
-                        ToolTip="为你推荐"
+                        ToolTip="{DynamicResource Tip_Recommend}"
                         Padding="8,4,8,4"
                         Margin="0,0,6,0">
                     <StackPanel Orientation="Horizontal">
                         <materialDesign:PackIcon Kind="StarShooting" Margin="0,0,4,0" />
-                        <TextBlock Text="推荐" />
+                        <TextBlock Text="{DynamicResource MovieLib_Recommend}" />
                     </StackPanel>
                 </Button>
                 <Button Style="{StaticResource MaterialDesignFlatButton}"
                         Click="FetchAll_Click"
-                        ToolTip="批量获取列表所有电影信息"
+                        ToolTip="{DynamicResource Tip_FetchAll}"
                         Padding="8,4,8,4"
                         Margin="0,0,6,0">
                     <StackPanel Orientation="Horizontal">
                         <materialDesign:PackIcon Kind="CloudDownload" Margin="0,0,4,0" />
-                        <TextBlock Text="全部获取" />
+                        <TextBlock Text="{DynamicResource MovieLib_FetchAll}" />
                     </StackPanel>
                 </Button>
                 <Button Style="{StaticResource MaterialDesignFlatButton}"
                         Click="ImportFolder_Click"
-                        ToolTip="导入视频文件夹，自动获取豆瓣信息"
+                        ToolTip="{DynamicResource Tip_ImportFolder}"
                         Padding="8,4,8,4"
                         Margin="0,0,6,0">
                     <StackPanel Orientation="Horizontal">
                         <materialDesign:PackIcon Kind="FolderOpen" Margin="0,0,4,0" />
-                        <TextBlock Text="导入文件夹" />
+                        <TextBlock Text="{DynamicResource MovieLib_ImportFolder}" />
                     </StackPanel>
                 </Button>
                 <Button Style="{StaticResource MaterialDesignFlatButton}"
                         Click="OnlineSearch_Click"
-                        ToolTip="在线搜索添加 (豆瓣/TMDB)"
+                        ToolTip="{DynamicResource Tip_OnlineSearch}"
                         Padding="8,4,8,4"
                         Margin="0,0,6,0">
                     <StackPanel Orientation="Horizontal">
                         <materialDesign:PackIcon Kind="CloudSearch" Margin="0,0,4,0" />
-                        <TextBlock Text="在线搜索" />
+                        <TextBlock Text="{DynamicResource MovieLib_OnlineSearch}" />
                     </StackPanel>
                 </Button>
                 <Button Style="{StaticResource MaterialDesignIconForegroundButton}"
                         Click="AddMovie_Click"
-                        ToolTip="手动添加电影"
+                        ToolTip="{DynamicResource Tip_AddMovie}"
                         Width="40" Height="40">
                     <materialDesign:PackIcon Kind="PlusCircle" Width="24" Height="24" />
                 </Button>
@@ -130,7 +130,7 @@
                     <!-- 搜索框 -->
                     <TextBox x:Name="SearchBox"
                              Grid.Column="0"
-                             materialDesign:HintAssist.Hint="搜索片名、导演、演员..."
+                             materialDesign:HintAssist.Hint="{DynamicResource MovieLib_SearchHint}"
                              Style="{StaticResource MaterialDesignTextBox}"
                              VerticalAlignment="Bottom"
                              TextChanged="SearchBox_TextChanged"
@@ -139,7 +139,7 @@
                     <!-- 分类筛选 -->
                     <ComboBox x:Name="CategoryFilter"
                               Grid.Column="1"
-                              materialDesign:HintAssist.Hint="分类"
+                              materialDesign:HintAssist.Hint="{DynamicResource MovieLib_Category}"
                               Style="{StaticResource MaterialDesignComboBox}"
                               VerticalAlignment="Bottom"
                               Width="120" Margin="0,0,8,0"
@@ -148,21 +148,21 @@
                     <!-- 观看状态筛选 -->
                     <ComboBox x:Name="StatusFilter"
                               Grid.Column="2"
-                              materialDesign:HintAssist.Hint="状态"
+                              materialDesign:HintAssist.Hint="{DynamicResource MovieLib_Status}"
                               Style="{StaticResource MaterialDesignComboBox}"
                               VerticalAlignment="Bottom"
                               Width="100" Margin="0,0,8,0"
                               SelectionChanged="Filter_Changed">
-                        <ComboBoxItem Content="全部" />
-                        <ComboBoxItem Content="想看" Tag="WantToWatch" />
-                        <ComboBoxItem Content="在看" Tag="Watching" />
-                        <ComboBoxItem Content="已看" Tag="Watched" />
+                        <ComboBoxItem Content="{DynamicResource MovieLib_All}" />
+                        <ComboBoxItem Content="{DynamicResource MovieLib_WantToWatch}" Tag="WantToWatch" />
+                        <ComboBoxItem Content="{DynamicResource MovieLib_Watching}" Tag="Watching" />
+                        <ComboBoxItem Content="{DynamicResource MovieLib_Watched}" Tag="Watched" />
                     </ComboBox>
 
                     <!-- 年份筛选 -->
                     <ComboBox x:Name="YearFilter"
                               Grid.Column="3"
-                              materialDesign:HintAssist.Hint="年份"
+                              materialDesign:HintAssist.Hint="{DynamicResource MovieLib_Year}"
                               Style="{StaticResource MaterialDesignComboBox}"
                               VerticalAlignment="Bottom"
                               Width="100" Margin="0,0,8,0"
@@ -171,18 +171,18 @@
                     <!-- 排序 -->
                     <ComboBox x:Name="SortFilter"
                               Grid.Column="4"
-                              materialDesign:HintAssist.Hint="排序"
+                              materialDesign:HintAssist.Hint="{DynamicResource MovieLib_Sort}"
                               Style="{StaticResource MaterialDesignComboBox}"
                               VerticalAlignment="Bottom"
                               Width="110" Margin="0,0,8,0"
                               SelectionChanged="Filter_Changed">
-                        <ComboBoxItem Content="添加时间↓" Tag="createdat_desc" />
-                        <ComboBoxItem Content="添加时间↑" Tag="createdat_asc" />
-                        <ComboBoxItem Content="评分↓" Tag="rating_desc" />
-                        <ComboBoxItem Content="评分↑" Tag="rating_asc" />
-                        <ComboBoxItem Content="年份↓" Tag="year_desc" />
-                        <ComboBoxItem Content="年份↑" Tag="year_asc" />
-                        <ComboBoxItem Content="片名 A-Z" Tag="title_asc" />
+                        <ComboBoxItem Content="{DynamicResource MovieLib_SortCreatedDesc}" Tag="createdat_desc" />
+                        <ComboBoxItem Content="{DynamicResource MovieLib_SortCreatedAsc}" Tag="createdat_asc" />
+                        <ComboBoxItem Content="{DynamicResource MovieLib_SortRatingDesc}" Tag="rating_desc" />
+                        <ComboBoxItem Content="{DynamicResource MovieLib_SortRatingAsc}" Tag="rating_asc" />
+                        <ComboBoxItem Content="{DynamicResource MovieLib_SortYearDesc}" Tag="year_desc" />
+                        <ComboBoxItem Content="{DynamicResource MovieLib_SortYearAsc}" Tag="year_asc" />
+                        <ComboBoxItem Content="{DynamicResource MovieLib_SortTitleAsc}" Tag="title_asc" />
                     </ComboBox>
 
                     <!-- 视图切换 -->
@@ -190,21 +190,21 @@
                         <Button x:Name="TableViewBtn"
                                 Style="{StaticResource MaterialDesignIconForegroundButton}"
                                 Click="TableViewBtn_Click"
-                                ToolTip="列表视图"
+                                ToolTip="{DynamicResource MovieLib_ListView}"
                                 Margin="0,0,2,0">
                             <materialDesign:PackIcon Kind="ViewList" Width="20" Height="20" />
                         </Button>
                         <Button x:Name="CardViewBtn"
                                 Style="{StaticResource MaterialDesignIconForegroundButton}"
                                 Click="CardViewBtn_Click"
-                                ToolTip="卡片视图"
+                                ToolTip="{DynamicResource MovieLib_CardView}"
                                 Margin="0,0,2,0">
                             <materialDesign:PackIcon Kind="ViewGrid" Width="20" Height="20" />
                         </Button>
                         <Button x:Name="PosterViewBtn"
                                 Style="{StaticResource MaterialDesignIconForegroundButton}"
                                 Click="PosterViewBtn_Click"
-                                ToolTip="海报墙">
+                                ToolTip="{DynamicResource MovieLib_PosterView}">
                             <materialDesign:PackIcon Kind="ImageMultiple" Width="20" Height="20" />
                         </Button>
                     </StackPanel>
@@ -218,36 +218,36 @@
                     <Expander.Header>
                         <StackPanel Orientation="Horizontal">
                             <materialDesign:PackIcon Kind="FilterVariant" Width="14" Height="14" Margin="0,0,4,0" VerticalAlignment="Center" />
-                            <TextBlock Text="高级筛选" FontSize="12" VerticalAlignment="Center" />
+                            <TextBlock Text="{DynamicResource MovieLib_AdvancedFilter}" FontSize="12" VerticalAlignment="Center" />
                         </StackPanel>
                     </Expander.Header>
                     <StackPanel>
                     <UniformGrid Columns="4" Margin="0,0,0,0">
                         <!-- 年份范围 -->
                         <StackPanel Margin="0,0,12,4">
-                            <TextBlock Text="年份范围" FontSize="11" Foreground="{DynamicResource MaterialDesignHintForeground}" Margin="0,0,0,2" />
+                            <TextBlock Text="{DynamicResource MovieLib_YearRange}" FontSize="11" Foreground="{DynamicResource MaterialDesignHintForeground}" Margin="0,0,0,2" />
                             <StackPanel Orientation="Horizontal">
-                                <TextBox x:Name="YearFromBox" Width="55" materialDesign:HintAssist.Hint="从" Style="{StaticResource MaterialDesignTextBox}" FontSize="12" Margin="0,0,4,0" />
+                                <TextBox x:Name="YearFromBox" Width="55" materialDesign:HintAssist.Hint="{DynamicResource MovieLib_From}" Style="{StaticResource MaterialDesignTextBox}" FontSize="12" Margin="0,0,4,0" />
                                 <TextBlock Text="-" VerticalAlignment="Center" Margin="0,0,4,0" FontSize="12" />
-                                <TextBox x:Name="YearToBox" Width="55" materialDesign:HintAssist.Hint="到" Style="{StaticResource MaterialDesignTextBox}" FontSize="12" />
+                                <TextBox x:Name="YearToBox" Width="55" materialDesign:HintAssist.Hint="{DynamicResource MovieLib_To}" Style="{StaticResource MaterialDesignTextBox}" FontSize="12" />
                             </StackPanel>
                         </StackPanel>
 
                         <!-- 评分范围 -->
                         <StackPanel Margin="0,0,12,4">
-                            <TextBlock Text="评分范围" FontSize="11" Foreground="{DynamicResource MaterialDesignHintForeground}" Margin="0,0,0,2" />
+                            <TextBlock Text="{DynamicResource MovieLib_RatingRange}" FontSize="11" Foreground="{DynamicResource MaterialDesignHintForeground}" Margin="0,0,0,2" />
                             <StackPanel Orientation="Horizontal">
-                                <TextBox x:Name="RatingMinBox" Width="55" materialDesign:HintAssist.Hint="最低" Style="{StaticResource MaterialDesignTextBox}" FontSize="12" Margin="0,0,4,0" />
+                                <TextBox x:Name="RatingMinBox" Width="55" materialDesign:HintAssist.Hint="{DynamicResource MovieLib_Min}" Style="{StaticResource MaterialDesignTextBox}" FontSize="12" Margin="0,0,4,0" />
                                 <TextBlock Text="-" VerticalAlignment="Center" Margin="0,0,4,0" FontSize="12" />
-                                <TextBox x:Name="RatingMaxBox" Width="55" materialDesign:HintAssist.Hint="最高" Style="{StaticResource MaterialDesignTextBox}" FontSize="12" />
+                                <TextBox x:Name="RatingMaxBox" Width="55" materialDesign:HintAssist.Hint="{DynamicResource MovieLib_Max}" Style="{StaticResource MaterialDesignTextBox}" FontSize="12" />
                             </StackPanel>
                         </StackPanel>
 
                         <!-- 国家 -->
                         <StackPanel Margin="0,0,12,4">
-                            <TextBlock Text="国家/地区" FontSize="11" Foreground="{DynamicResource MaterialDesignHintForeground}" Margin="0,0,0,2" />
+                            <TextBlock Text="{DynamicResource MovieLib_Country}" FontSize="11" Foreground="{DynamicResource MaterialDesignHintForeground}" Margin="0,0,0,2" />
                             <ComboBox x:Name="CountryFilter"
-                                      materialDesign:HintAssist.Hint="全部国家"
+                                      materialDesign:HintAssist.Hint="{DynamicResource MovieLib_AllCountries}"
                                       Style="{StaticResource MaterialDesignComboBox}"
                                       FontSize="12"
                                       Width="140" />
@@ -255,9 +255,9 @@
 
                         <!-- 语言 -->
                         <StackPanel Margin="0,0,12,4">
-                            <TextBlock Text="语言" FontSize="11" Foreground="{DynamicResource MaterialDesignHintForeground}" Margin="0,0,0,2" />
+                            <TextBlock Text="{DynamicResource MovieLib_Language}" FontSize="11" Foreground="{DynamicResource MaterialDesignHintForeground}" Margin="0,0,0,2" />
                             <ComboBox x:Name="LanguageFilter"
-                                      materialDesign:HintAssist.Hint="全部语言"
+                                      materialDesign:HintAssist.Hint="{DynamicResource MovieLib_AllLanguages}"
                                       Style="{StaticResource MaterialDesignComboBox}"
                                       FontSize="12"
                                       Width="140" />
@@ -265,19 +265,19 @@
 
                         <!-- 片长范围 -->
                         <StackPanel Margin="0,0,12,4">
-                            <TextBlock Text="片长(分钟)" FontSize="11" Foreground="{DynamicResource MaterialDesignHintForeground}" Margin="0,0,0,2" />
+                            <TextBlock Text="{DynamicResource MovieLib_Runtime}" FontSize="11" Foreground="{DynamicResource MaterialDesignHintForeground}" Margin="0,0,0,2" />
                             <StackPanel Orientation="Horizontal">
-                                <TextBox x:Name="RuntimeMinBox" Width="55" materialDesign:HintAssist.Hint="最短" Style="{StaticResource MaterialDesignTextBox}" FontSize="12" Margin="0,0,4,0" />
+                                <TextBox x:Name="RuntimeMinBox" Width="55" materialDesign:HintAssist.Hint="{DynamicResource MovieLib_Shortest}" Style="{StaticResource MaterialDesignTextBox}" FontSize="12" Margin="0,0,4,0" />
                                 <TextBlock Text="-" VerticalAlignment="Center" Margin="0,0,4,0" FontSize="12" />
-                                <TextBox x:Name="RuntimeMaxBox" Width="55" materialDesign:HintAssist.Hint="最长" Style="{StaticResource MaterialDesignTextBox}" FontSize="12" />
+                                <TextBox x:Name="RuntimeMaxBox" Width="55" materialDesign:HintAssist.Hint="{DynamicResource MovieLib_Longest}" Style="{StaticResource MaterialDesignTextBox}" FontSize="12" />
                             </StackPanel>
                         </StackPanel>
 
                         <!-- 导演 -->
                         <StackPanel Margin="0,0,12,4">
-                            <TextBlock Text="导演" FontSize="11" Foreground="{DynamicResource MaterialDesignHintForeground}" Margin="0,0,0,2" />
+                            <TextBlock Text="{DynamicResource MovieLib_Director}" FontSize="11" Foreground="{DynamicResource MaterialDesignHintForeground}" Margin="0,0,0,2" />
                             <ComboBox x:Name="DirectorFilter"
-                                      materialDesign:HintAssist.Hint="全部导演"
+                                      materialDesign:HintAssist.Hint="{DynamicResource MovieLib_AllDirectors}"
                                       Style="{StaticResource MaterialDesignComboBox}"
                                       FontSize="12"
                                       Width="140"
@@ -286,12 +286,12 @@
                     </UniformGrid>
                     <!-- 操作按钮 -->
                     <StackPanel Orientation="Horizontal" Margin="0,6,0,0" HorizontalAlignment="Left">
-                        <Button Content="应用筛选" Style="{StaticResource MaterialDesignRaisedButton}"
+                        <Button Content="{DynamicResource MovieLib_ApplyFilter}" Style="{StaticResource MaterialDesignRaisedButton}"
                                 Click="ApplyAdvancedFilter_Click" Margin="0,0,8,0" />
-                        <Button Content="重置" Style="{StaticResource MaterialDesignOutlinedButton}"
+                        <Button Content="{DynamicResource MovieLib_Reset}" Style="{StaticResource MaterialDesignOutlinedButton}"
                                 Click="ResetAdvancedFilter_Click" Margin="0,0,8,0" />
-                        <Button Content="保存筛选" Style="{StaticResource MaterialDesignOutlinedButton}"
-                                Click="SaveFilter_Click" ToolTip="保存当前筛选条件" />
+                        <Button Content="{DynamicResource MovieLib_SaveFilter}" Style="{StaticResource MaterialDesignOutlinedButton}"
+                                Click="SaveFilter_Click" ToolTip="{DynamicResource Tip_SaveFilter}" />
                     </StackPanel>
                     </StackPanel>
                 </Expander>
@@ -316,12 +316,12 @@
                       SelectionChanged="MovieDataGrid_SelectionChanged"
                       Style="{StaticResource MaterialDesignDataGrid}" GridLinesVisibility="None">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="片名" Binding="{Binding Title}"
+                    <DataGridTextColumn Header="{DynamicResource MovieLib_ColTitle}" Binding="{Binding Title}"
                                         Width="180" ElementStyle="{StaticResource CellTextBlock}" />
-                    <DataGridTextColumn Header="年份" Binding="{Binding Year}" Width="70" ElementStyle="{StaticResource CellTextBlock}" />
-                    <DataGridTextColumn Header="导演" Binding="{Binding Director}" Width="100" ElementStyle="{StaticResource CellTextBlock}" />
-                    <DataGridTextColumn Header="分类" Binding="{Binding Category.Name}" Width="80" ElementStyle="{StaticResource CellTextBlock}" />
-                    <DataGridTemplateColumn Header="评分" Width="100">
+                    <DataGridTextColumn Header="{DynamicResource MovieLib_ColYear}" Binding="{Binding Year}" Width="70" ElementStyle="{StaticResource CellTextBlock}" />
+                    <DataGridTextColumn Header="{DynamicResource MovieLib_ColDirector}" Binding="{Binding Director}" Width="100" ElementStyle="{StaticResource CellTextBlock}" />
+                    <DataGridTextColumn Header="{DynamicResource MovieLib_ColCategory}" Binding="{Binding Category.Name}" Width="80" ElementStyle="{StaticResource CellTextBlock}" />
+                    <DataGridTemplateColumn Header="{DynamicResource MovieLib_ColRating}" Width="100">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <StackPanel Orientation="Horizontal">
@@ -334,7 +334,7 @@
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
-                    <DataGridTemplateColumn Header="状态" Width="90">
+                    <DataGridTemplateColumn Header="{DynamicResource MovieLib_ColStatus}" Width="90">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <TextBlock Text="{Binding WatchStatus, Converter={StaticResource WatchStatusConverter}}"
@@ -342,7 +342,7 @@
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
-                    <DataGridTemplateColumn Header="收藏" Width="60">
+                    <DataGridTemplateColumn Header="{DynamicResource MovieLib_ColFavorite}" Width="60">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <TextBlock Text="{Binding IsFavorite, Converter={StaticResource BoolToStarConverter}}"
@@ -350,7 +350,7 @@
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
-                    <DataGridTemplateColumn Header="文件" Width="40">
+                    <DataGridTemplateColumn Header="{DynamicResource MovieLib_ColFile}" Width="40">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <TextBlock Text="{Binding FilePath, Converter={StaticResource FilePathIconConverter}}"
@@ -358,28 +358,28 @@
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
-                    <DataGridTemplateColumn Header="操作" Width="140">
+                    <DataGridTemplateColumn Header="{DynamicResource MovieLib_ColAction}" Width="140">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <StackPanel Orientation="Horizontal">
                                     <Button Style="{StaticResource MaterialDesignIconForegroundButton}"
                                             Click="PlayMovie_Click" Tag="{Binding Id}"
-                                            ToolTip="播放">
+                                            ToolTip="{DynamicResource Tip_Play}">
                                         <materialDesign:PackIcon Kind="Play" Width="18" Height="18" />
                                     </Button>
                                     <Button Style="{StaticResource MaterialDesignIconForegroundButton}"
                                             Click="FetchInfo_Click" Tag="{Binding Id}"
-                                            ToolTip="获取电影信息">
+                                            ToolTip="{DynamicResource Tip_FetchInfo}">
                                         <materialDesign:PackIcon Kind="CloudDownload" Width="18" Height="18" />
                                     </Button>
                                     <Button Style="{StaticResource MaterialDesignIconForegroundButton}"
                                             Click="EditMovie_Click" Tag="{Binding Id}"
-                                            ToolTip="编辑">
+                                            ToolTip="{DynamicResource Tip_Edit}">
                                         <materialDesign:PackIcon Kind="Edit" Width="18" Height="18" />
                                     </Button>
                                     <Button Style="{StaticResource MaterialDesignIconForegroundButton}"
                                             Click="DeleteMovie_Click" Tag="{Binding Id}"
-                                            ToolTip="删除">
+                                            ToolTip="{DynamicResource Tip_Delete}">
                                         <materialDesign:PackIcon Kind="Delete" Width="18" Height="18" />
                                     </Button>
                                 </StackPanel>
@@ -489,7 +489,7 @@
 
             <!-- 空状态 -->
             <TextBlock x:Name="EmptyLabel"
-                       Text="还没有电影，点击右上角 + 添加第一部吧 🎬"
+                       Text="{DynamicResource MovieLib_Empty}"
                        FontSize="16"
                        Foreground="{DynamicResource MaterialDesignHintForeground}"
                        HorizontalAlignment="Center"
@@ -503,9 +503,9 @@
                 <TextBlock x:Name="PageInfo" VerticalAlignment="Center"
                            Foreground="{DynamicResource MaterialDesignHintForeground}" />
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                    <Button Content="上一页" Style="{StaticResource MaterialDesignFlatButton}"
+                    <Button Content="{DynamicResource MovieLib_PrevPage}" Style="{StaticResource MaterialDesignFlatButton}"
                             x:Name="PrevPageBtn" Click="PrevPage_Click" />
-                    <Button Content="下一页" Style="{StaticResource MaterialDesignFlatButton}"
+                    <Button Content="{DynamicResource MovieLib_NextPage}" Style="{StaticResource MaterialDesignFlatButton}"
                             x:Name="NextPageBtn" Click="NextPage_Click" />
                 </StackPanel>
             </Grid>

@@ -1,4 +1,4 @@
-﻿<UserControl x:Class="EasyMovie.Client.Views.StatisticsView"
+<UserControl x:Class="EasyMovie.Client.Views.StatisticsView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -11,7 +11,7 @@
         <StackPanel Margin="0,0,0,24">
 
             <!-- 标题 -->
-            <TextBlock Text="统计面板" FontSize="28" FontWeight="Bold"
+            <TextBlock Text="{DynamicResource Stats_Title}" FontSize="28" FontWeight="Bold"
                        Margin="0,0,0,20" />
 
             <!-- 概览卡片 -->
@@ -19,7 +19,7 @@
                 <Border Background="{DynamicResource MaterialDesignCardBackground}"
                         CornerRadius="8" Width="150" Padding="16" Margin="0,0,12,12">
                     <StackPanel>
-                        <TextBlock Text="总电影" FontSize="12"
+                        <TextBlock Text="{DynamicResource Stats_TotalMovies}" FontSize="12"
                                    Foreground="{DynamicResource MaterialDesignHintForeground}" />
                         <TextBlock x:Name="TotalMoviesText" Text="0" FontSize="28"
                                    FontWeight="Bold" Foreground="#7C4DFF" />
@@ -28,7 +28,7 @@
                 <Border Background="{DynamicResource MaterialDesignCardBackground}"
                         CornerRadius="8" Width="150" Padding="16" Margin="0,0,12,12">
                     <StackPanel>
-                        <TextBlock Text="已看" FontSize="12"
+                        <TextBlock Text="{DynamicResource Stats_Watched}" FontSize="12"
                                    Foreground="{DynamicResource MaterialDesignHintForeground}" />
                         <TextBlock x:Name="WatchedText" Text="0" FontSize="28"
                                    FontWeight="Bold" Foreground="#4CAF50" />
@@ -37,7 +37,7 @@
                 <Border Background="{DynamicResource MaterialDesignCardBackground}"
                         CornerRadius="8" Width="150" Padding="16" Margin="0,0,12,12">
                     <StackPanel>
-                        <TextBlock Text="想看" FontSize="12"
+                        <TextBlock Text="{DynamicResource Stats_WantWatch}" FontSize="12"
                                    Foreground="{DynamicResource MaterialDesignHintForeground}" />
                         <TextBlock x:Name="WantWatchText" Text="0" FontSize="28"
                                    FontWeight="Bold" Foreground="#FF9800" />
@@ -46,7 +46,7 @@
                 <Border Background="{DynamicResource MaterialDesignCardBackground}"
                         CornerRadius="8" Width="150" Padding="16" Margin="0,0,12,12">
                     <StackPanel>
-                        <TextBlock Text="平均评分" FontSize="12"
+                        <TextBlock Text="{DynamicResource Stats_AvgRating}" FontSize="12"
                                    Foreground="{DynamicResource MaterialDesignHintForeground}" />
                         <TextBlock x:Name="AvgRatingText" Text="0.0" FontSize="28"
                                    FontWeight="Bold" Foreground="#E91E63" />
@@ -55,7 +55,7 @@
                 <Border Background="{DynamicResource MaterialDesignCardBackground}"
                         CornerRadius="8" Width="150" Padding="16" Margin="0,0,0,12">
                     <StackPanel>
-                        <TextBlock Text="收藏" FontSize="12"
+                        <TextBlock Text="{DynamicResource Stats_Favorites}" FontSize="12"
                                    Foreground="{DynamicResource MaterialDesignHintForeground}" />
                         <TextBlock x:Name="FavoritesText" Text="0" FontSize="28"
                                    FontWeight="Bold" Foreground="#FFC107" />
@@ -67,7 +67,7 @@
             <Border Background="{DynamicResource MaterialDesignCardBackground}"
                     CornerRadius="8" Padding="16" Margin="0,0,0,20">
                 <StackPanel>
-                    <TextBlock Text="分类分布" FontSize="16" FontWeight="Bold" Margin="0,0,0,12" />
+                    <TextBlock Text="{DynamicResource Stats_CategoryDist}" FontSize="16" FontWeight="Bold" Margin="0,0,0,12" />
                     <ItemsControl x:Name="CategoryChart">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
@@ -100,7 +100,7 @@
             <Border Background="{DynamicResource MaterialDesignCardBackground}"
                     CornerRadius="8" Padding="16" Margin="0,0,0,20">
                 <StackPanel>
-                    <TextBlock Text="评分分布" FontSize="16" FontWeight="Bold" Margin="0,0,0,12" />
+                    <TextBlock Text="{DynamicResource Stats_RatingDist}" FontSize="16" FontWeight="Bold" Margin="0,0,0,12" />
                     <ItemsControl x:Name="RatingChart">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
@@ -131,7 +131,7 @@
             <Border Background="{DynamicResource MaterialDesignCardBackground}"
                     CornerRadius="8" Padding="16" Margin="0,0,0,20">
                 <StackPanel>
-                    <TextBlock Text="年度趋势" FontSize="16" FontWeight="Bold" Margin="0,0,0,12" />
+                    <TextBlock Text="{DynamicResource Stats_YearlyTrend}" FontSize="16" FontWeight="Bold" Margin="0,0,0,12" />
                     <ItemsControl x:Name="YearlyChart">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
@@ -161,9 +161,9 @@
                     </ItemsControl>
                     <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                         <Border Width="14" Height="14" Background="#7C4DFF" CornerRadius="3" Margin="0,0,6,0" />
-                        <TextBlock Text="总数" FontSize="11" Margin="0,0,16,0" />
+                        <TextBlock Text="{DynamicResource Stats_Total}" FontSize="11" Margin="0,0,16,0" />
                         <Border Width="14" Height="14" Background="#4CAF50" CornerRadius="3" Margin="0,0,6,0" />
-                        <TextBlock Text="已看" FontSize="11" />
+                        <TextBlock Text="{DynamicResource Stats_Watched}" FontSize="11" />
                     </StackPanel>
                 </StackPanel>
             </Border>
@@ -172,7 +172,7 @@
             <Border Background="{DynamicResource MaterialDesignCardBackground}"
                     CornerRadius="8" Padding="16">
                 <StackPanel>
-                    <TextBlock Text="今年月度观影趋势" FontSize="16" FontWeight="Bold" Margin="0,0,0,12" />
+                    <TextBlock Text="{DynamicResource Stats_MonthlyTrend}" FontSize="16" FontWeight="Bold" Margin="0,0,0,12" />
                     <ItemsControl x:Name="MonthlyChart">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>

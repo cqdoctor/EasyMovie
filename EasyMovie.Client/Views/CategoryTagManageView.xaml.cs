@@ -37,7 +37,7 @@ public partial class CategoryTagManageView : UserControl
     private async Task LoadTreeAsync()
     {
         try { CategoryTree.ItemsSource = await _categoryService.GetCategoryTreeAsync(); }
-        catch (Exception ex) { MessageBox.Show($"加载分类树失败: {ex.Message}"); }
+        catch (Exception ex) { MessageBox.Show(LanguageManager.GetString("Msg_LoadCategoryFailed") + ex.Message); }
     }
 
     private async void CategoryTree_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
@@ -47,27 +47,29 @@ public partial class CategoryTagManageView : UserControl
 
     private async Task LoadDetailAsync(Category cat)
     {
-        FormTitle.Text = "编辑分类: " + cat.Name;
+        FormTitle.Text = LanguageManager.GetString("CatTag_EditCategory") + cat.Name;
         CategoryNameBox.Text = cat.Name;
         CategoryDescBox.Text = cat.Description ?? "";
-        ParentInfo.Text = cat.ParentId.HasValue ? "父分类: " + (await _categoryService.GetByIdAsync(cat.ParentId.Value))?.Name : "根分类";
+        ParentInfo.Text = cat.ParentId.HasValue
+            ? LanguageManager.GetString("CatTag_Parent") + (await _categoryService.GetByIdAsync(cat.ParentId.Value))?.Name
+            : LanguageManager.GetString("CatTag_RootCategory");
         var children = await _categoryService.GetChildrenAsync(cat.Id);
         var canDel = await _categoryService.CanDeleteAsync(cat.Id);
-        StatInfo.Text = $"{(children.Any() ? $"{children.Count} 子分类 · " : "")}{(canDel ? "可删除" : "不可删除(有关联)")}";
+        StatInfo.Text = $"{(children.Any() ? $"{children.Count} {LanguageManager.GetString("CatTag_SubCategories")} · " : "")}{(canDel ? LanguageManager.GetString("CatTag_CanDelete") : LanguageManager.GetString("CatTag_CannotDelete"))}";
         DeleteBtn.IsEnabled = canDel;
         DeleteBtn.Visibility = Visibility.Visible;
         AddChildBtn.Visibility = Visibility.Visible;
     }
 
-    private void AddRootCategory_Click(object sender, RoutedEventArgs e) { ClearForm("添加根分类", "新根分类"); }
+    private void AddRootCategory_Click(object sender, RoutedEventArgs e) { ClearForm(LanguageManager.GetString("CatTag_AddRootCategory"), ""); }
 
     private void AddChildBtn_Click(object sender, RoutedEventArgs e)
     {
         if (_selectedCategory == null) return;
         _isAddingChild = true; _addChildParentId = _selectedCategory.Id;
-        FormTitle.Text = "添加子分类 (父: " + _selectedCategory.Name + ")";
+        FormTitle.Text = LanguageManager.GetString("CatTag_AddChildCategory") + " (" + LanguageManager.GetString("CatTag_Parent") + _selectedCategory.Name + ")";
         CategoryNameBox.Text = ""; CategoryDescBox.Text = "";
-        ParentInfo.Text = "父: " + _selectedCategory.Name; StatInfo.Text = "";
+        ParentInfo.Text = LanguageManager.GetString("CatTag_Parent") + _selectedCategory.Name; StatInfo.Text = "";
         DeleteBtn.Visibility = Visibility.Collapsed; AddChildBtn.Visibility = Visibility.Collapsed;
     }
 
@@ -76,21 +78,21 @@ public partial class CategoryTagManageView : UserControl
         try
         {
             var name = CategoryNameBox.Text.Trim();
-            if (string.IsNullOrWhiteSpace(name)) { MessageBox.Show("请输入分类名称"); return; }
+            if (string.IsNullOrWhiteSpace(name)) { MessageBox.Show(LanguageManager.GetString("Msg_EnterName")); return; }
             var desc = string.IsNullOrWhiteSpace(CategoryDescBox.Text) ? null : CategoryDescBox.Text.Trim();
             if (_isAddingChild) await _categoryService.AddAsync(new Category { Name = name, Description = desc, ParentId = _addChildParentId });
             else if (_selectedCategory != null) { _selectedCategory.Name = name; _selectedCategory.Description = desc; await _categoryService.UpdateAsync(_selectedCategory); }
             else await _categoryService.AddAsync(new Category { Name = name, Description = desc });
-            await LoadTreeAsync(); ClearForm("保存成功！", "");
+            await LoadTreeAsync(); ClearForm(LanguageManager.GetString("Msg_Saved"), "");
         }
         catch (Exception ex) { MessageBox.Show(ex.Message); }
     }
 
     private async void DeleteBtn_Click(object sender, RoutedEventArgs e)
     {
-        if (_selectedCategory == null || !await _categoryService.CanDeleteAsync(_selectedCategory.Id)) { MessageBox.Show("无法删除"); return; }
-        if (MessageBox.Show("确定删除？", "确认", MessageBoxButton.YesNo) == MessageBoxResult.Yes)
-        { await _categoryService.DeleteAsync(_selectedCategory.Id); await LoadTreeAsync(); ClearForm("选择分类", ""); }
+        if (_selectedCategory == null || !await _categoryService.CanDeleteAsync(_selectedCategory.Id)) { MessageBox.Show(LanguageManager.GetString("Msg_CannotDelete")); return; }
+        if (MessageBox.Show(LanguageManager.GetString("Msg_ConfirmDelete"), LanguageManager.GetString("Msg_Confirm"), MessageBoxButton.YesNo) == MessageBoxResult.Yes)
+        { await _categoryService.DeleteAsync(_selectedCategory.Id); await LoadTreeAsync(); ClearForm(LanguageManager.GetString("CatTag_SelectOrAdd"), ""); }
     }
 
     private void ClearForm(string title, string parent)
@@ -125,27 +127,27 @@ public partial class CategoryTagManageView : UserControl
 
     private void TagListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (TagListBox.SelectedItem is Tag t) { _selectedTag = t; TagFormTitle.Text = "编辑: " + t.Name; TagNameBox.Text = t.Name; _selectedColor = t.Color ?? "#5C6BC0"; UpdatePreview(); TagDeleteBtn.Visibility = Visibility.Visible; }
+        if (TagListBox.SelectedItem is Tag t) { _selectedTag = t; TagFormTitle.Text = LanguageManager.GetString("CatTag_EditTag") + t.Name; TagNameBox.Text = t.Name; _selectedColor = t.Color ?? "#5C6BC0"; UpdatePreview(); TagDeleteBtn.Visibility = Visibility.Visible; }
     }
 
-    private void AddTag_Click(object sender, RoutedEventArgs e) { _selectedTag = null; TagFormTitle.Text = "添加标签"; TagNameBox.Text = ""; _selectedColor = "#5C6BC0"; UpdatePreview(); TagListBox.SelectedItem = null; TagDeleteBtn.Visibility = Visibility.Collapsed; }
+    private void AddTag_Click(object sender, RoutedEventArgs e) { _selectedTag = null; TagFormTitle.Text = LanguageManager.GetString("CatTag_AddTag"); TagNameBox.Text = ""; _selectedColor = "#5C6BC0"; UpdatePreview(); TagListBox.SelectedItem = null; TagDeleteBtn.Visibility = Visibility.Collapsed; }
 
     private async void SaveTag_Click(object sender, RoutedEventArgs e)
     {
         try
         {
-            var name = TagNameBox.Text.Trim(); if (string.IsNullOrWhiteSpace(name)) { MessageBox.Show("请输入名称"); return; }
+            var name = TagNameBox.Text.Trim(); if (string.IsNullOrWhiteSpace(name)) { MessageBox.Show(LanguageManager.GetString("Msg_EnterName")); return; }
             if (_selectedTag != null) { _selectedTag.Name = name; _selectedTag.Color = _selectedColor; await _tagService.UpdateAsync(_selectedTag); }
             else await _tagService.AddAsync(new Tag { Name = name, Color = _selectedColor });
-            await LoadTagsAsync(); _selectedTag = null; TagFormTitle.Text = "保存成功！"; TagDeleteBtn.Visibility = Visibility.Collapsed;
+            await LoadTagsAsync(); _selectedTag = null; TagFormTitle.Text = LanguageManager.GetString("Msg_Saved"); TagDeleteBtn.Visibility = Visibility.Collapsed;
         }
         catch (Exception ex) { MessageBox.Show(ex.Message); }
     }
 
     private async void DeleteTag_Click(object sender, RoutedEventArgs e)
     {
-        if (_selectedTag == null || MessageBox.Show("确定删除？", "确认", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
-        await _tagService.DeleteAsync(_selectedTag.Id); await LoadTagsAsync(); _selectedTag = null; TagFormTitle.Text = "选择标签"; TagNameBox.Text = ""; TagDeleteBtn.Visibility = Visibility.Collapsed;
+        if (_selectedTag == null || MessageBox.Show(LanguageManager.GetString("Msg_ConfirmDelete"), LanguageManager.GetString("Msg_Confirm"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+        await _tagService.DeleteAsync(_selectedTag.Id); await LoadTagsAsync(); _selectedTag = null; TagFormTitle.Text = LanguageManager.GetString("CatTag_SelectOrAddTag"); TagNameBox.Text = ""; TagDeleteBtn.Visibility = Visibility.Collapsed;
     }
 
     #endregion

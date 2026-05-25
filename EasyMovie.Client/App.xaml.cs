@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Windows;
 using System.Windows.Threading;
 using LiveChartsCore;
@@ -15,6 +15,9 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        // 初始化语言
+        LanguageManager.Initialize();
 
         // 注册 LiveCharts SkiaSharp 渲染器 + 中文字体
         LiveCharts.Configure(config => config

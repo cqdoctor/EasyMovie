@@ -9,20 +9,35 @@
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <Grid Margin="0,0,0,24">
             <StackPanel>
-                <TextBlock Text="⚙️ 系统设置" FontSize="28" FontWeight="Bold" Margin="0,0,0,24" />
+                <TextBlock Text="{DynamicResource Settings_Title}" FontSize="28" FontWeight="Bold" Margin="0,0,0,24" />
 
                 <Border Background="{DynamicResource MaterialDesignCardBackground}" CornerRadius="8" Padding="24" Margin="0,0,0,16">
                     <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                        <TextBlock Grid.Row="0" Text="🎨 主题" FontSize="18" FontWeight="Bold" Margin="0,0,0,16"/>
+                        <TextBlock Grid.Row="0" Text="{DynamicResource Settings_Theme}" FontSize="18" FontWeight="Bold" Margin="0,0,0,16"/>
                         <StackPanel Grid.Row="1" Orientation="Horizontal">
                             <Button x:Name="SystemThemeBtn" Style="{StaticResource MaterialDesignRaisedButton}" Click="SystemTheme_Click" Width="120" Height="80" Margin="0,0,12,0">
-                                <Button.ContentTemplate><DataTemplate><StackPanel><materialDesign:PackIcon Kind="Monitor" Width="24" Height="24"/><TextBlock Text="随系统" Margin="0,4,0,0" HorizontalAlignment="Center"/></StackPanel></DataTemplate></Button.ContentTemplate>
+                                <Button.ContentTemplate><DataTemplate><StackPanel><materialDesign:PackIcon Kind="Monitor" Width="24" Height="24"/><TextBlock Text="{DynamicResource Settings_ThemeSystem}" Margin="0,4,0,0" HorizontalAlignment="Center"/></StackPanel></DataTemplate></Button.ContentTemplate>
                             </Button>
                             <Button x:Name="DarkThemeBtn" Style="{StaticResource MaterialDesignRaisedButton}" Click="DarkTheme_Click" Width="120" Height="80" Margin="0,0,12,0">
-                                <Button.ContentTemplate><DataTemplate><StackPanel><materialDesign:PackIcon Kind="WeatherNight" Width="24" Height="24"/><TextBlock Text="深色" Margin="0,4,0,0" HorizontalAlignment="Center"/></StackPanel></DataTemplate></Button.ContentTemplate>
+                                <Button.ContentTemplate><DataTemplate><StackPanel><materialDesign:PackIcon Kind="WeatherNight" Width="24" Height="24"/><TextBlock Text="{DynamicResource Settings_ThemeDark}" Margin="0,4,0,0" HorizontalAlignment="Center"/></StackPanel></DataTemplate></Button.ContentTemplate>
                             </Button>
                             <Button x:Name="LightThemeBtn" Style="{StaticResource MaterialDesignRaisedButton}" Click="LightTheme_Click" Width="120" Height="80">
-                                <Button.ContentTemplate><DataTemplate><StackPanel><materialDesign:PackIcon Kind="WhiteBalanceSunny" Width="24" Height="24"/><TextBlock Text="浅色" Margin="0,4,0,0" HorizontalAlignment="Center"/></StackPanel></DataTemplate></Button.ContentTemplate>
+                                <Button.ContentTemplate><DataTemplate><StackPanel><materialDesign:PackIcon Kind="WhiteBalanceSunny" Width="24" Height="24"/><TextBlock Text="{DynamicResource Settings_ThemeLight}" Margin="0,4,0,0" HorizontalAlignment="Center"/></StackPanel></DataTemplate></Button.ContentTemplate>
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- 语言设置 -->
+                <Border Background="{DynamicResource MaterialDesignCardBackground}" CornerRadius="8" Padding="24" Margin="0,0,0,16">
+                    <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                        <TextBlock Grid.Row="0" Text="{DynamicResource Settings_Language}" FontSize="18" FontWeight="Bold" Margin="0,0,0,16"/>
+                        <StackPanel Grid.Row="1" Orientation="Horizontal">
+                            <Button x:Name="ZhLangBtn" Style="{StaticResource MaterialDesignRaisedButton}" Click="ZhLang_Click" Width="120" Height="80" Margin="0,0,12,0">
+                                <Button.ContentTemplate><DataTemplate><StackPanel><TextBlock Text="中文" FontSize="20" HorizontalAlignment="Center"/><TextBlock Text="简体中文" FontSize="11" Margin="0,2,0,0" HorizontalAlignment="Center" Foreground="{DynamicResource MaterialDesignHintForeground}"/></StackPanel></DataTemplate></Button.ContentTemplate>
+                            </Button>
+                            <Button x:Name="EnLangBtn" Style="{StaticResource MaterialDesignRaisedButton}" Click="EnLang_Click" Width="120" Height="80">
+                                <Button.ContentTemplate><DataTemplate><StackPanel><TextBlock Text="En" FontSize="20" HorizontalAlignment="Center"/><TextBlock Text="English" FontSize="11" Margin="0,2,0,0" HorizontalAlignment="Center" Foreground="{DynamicResource MaterialDesignHintForeground}"/></StackPanel></DataTemplate></Button.ContentTemplate>
                             </Button>
                         </StackPanel>
                     </Grid>
@@ -31,13 +46,13 @@
                 <!-- TMDB Key -->
                 <Border Background="{DynamicResource MaterialDesignCardBackground}" CornerRadius="8" Padding="24" Margin="0,0,0,16">
                     <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                        <TextBlock Grid.Row="0" Text="🌐 网络设置" FontSize="18" FontWeight="Bold" Margin="0,0,0,12"/>
+                        <TextBlock Grid.Row="0" Text="{DynamicResource Settings_Network}" FontSize="18" FontWeight="Bold" Margin="0,0,0,12"/>
                         <StackPanel Grid.Row="1">
                             <TextBox x:Name="TmdbKeyBox" materialDesign:HintAssist.Hint="TMDB API Key" Style="{StaticResource MaterialDesignFloatingHintTextBox}" Width="350" Margin="0,0,0,8"/>
-                            <TextBox x:Name="ProxyBox" materialDesign:HintAssist.Hint="HTTP 代理 (如 http://127.0.0.1:7890)" Style="{StaticResource MaterialDesignFloatingHintTextBox}" Width="350" Margin="0,0,0,8"/>
-                            <TextBox x:Name="DoubanCookieBox" materialDesign:HintAssist.Hint="豆瓣 Cookie (登录后从F12复制)" Style="{StaticResource MaterialDesignFloatingHintTextBox}" Width="400" Margin="0,0,0,8" TextWrapping="Wrap" MinHeight="50"/>
+                            <TextBox x:Name="ProxyBox" materialDesign:HintAssist.Hint="{DynamicResource Settings_ProxyHint}" Style="{StaticResource MaterialDesignFloatingHintTextBox}" Width="350" Margin="0,0,0,8"/>
+                            <TextBox x:Name="DoubanCookieBox" materialDesign:HintAssist.Hint="{DynamicResource Settings_CookieHint}" Style="{StaticResource MaterialDesignFloatingHintTextBox}" Width="400" Margin="0,0,0,8" TextWrapping="Wrap" MinHeight="50"/>
                             <StackPanel Orientation="Horizontal">
-                                <Button Content="保存" Style="{StaticResource MaterialDesignFlatButton}" Click="SaveNetwork_Click" Margin="0,0,8,0"/>
+                                <Button Content="{DynamicResource Settings_Save}" Style="{StaticResource MaterialDesignFlatButton}" Click="SaveNetwork_Click" Margin="0,0,8,0"/>
                                 <TextBlock Text="TMDB Key: themoviedb.org/settings/api" FontSize="11" Foreground="{DynamicResource MaterialDesignHintForeground}" VerticalAlignment="Center"/>
                             </StackPanel>
                         </StackPanel>
@@ -48,47 +63,47 @@
                 <Border Background="{DynamicResource MaterialDesignCardBackground}" CornerRadius="8" Padding="24" Margin="0,0,0,16">
                     <Grid>
                         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                        <TextBlock Grid.Row="0" Text="📦 导入导出" FontSize="18" FontWeight="Bold" Margin="0,0,0,12"/>
+                        <TextBlock Grid.Row="0" Text="{DynamicResource Settings_ImportExport}" FontSize="18" FontWeight="Bold" Margin="0,0,0,12"/>
                         <StackPanel Grid.Row="1" Margin="0,0,0,12" Orientation="Horizontal">
-                            <TextBox x:Name="FolderPathBox" Width="300" materialDesign:HintAssist.Hint="文件夹路径"
+                            <TextBox x:Name="FolderPathBox" Width="300" materialDesign:HintAssist.Hint="{DynamicResource Settings_FolderPath}"
                                      Style="{StaticResource MaterialDesignFloatingHintTextBox}" Margin="0,0,8,0" />
-                            <Button Content="选择文件夹导入" Style="{StaticResource MaterialDesignRaisedButton}" Click="ImportFolder_Click" Margin="0,0,8,0"/>
-                            <CheckBox x:Name="RecursiveCheck" Content="包含子文件夹" VerticalAlignment="Center"/>
+                            <Button Content="{DynamicResource Settings_ImportFolderBtn}" Style="{StaticResource MaterialDesignRaisedButton}" Click="ImportFolder_Click" Margin="0,0,8,0"/>
+                            <CheckBox x:Name="RecursiveCheck" Content="{DynamicResource Settings_IncludeSubfolders}" VerticalAlignment="Center"/>
                         </StackPanel>
                         <StackPanel Grid.Row="2" Margin="0,0,0,12" Orientation="Horizontal">
-                            <TextBlock Text="导出:" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <TextBlock Text="{DynamicResource Settings_Export}" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0"/>
                             <Button Content="CSV" Style="{StaticResource MaterialDesignRaisedButton}" Click="ExportCsv_Click" Margin="0,0,6,0"/>
                             <Button Content="JSON" Style="{StaticResource MaterialDesignRaisedButton}" Click="ExportJson_Click" Margin="0,0,6,0"/>
-                            <Button Content="全量备份" Style="{StaticResource MaterialDesignRaisedButton}" Click="ExportFullBackup_Click"/>
+                            <Button Content="{DynamicResource Settings_FullBackup}" Style="{StaticResource MaterialDesignRaisedButton}" Click="ExportFullBackup_Click"/>
                         </StackPanel>
                         <StackPanel Grid.Row="3" Margin="0,0,0,12" Orientation="Horizontal">
-                            <TextBlock Text="导入:" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <TextBlock Text="{DynamicResource Settings_Import}" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0"/>
                             <Button Content="CSV" Style="{StaticResource MaterialDesignRaisedButton}" Click="ImportCsv_Click" Margin="0,0,6,0"/>
                             <Button Content="JSON" Style="{StaticResource MaterialDesignRaisedButton}" Click="ImportJson_Click" Margin="0,0,6,0"/>
-                            <Button Content="数据还原" Style="{StaticResource MaterialDesignRaisedButton}" Click="RestoreBackup_Click"/>
+                            <Button Content="{DynamicResource Settings_RestoreData}" Style="{StaticResource MaterialDesignRaisedButton}" Click="RestoreBackup_Click"/>
                         </StackPanel>
                         <StackPanel Grid.Row="4" Orientation="Horizontal">
-                            <TextBlock Text="数据库:" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                            <Button Content="备份数据库" Style="{StaticResource MaterialDesignRaisedButton}" Click="BackupDbFile_Click" Margin="0,0,6,0"/>
-                            <Button Content="还原数据库" Style="{StaticResource MaterialDesignRaisedButton}" Click="RestoreDbFile_Click"/>
+                            <TextBlock Text="{DynamicResource Settings_Database}" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <Button Content="{DynamicResource Settings_BackupDb}" Style="{StaticResource MaterialDesignRaisedButton}" Click="BackupDbFile_Click" Margin="0,0,6,0"/>
+                            <Button Content="{DynamicResource Settings_RestoreDb}" Style="{StaticResource MaterialDesignRaisedButton}" Click="RestoreDbFile_Click"/>
                         </StackPanel>
                     </Grid>
                 </Border>
 
                 <Border Background="{DynamicResource MaterialDesignCardBackground}" CornerRadius="8" Padding="24" Margin="0,0,0,16">
                     <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                        <TextBlock Grid.Row="0" Text="💾 数据" FontSize="18" FontWeight="Bold" Margin="0,0,0,16"/>
+                        <TextBlock Grid.Row="0" Text="{DynamicResource Settings_Data}" FontSize="18" FontWeight="Bold" Margin="0,0,0,16"/>
                         <StackPanel Grid.Row="1"><TextBlock Text="数据库: %LocalAppData%/EasyMovie/" FontSize="13"/></StackPanel>
                     </Grid>
                 </Border>
 
                 <Border Background="{DynamicResource MaterialDesignCardBackground}" CornerRadius="8" Padding="24">
                     <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                        <TextBlock Grid.Row="0" Text="ℹ️ 关于" FontSize="18" FontWeight="Bold" Margin="0,0,0,16"/>
+                        <TextBlock Grid.Row="0" Text="{DynamicResource Settings_About}" FontSize="18" FontWeight="Bold" Margin="0,0,0,16"/>
                         <StackPanel Grid.Row="1">
-                            <TextBlock Text="EasyMovie v1.0" FontSize="14" FontWeight="Bold"/>
+                            <TextBlock Text="EasyMovie v1.01" FontSize="14" FontWeight="Bold"/>
                             <TextBlock Text="WPF + .NET 10 + SQLite" FontSize="13" Foreground="{DynamicResource MaterialDesignHintForeground}"/>
-                            <TextBlock Text="数据源: 豆瓣 / TMDB / 1905 / 猫眼" FontSize="13" Foreground="{DynamicResource MaterialDesignHintForeground}"/>
+                            <TextBlock Text="{DynamicResource Settings_DataSources}" FontSize="13" Foreground="{DynamicResource MaterialDesignHintForeground}"/>
                         </StackPanel>
                     </Grid>
                 </Border>

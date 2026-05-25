@@ -1,0 +1,187 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+    <!-- MainWindow -->
+    <sys:String x:Key="Nav_Movies">电影库</sys:String>
+    <sys:String x:Key="Nav_Categories">分类与标签</sys:String>
+    <sys:String x:Key="Nav_Statistics">统计面板</sys:String>
+    <sys:String x:Key="Nav_Settings">设置</sys:String>
+    <sys:String x:Key="Status_Ready">就绪</sys:String>
+
+    <!-- MovieListView -->
+    <sys:String x:Key="MovieLib_Title">🎬 电影库</sys:String>
+    <sys:String x:Key="MovieLib_Recommend">推荐</sys:String>
+    <sys:String x:Key="MovieLib_FetchAll">全部获取</sys:String>
+    <sys:String x:Key="MovieLib_ImportFolder">导入文件夹</sys:String>
+    <sys:String x:Key="MovieLib_OnlineSearch">在线搜索</sys:String>
+    <sys:String x:Key="MovieLib_SearchHint">搜索片名、导演、演员...</sys:String>
+    <sys:String x:Key="MovieLib_Category">分类</sys:String>
+    <sys:String x:Key="MovieLib_Status">状态</sys:String>
+    <sys:String x:Key="MovieLib_Year">年份</sys:String>
+    <sys:String x:Key="MovieLib_Sort">排序</sys:String>
+    <sys:String x:Key="MovieLib_All">全部</sys:String>
+    <sys:String x:Key="MovieLib_WantToWatch">想看</sys:String>
+    <sys:String x:Key="MovieLib_Watching">在看</sys:String>
+    <sys:String x:Key="MovieLib_Watched">已看</sys:String>
+    <sys:String x:Key="MovieLib_SortCreatedDesc">添加时间↓</sys:String>
+    <sys:String x:Key="MovieLib_SortCreatedAsc">添加时间↑</sys:String>
+    <sys:String x:Key="MovieLib_SortRatingDesc">评分↓</sys:String>
+    <sys:String x:Key="MovieLib_SortRatingAsc">评分↑</sys:String>
+    <sys:String x:Key="MovieLib_SortYearDesc">年份↓</sys:String>
+    <sys:String x:Key="MovieLib_SortYearAsc">年份↑</sys:String>
+    <sys:String x:Key="MovieLib_SortTitleAsc">片名 A-Z</sys:String>
+    <sys:String x:Key="MovieLib_ListView">列表视图</sys:String>
+    <sys:String x:Key="MovieLib_CardView">卡片视图</sys:String>
+    <sys:String x:Key="MovieLib_PosterView">海报墙</sys:String>
+    <sys:String x:Key="MovieLib_AdvancedFilter">高级筛选</sys:String>
+    <sys:String x:Key="MovieLib_YearRange">年份范围</sys:String>
+    <sys:String x:Key="MovieLib_RatingRange">评分范围</sys:String>
+    <sys:String x:Key="MovieLib_Country">国家/地区</sys:String>
+    <sys:String x:Key="MovieLib_Language">语言</sys:String>
+    <sys:String x:Key="MovieLib_Runtime">片长(分钟)</sys:String>
+    <sys:String x:Key="MovieLib_Director">导演</sys:String>
+    <sys:String x:Key="MovieLib_From">从</sys:String>
+    <sys:String x:Key="MovieLib_To">到</sys:String>
+    <sys:String x:Key="MovieLib_Min">最低</sys:String>
+    <sys:String x:Key="MovieLib_Max">最高</sys:String>
+    <sys:String x:Key="MovieLib_Shortest">最短</sys:String>
+    <sys:String x:Key="MovieLib_Longest">最长</sys:String>
+    <sys:String x:Key="MovieLib_AllCountries">全部国家</sys:String>
+    <sys:String x:Key="MovieLib_AllLanguages">全部语言</sys:String>
+    <sys:String x:Key="MovieLib_AllDirectors">全部导演</sys:String>
+    <sys:String x:Key="MovieLib_ApplyFilter">应用筛选</sys:String>
+    <sys:String x:Key="MovieLib_Reset">重置</sys:String>
+    <sys:String x:Key="MovieLib_SaveFilter">保存筛选</sys:String>
+    <sys:String x:Key="MovieLib_ColTitle">片名</sys:String>
+    <sys:String x:Key="MovieLib_ColYear">年份</sys:String>
+    <sys:String x:Key="MovieLib_ColDirector">导演</sys:String>
+    <sys:String x:Key="MovieLib_ColCategory">分类</sys:String>
+    <sys:String x:Key="MovieLib_ColRating">评分</sys:String>
+    <sys:String x:Key="MovieLib_ColStatus">状态</sys:String>
+    <sys:String x:Key="MovieLib_ColFavorite">收藏</sys:String>
+    <sys:String x:Key="MovieLib_ColFile">文件</sys:String>
+    <sys:String x:Key="MovieLib_ColAction">操作</sys:String>
+    <sys:String x:Key="MovieLib_Empty">还没有电影，点击右上角 + 添加第一部吧 🎬</sys:String>
+    <sys:String x:Key="MovieLib_PrevPage">上一页</sys:String>
+    <sys:String x:Key="MovieLib_NextPage">下一页</sys:String>
+    <sys:String x:Key="MovieLib_AllCategories">全部分类</sys:String>
+    <sys:String x:Key="MovieLib_Uncategorized">未分类</sys:String>
+    <sys:String x:Key="MovieLib_AllYears">全部年份</sys:String>
+
+    <!-- ToolTips -->
+    <sys:String x:Key="Tip_Recommend">为你推荐</sys:String>
+    <sys:String x:Key="Tip_FetchAll">批量获取列表所有电影信息</sys:String>
+    <sys:String x:Key="Tip_ImportFolder">导入视频文件夹，自动获取豆瓣信息</sys:String>
+    <sys:String x:Key="Tip_OnlineSearch">在线搜索添加 (豆瓣/TMDB)</sys:String>
+    <sys:String x:Key="Tip_AddMovie">手动添加电影</sys:String>
+    <sys:String x:Key="Tip_Play">播放</sys:String>
+    <sys:String x:Key="Tip_FetchInfo">获取电影信息</sys:String>
+    <sys:String x:Key="Tip_Edit">编辑</sys:String>
+    <sys:String x:Key="Tip_Delete">删除</sys:String>
+    <sys:String x:Key="Tip_SaveFilter">保存当前筛选条件</sys:String>
+
+    <!-- CategoryTagManageView -->
+    <sys:String x:Key="CatTag_Title">📁 分类与标签</sys:String>
+    <sys:String x:Key="CatTag_CategoryTab">分类管理</sys:String>
+    <sys:String x:Key="CatTag_TagTab">标签管理</sys:String>
+    <sys:String x:Key="CatTag_CategoryTree">分类树</sys:String>
+    <sys:String x:Key="CatTag_AddRoot">添加根分类</sys:String>
+    <sys:String x:Key="CatTag_SelectOrAdd">选择一个分类，或添加新分类</sys:String>
+    <sys:String x:Key="CatTag_CategoryName">分类名称 *</sys:String>
+    <sys:String x:Key="CatTag_Description">描述（可选）</sys:String>
+    <sys:String x:Key="CatTag_Delete">删除</sys:String>
+    <sys:String x:Key="CatTag_AddChild">添加子分类</sys:String>
+    <sys:String x:Key="CatTag_Save">保存</sys:String>
+    <sys:String x:Key="CatTag_TagList">标签列表</sys:String>
+    <sys:String x:Key="CatTag_AddTag">添加标签</sys:String>
+    <sys:String x:Key="CatTag_SelectOrAddTag">选择一个标签，或添加新标签</sys:String>
+    <sys:String x:Key="CatTag_TagName">标签名称 *</sys:String>
+    <sys:String x:Key="CatTag_TagColor">标签颜色</sys:String>
+    <sys:String x:Key="CatTag_EditCategory">编辑分类: </sys:String>
+    <sys:String x:Key="CatTag_Parent">父分类: </sys:String>
+    <sys:String x:Key="CatTag_RootCategory">根分类</sys:String>
+    <sys:String x:Key="CatTag_SubCategories">子分类</sys:String>
+    <sys:String x:Key="CatTag_CanDelete">可删除</sys:String>
+    <sys:String x:Key="CatTag_CannotDelete">不可删除(有关联)</sys:String>
+    <sys:String x:Key="CatTag_AddRootCategory">添加根分类</sys:String>
+    <sys:String x:Key="CatTag_AddChildCategory">添加子分类</sys:String>
+    <sys:String x:Key="CatTag_EditTag">编辑: </sys:String>
+
+    <!-- StatisticsView -->
+    <sys:String x:Key="Stats_Title">统计面板</sys:String>
+    <sys:String x:Key="Stats_TotalMovies">总电影</sys:String>
+    <sys:String x:Key="Stats_Watched">已看</sys:String>
+    <sys:String x:Key="Stats_WantWatch">想看</sys:String>
+    <sys:String x:Key="Stats_AvgRating">平均评分</sys:String>
+    <sys:String x:Key="Stats_Favorites">收藏</sys:String>
+    <sys:String x:Key="Stats_CategoryDist">分类分布</sys:String>
+    <sys:String x:Key="Stats_RatingDist">评分分布</sys:String>
+    <sys:String x:Key="Stats_YearlyTrend">年度趋势</sys:String>
+    <sys:String x:Key="Stats_MonthlyTrend">今年月度观影趋势</sys:String>
+    <sys:String x:Key="Stats_Total">总数</sys:String>
+
+    <!-- SettingsView -->
+    <sys:String x:Key="Settings_Title">⚙️ 系统设置</sys:String>
+    <sys:String x:Key="Settings_Theme">🎨 主题</sys:String>
+    <sys:String x:Key="Settings_ThemeSystem">随系统</sys:String>
+    <sys:String x:Key="Settings_ThemeDark">深色</sys:String>
+    <sys:String x:Key="Settings_ThemeLight">浅色</sys:String>
+    <sys:String x:Key="Settings_Language">🌐 语言</sys:String>
+    <sys:String x:Key="Settings_LangZh">中文</sys:String>
+    <sys:String x:Key="Settings_LangEn">English</sys:String>
+    <sys:String x:Key="Settings_Network">🌐 网络设置</sys:String>
+    <sys:String x:Key="Settings_ProxyHint">HTTP 代理 (如 http://127.0.0.1:7890)</sys:String>
+    <sys:String x:Key="Settings_CookieHint">豆瓣 Cookie (登录后从F12复制)</sys:String>
+    <sys:String x:Key="Settings_Save">保存</sys:String>
+    <sys:String x:Key="Settings_ImportExport">📦 导入导出</sys:String>
+    <sys:String x:Key="Settings_FolderPath">文件夹路径</sys:String>
+    <sys:String x:Key="Settings_ImportFolderBtn">选择文件夹导入</sys:String>
+    <sys:String x:Key="Settings_IncludeSubfolders">包含子文件夹</sys:String>
+    <sys:String x:Key="Settings_Export">导出:</sys:String>
+    <sys:String x:Key="Settings_FullBackup">全量备份</sys:String>
+    <sys:String x:Key="Settings_Import">导入:</sys:String>
+    <sys:String x:Key="Settings_RestoreData">数据还原</sys:String>
+    <sys:String x:Key="Settings_Database">数据库:</sys:String>
+    <sys:String x:Key="Settings_BackupDb">备份数据库</sys:String>
+    <sys:String x:Key="Settings_RestoreDb">还原数据库</sys:String>
+    <sys:String x:Key="Settings_Data">💾 数据</sys:String>
+    <sys:String x:Key="Settings_About">ℹ️ 关于</sys:String>
+    <sys:String x:Key="Settings_DataSources">数据源: 豆瓣 / TMDB / 1905 / 猫眼</sys:String>
+
+    <!-- Code-behind strings -->
+    <sys:String x:Key="Msg_NoRecommendData">暂无推荐数据，请先添加一些电影。</sys:String>
+    <sys:String x:Key="Msg_Hint">提示</sys:String>
+    <sys:String x:Key="Msg_PlayFailed">播放失败: </sys:String>
+    <sys:String x:Key="Msg_YearSuffix">年</sys:String>
+    <sys:String x:Key="Msg_MinuteSuffix">分钟</sys:String>
+    <sys:String x:Key="Msg_RecommendTitle">为你推荐</sys:String>
+    <sys:String x:Key="Msg_RecommendHint">基于你的已看/评分/收藏电影推荐</sys:String>
+    <sys:String x:Key="Msg_LoadFailed">加载失败: </sys:String>
+    <sys:String x:Key="Msg_NetworkSaved">网络设置已保存</sys:String>
+    <sys:String x:Key="Msg_ExportDone">导出完成</sys:String>
+    <sys:String x:Key="Msg_BackupDone">备份完成</sys:String>
+    <sys:String x:Key="Msg_ImportCount">导入 {0} 部</sys:String>
+    <sys:String x:Key="Msg_FolderImportResult">导入 {0} 部, 跳过 {1}</sys:String>
+    <sys:String x:Key="Msg_ConfirmOverwrite">覆盖所有数据？</sys:String>
+    <sys:String x:Key="Msg_Confirm">确认</sys:String>
+    <sys:String x:Key="Msg_ConfirmReplaceDb">替换数据库？需重启生效</sys:String>
+    <sys:String x:Key="Msg_RestoreCount">还原 {0} 部</sys:String>
+    <sys:String x:Key="Msg_RestartRequired">还原完成，请重启应用</sys:String>
+    <sys:String x:Key="Msg_SelectFolder">选择包含视频文件的文件夹</sys:String>
+    <sys:String x:Key="Msg_InvalidFolder">请先选择或输入有效的文件夹路径。</sys:String>
+    <sys:String x:Key="Msg_MoviesUnit">部</sys:String>
+    <sys:String x:Key="Msg_PageInfo">共 {0} 部 · 第 {1}/{2} 页</sys:String>
+    <sys:String x:Key="Msg_SaveFilterTitle">保存筛选条件</sys:String>
+    <sys:String x:Key="Msg_FilterName">筛选名称</sys:String>
+    <sys:String x:Key="Msg_LoadCategoryFailed">加载分类树失败: </sys:String>
+    <sys:String x:Key="Msg_EnterName">请输入名称</sys:String>
+    <sys:String x:Key="Msg_Saved">保存成功！</sys:String>
+    <sys:String x:Key="Msg_CannotDelete">无法删除</sys:String>
+    <sys:String x:Key="Msg_ConfirmDelete">确定删除？</sys:String>
+    <sys:String x:Key="Msg_Cancel">取消</sys:String>
+
+    <!-- Watch status display -->
+    <sys:String x:Key="WatchStatus_WantToWatch">📋 想看</sys:String>
+    <sys:String x:Key="WatchStatus_Watching">👀 在看</sys:String>
+    <sys:String x:Key="WatchStatus_Watched">✅ 已看</sys:String>
+</ResourceDictionary>

@@ -2,6 +2,8 @@
 
 一款 Windows 桌面电影收藏管理应用，WPF + Material Design + SQLite，简洁易用。
 
+[English](#-easymovie--manage-your-movie-collection-with-ease) | 中文
+
 ![.NET](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet)
 ![WPF](https://img.shields.io/badge/WPF-Material_Design-68217A)
 ![SQLite](https://img.shields.io/badge/SQLite-EF_Core_9-003B57?logo=sqlite)
@@ -91,6 +93,104 @@ dotnet test EasyMovie.Tests/EasyMovie.Tests.csproj
 | 6 | 多源 API 集成 | ✅ |
 | 7 | 主题/设置/日志/打包 | ✅ |
 | 8 | 项目重命名 EasyMovie | ✅ |
+
+## 📄 License
+
+MIT License
+
+---
+
+# 🎬 EasyMovie — Manage Your Movie Collection with Ease
+
+A Windows desktop movie collection manager built with WPF + Material Design + SQLite. Simple and intuitive.
+
+![.NET](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet)
+![WPF](https://img.shields.io/badge/WPF-Material_Design-68217A)
+![SQLite](https://img.shields.io/badge/SQLite-EF_Core_9-003B57?logo=sqlite)
+![License](https://img.shields.io/badge/License-MIT-green)
+
+## ✨ Features
+
+- 🎬 **Movie Library** — Table/Card dual view, search/filter/sort/pagination
+- 📁 **Categories** — Multi-level category tree with unlimited nesting
+- 🏷️ **Tags** — Custom color tags with many-to-many association
+- ⭐ **Ratings** — 1-10 rating + watch status + notes + favorites
+- 📊 **Statistics** — Pie/Bar/Line charts and more
+- 📦 **Import/Export** — CSV/JSON import/export + full backup & restore
+- 🌐 **Multi-Source Search** — Douban / TMDB / 1905 / Maoyan, one-click movie info
+- 📂 **Folder Import** — Auto-scan local movie files and match info
+- 🌙 **Theme** — Light/Dark/Follow system
+- 🌍 **i18n** — Chinese/English interface switching
+- 🔍 **Pinyin Search** — Quick search by Chinese pinyin initials
+
+## 🛠️ Tech Stack
+
+| Layer | Technology |
+|---|---|
+| UI | WPF + MaterialDesignInXamlToolkit |
+| MVVM | CommunityToolkit.Mvvm |
+| Charts | LiveCharts2 (SkiaSharp) |
+| Database | SQLite + EF Core 9 |
+| CSV | CsvHelper |
+| Logging | Serilog |
+| Testing | xUnit + Moq + FluentAssertions |
+
+## 📁 Project Structure
+
+```
+EasyMovie/
+├── EasyMovie.Client/     # WPF desktop client
+│   ├── Views/            # 8 views
+│   ├── Converters/       # Value converters
+│   └── App.xaml          # Theme & global config
+├── EasyMovie.Core/       # Core business layer
+│   ├── Models/           # Movie, Category, Tag
+│   ├── Interfaces/       # Service interfaces
+│   └── Services/         # Business logic
+├── EasyMovie.Data/       # Data access layer
+│   ├── Repositories/     # Repository implementations
+│   ├── Migrations/       # Database migrations
+│   └── Configurations/   # Fluent API configs
+├── EasyMovie.Tools/      # Tools & APIs
+│   ├── ImportExport/     # Import/export services
+│   └── MovieApi/         # Douban/TMDB/1905/Maoyan clients
+└── EasyMovie.Tests/      # Unit tests
+```
+
+## 🚀 Build & Run
+
+```bash
+# Restore dependencies
+dotnet restore EasyMovie.sln
+
+# Build
+dotnet build EasyMovie.sln
+
+# Run
+dotnet run --project EasyMovie.Client/EasyMovie.Client.csproj
+
+# Run tests
+dotnet test EasyMovie.Tests/EasyMovie.Tests.csproj
+```
+
+### Requirements
+
+- .NET 10 SDK
+- Windows 10/11
+
+## 📋 Development Progress
+
+| Phase | Content | Status |
+|---|---|---|
+| 1 | Project skeleton + Data layer | ✅ |
+| 2 | Movie library UI + Search & filter | ✅ |
+| 3 | Categories/Tags + Rating & favorites | ✅ |
+| 4 | Statistics panel with multiple charts | ✅ |
+| 5 | Import/Export + Backup & restore | ✅ |
+| 6 | Multi-source API integration | ✅ |
+| 7 | Theme/Settings/Logging/Packaging | ✅ |
+| 8 | Project rename to EasyMovie | ✅ |
+| 9 | i18n (Chinese/English) | ✅ |
 
 ## 📄 License
 

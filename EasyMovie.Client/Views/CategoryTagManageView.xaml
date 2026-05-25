@@ -12,11 +12,11 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <TextBlock Grid.Row="0" Text="📁 分类与标签" FontSize="28" FontWeight="Bold" Margin="0,0,0,16" />
+        <TextBlock Grid.Row="0" Text="{DynamicResource CatTag_Title}" FontSize="28" FontWeight="Bold" Margin="0,0,0,16" />
 
         <TabControl Grid.Row="1" Style="{StaticResource MaterialDesignFilledTabControl}">
             <!-- 分类管理 Tab -->
-            <TabItem Header="分类管理">
+            <TabItem Header="{DynamicResource CatTag_CategoryTab}">
                 <Grid Margin="8">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="280" />
@@ -31,9 +31,9 @@
                                 <RowDefinition Height="*" />
                             </Grid.RowDefinitions>
                             <Grid Grid.Row="0" Margin="0,0,0,8">
-                                <TextBlock Text="分类树" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                <TextBlock Text="{DynamicResource CatTag_CategoryTree}" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
                                 <Button Style="{StaticResource MaterialDesignIconForegroundButton}"
-                                        HorizontalAlignment="Right" Click="AddRootCategory_Click" ToolTip="添加根分类">
+                                        HorizontalAlignment="Right" Click="AddRootCategory_Click" ToolTip="{DynamicResource CatTag_AddRoot}">
                                     <materialDesign:PackIcon Kind="FolderPlus" />
                                 </Button>
                             </Grid>
@@ -64,13 +64,13 @@
                                 <RowDefinition Height="*" />
                                 <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
-                            <TextBlock x:Name="FormTitle" Grid.Row="0" Text="选择一个分类，或添加新分类"
+                            <TextBlock x:Name="FormTitle" Grid.Row="0" Text="{DynamicResource CatTag_SelectOrAdd}"
                                        FontSize="18" FontWeight="Bold" Margin="0,0,0,16" />
                             <TextBox x:Name="CategoryNameBox" Grid.Row="1"
-                                     materialDesign:HintAssist.Hint="分类名称 *"
+                                     materialDesign:HintAssist.Hint="{DynamicResource CatTag_CategoryName}"
                                      Style="{StaticResource MaterialDesignFloatingHintTextBox}" Margin="0,0,0,10" />
                             <TextBox x:Name="CategoryDescBox" Grid.Row="2"
-                                     materialDesign:HintAssist.Hint="描述（可选）"
+                                     materialDesign:HintAssist.Hint="{DynamicResource CatTag_Description}"
                                      Style="{StaticResource MaterialDesignFloatingHintTextBox}"
                                      TextWrapping="Wrap" AcceptsReturn="True" MinHeight="50" MaxHeight="80" Margin="0,0,0,10" />
                             <TextBlock x:Name="ParentInfo" Grid.Row="3"
@@ -78,12 +78,12 @@
                             <TextBlock x:Name="StatInfo" Grid.Row="4"
                                        Foreground="{DynamicResource MaterialDesignHintForeground}" FontSize="12" />
                             <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
-                                <Button x:Name="DeleteBtn" Content="删除" Style="{StaticResource MaterialDesignFlatButton}"
+                                <Button x:Name="DeleteBtn" Content="{DynamicResource CatTag_Delete}" Style="{StaticResource MaterialDesignFlatButton}"
                                         Foreground="{DynamicResource MaterialDesignErrorForeground}"
                                         Click="DeleteBtn_Click" Margin="0,0,8,0" />
-                                <Button x:Name="AddChildBtn" Content="添加子分类" Style="{StaticResource MaterialDesignFlatButton}"
+                                <Button x:Name="AddChildBtn" Content="{DynamicResource CatTag_AddChild}" Style="{StaticResource MaterialDesignFlatButton}"
                                         Click="AddChildBtn_Click" Margin="0,0,8,0" />
-                                <Button Content="保存" Style="{StaticResource MaterialDesignRaisedButton}" Click="SaveBtn_Click" />
+                                <Button Content="{DynamicResource CatTag_Save}" Style="{StaticResource MaterialDesignRaisedButton}" Click="SaveBtn_Click" />
                             </StackPanel>
                         </Grid>
                     </Border>
@@ -91,7 +91,7 @@
             </TabItem>
 
             <!-- 标签管理 Tab -->
-            <TabItem Header="标签管理">
+            <TabItem Header="{DynamicResource CatTag_TagTab}">
                 <Grid Margin="8">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
@@ -106,9 +106,9 @@
                                 <RowDefinition Height="*" />
                             </Grid.RowDefinitions>
                             <Grid Grid.Row="0" Margin="0,0,0,8">
-                                <TextBlock Text="标签列表" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                <TextBlock Text="{DynamicResource CatTag_TagList}" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
                                 <Button Style="{StaticResource MaterialDesignIconForegroundButton}"
-                                        HorizontalAlignment="Right" Click="AddTag_Click" ToolTip="添加标签">
+                                        HorizontalAlignment="Right" Click="AddTag_Click" ToolTip="{DynamicResource CatTag_AddTag}">
                                     <materialDesign:PackIcon Kind="TagPlus" />
                                 </Button>
                             </Grid>
@@ -139,21 +139,21 @@
                                 <RowDefinition Height="*" />
                                 <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
-                            <TextBlock x:Name="TagFormTitle" Grid.Row="0" Text="选择一个标签，或添加新标签"
+                            <TextBlock x:Name="TagFormTitle" Grid.Row="0" Text="{DynamicResource CatTag_SelectOrAddTag}"
                                        FontSize="18" FontWeight="Bold" Margin="0,0,0,16" />
                             <TextBox x:Name="TagNameBox" Grid.Row="1"
-                                     materialDesign:HintAssist.Hint="标签名称 *"
+                                     materialDesign:HintAssist.Hint="{DynamicResource CatTag_TagName}"
                                      Style="{StaticResource MaterialDesignFloatingHintTextBox}" Margin="0,0,0,12" />
-                            <TextBlock Grid.Row="2" Text="标签颜色" FontSize="12"
+                            <TextBlock Grid.Row="2" Text="{DynamicResource CatTag_TagColor}" FontSize="12"
                                        Foreground="{DynamicResource MaterialDesignHintForeground}" Margin="0,0,0,6" />
                             <StackPanel Grid.Row="3" Orientation="Horizontal" x:Name="ColorPicker" Margin="0,0,0,10" />
                             <Border x:Name="ColorPreview" Grid.Row="4" Width="60" Height="60" CornerRadius="8"
                                     Background="Gray" HorizontalAlignment="Left" VerticalAlignment="Top" />
                             <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
-                                <Button x:Name="TagDeleteBtn" Content="删除" Style="{StaticResource MaterialDesignFlatButton}"
+                                <Button x:Name="TagDeleteBtn" Content="{DynamicResource CatTag_Delete}" Style="{StaticResource MaterialDesignFlatButton}"
                                         Foreground="{DynamicResource MaterialDesignErrorForeground}"
                                         Click="DeleteTag_Click" Margin="0,0,8,0" />
-                                <Button Content="保存" Style="{StaticResource MaterialDesignRaisedButton}" Click="SaveTag_Click" />
+                                <Button Content="{DynamicResource CatTag_Save}" Style="{StaticResource MaterialDesignRaisedButton}" Click="SaveTag_Click" />
                             </StackPanel>
                         </Grid>
                     </Border>

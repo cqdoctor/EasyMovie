@@ -1,0 +1,187 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+    <!-- MainWindow -->
+    <sys:String x:Key="Nav_Movies">Movie Library</sys:String>
+    <sys:String x:Key="Nav_Categories">Categories &amp; Tags</sys:String>
+    <sys:String x:Key="Nav_Statistics">Statistics</sys:String>
+    <sys:String x:Key="Nav_Settings">Settings</sys:String>
+    <sys:String x:Key="Status_Ready">Ready</sys:String>
+
+    <!-- MovieListView -->
+    <sys:String x:Key="MovieLib_Title">🎬 Movie Library</sys:String>
+    <sys:String x:Key="MovieLib_Recommend">Recommend</sys:String>
+    <sys:String x:Key="MovieLib_FetchAll">Fetch All</sys:String>
+    <sys:String x:Key="MovieLib_ImportFolder">Import Folder</sys:String>
+    <sys:String x:Key="MovieLib_OnlineSearch">Online Search</sys:String>
+    <sys:String x:Key="MovieLib_SearchHint">Search title, director, cast...</sys:String>
+    <sys:String x:Key="MovieLib_Category">Category</sys:String>
+    <sys:String x:Key="MovieLib_Status">Status</sys:String>
+    <sys:String x:Key="MovieLib_Year">Year</sys:String>
+    <sys:String x:Key="MovieLib_Sort">Sort</sys:String>
+    <sys:String x:Key="MovieLib_All">All</sys:String>
+    <sys:String x:Key="MovieLib_WantToWatch">Want to Watch</sys:String>
+    <sys:String x:Key="MovieLib_Watching">Watching</sys:String>
+    <sys:String x:Key="MovieLib_Watched">Watched</sys:String>
+    <sys:String x:Key="MovieLib_SortCreatedDesc">Date Added↓</sys:String>
+    <sys:String x:Key="MovieLib_SortCreatedAsc">Date Added↑</sys:String>
+    <sys:String x:Key="MovieLib_SortRatingDesc">Rating↓</sys:String>
+    <sys:String x:Key="MovieLib_SortRatingAsc">Rating↑</sys:String>
+    <sys:String x:Key="MovieLib_SortYearDesc">Year↓</sys:String>
+    <sys:String x:Key="MovieLib_SortYearAsc">Year↑</sys:String>
+    <sys:String x:Key="MovieLib_SortTitleAsc">Title A-Z</sys:String>
+    <sys:String x:Key="MovieLib_ListView">List View</sys:String>
+    <sys:String x:Key="MovieLib_CardView">Card View</sys:String>
+    <sys:String x:Key="MovieLib_PosterView">Poster Wall</sys:String>
+    <sys:String x:Key="MovieLib_AdvancedFilter">Advanced Filter</sys:String>
+    <sys:String x:Key="MovieLib_YearRange">Year Range</sys:String>
+    <sys:String x:Key="MovieLib_RatingRange">Rating Range</sys:String>
+    <sys:String x:Key="MovieLib_Country">Country/Region</sys:String>
+    <sys:String x:Key="MovieLib_Language">Language</sys:String>
+    <sys:String x:Key="MovieLib_Runtime">Runtime (min)</sys:String>
+    <sys:String x:Key="MovieLib_Director">Director</sys:String>
+    <sys:String x:Key="MovieLib_From">From</sys:String>
+    <sys:String x:Key="MovieLib_To">To</sys:String>
+    <sys:String x:Key="MovieLib_Min">Min</sys:String>
+    <sys:String x:Key="MovieLib_Max">Max</sys:String>
+    <sys:String x:Key="MovieLib_Shortest">Min</sys:String>
+    <sys:String x:Key="MovieLib_Longest">Max</sys:String>
+    <sys:String x:Key="MovieLib_AllCountries">All Countries</sys:String>
+    <sys:String x:Key="MovieLib_AllLanguages">All Languages</sys:String>
+    <sys:String x:Key="MovieLib_AllDirectors">All Directors</sys:String>
+    <sys:String x:Key="MovieLib_ApplyFilter">Apply Filter</sys:String>
+    <sys:String x:Key="MovieLib_Reset">Reset</sys:String>
+    <sys:String x:Key="MovieLib_SaveFilter">Save Filter</sys:String>
+    <sys:String x:Key="MovieLib_ColTitle">Title</sys:String>
+    <sys:String x:Key="MovieLib_ColYear">Year</sys:String>
+    <sys:String x:Key="MovieLib_ColDirector">Director</sys:String>
+    <sys:String x:Key="MovieLib_ColCategory">Category</sys:String>
+    <sys:String x:Key="MovieLib_ColRating">Rating</sys:String>
+    <sys:String x:Key="MovieLib_ColStatus">Status</sys:String>
+    <sys:String x:Key="MovieLib_ColFavorite">Fav</sys:String>
+    <sys:String x:Key="MovieLib_ColFile">File</sys:String>
+    <sys:String x:Key="MovieLib_ColAction">Actions</sys:String>
+    <sys:String x:Key="MovieLib_Empty">No movies yet. Click + to add your first one 🎬</sys:String>
+    <sys:String x:Key="MovieLib_PrevPage">Previous</sys:String>
+    <sys:String x:Key="MovieLib_NextPage">Next</sys:String>
+    <sys:String x:Key="MovieLib_AllCategories">All Categories</sys:String>
+    <sys:String x:Key="MovieLib_Uncategorized">Uncategorized</sys:String>
+    <sys:String x:Key="MovieLib_AllYears">All Years</sys:String>
+
+    <!-- ToolTips -->
+    <sys:String x:Key="Tip_Recommend">Recommendations for you</sys:String>
+    <sys:String x:Key="Tip_FetchAll">Batch fetch info for all movies</sys:String>
+    <sys:String x:Key="Tip_ImportFolder">Import video folder, auto fetch Douban info</sys:String>
+    <sys:String x:Key="Tip_OnlineSearch">Online search (Douban/TMDB)</sys:String>
+    <sys:String x:Key="Tip_AddMovie">Add movie manually</sys:String>
+    <sys:String x:Key="Tip_Play">Play</sys:String>
+    <sys:String x:Key="Tip_FetchInfo">Fetch movie info</sys:String>
+    <sys:String x:Key="Tip_Edit">Edit</sys:String>
+    <sys:String x:Key="Tip_Delete">Delete</sys:String>
+    <sys:String x:Key="Tip_SaveFilter">Save current filter conditions</sys:String>
+
+    <!-- CategoryTagManageView -->
+    <sys:String x:Key="CatTag_Title">📁 Categories &amp; Tags</sys:String>
+    <sys:String x:Key="CatTag_CategoryTab">Categories</sys:String>
+    <sys:String x:Key="CatTag_TagTab">Tags</sys:String>
+    <sys:String x:Key="CatTag_CategoryTree">Category Tree</sys:String>
+    <sys:String x:Key="CatTag_AddRoot">Add Root Category</sys:String>
+    <sys:String x:Key="CatTag_SelectOrAdd">Select a category or add new one</sys:String>
+    <sys:String x:Key="CatTag_CategoryName">Category Name *</sys:String>
+    <sys:String x:Key="CatTag_Description">Description (optional)</sys:String>
+    <sys:String x:Key="CatTag_Delete">Delete</sys:String>
+    <sys:String x:Key="CatTag_AddChild">Add Subcategory</sys:String>
+    <sys:String x:Key="CatTag_Save">Save</sys:String>
+    <sys:String x:Key="CatTag_TagList">Tag List</sys:String>
+    <sys:String x:Key="CatTag_AddTag">Add Tag</sys:String>
+    <sys:String x:Key="CatTag_SelectOrAddTag">Select a tag or add new one</sys:String>
+    <sys:String x:Key="CatTag_TagName">Tag Name *</sys:String>
+    <sys:String x:Key="CatTag_TagColor">Tag Color</sys:String>
+    <sys:String x:Key="CatTag_EditCategory">Edit Category: </sys:String>
+    <sys:String x:Key="CatTag_Parent">Parent: </sys:String>
+    <sys:String x:Key="CatTag_RootCategory">Root</sys:String>
+    <sys:String x:Key="CatTag_SubCategories">subcategories</sys:String>
+    <sys:String x:Key="CatTag_CanDelete">Deletable</sys:String>
+    <sys:String x:Key="CatTag_CannotDelete">Not deletable (has associations)</sys:String>
+    <sys:String x:Key="CatTag_AddRootCategory">Add Root Category</sys:String>
+    <sys:String x:Key="CatTag_AddChildCategory">Add Subcategory</sys:String>
+    <sys:String x:Key="CatTag_EditTag">Edit: </sys:String>
+
+    <!-- StatisticsView -->
+    <sys:String x:Key="Stats_Title">Statistics</sys:String>
+    <sys:String x:Key="Stats_TotalMovies">Total Movies</sys:String>
+    <sys:String x:Key="Stats_Watched">Watched</sys:String>
+    <sys:String x:Key="Stats_WantWatch">Want to Watch</sys:String>
+    <sys:String x:Key="Stats_AvgRating">Avg Rating</sys:String>
+    <sys:String x:Key="Stats_Favorites">Favorites</sys:String>
+    <sys:String x:Key="Stats_CategoryDist">Category Distribution</sys:String>
+    <sys:String x:Key="Stats_RatingDist">Rating Distribution</sys:String>
+    <sys:String x:Key="Stats_YearlyTrend">Yearly Trend</sys:String>
+    <sys:String x:Key="Stats_MonthlyTrend">Monthly Viewing Trend</sys:String>
+    <sys:String x:Key="Stats_Total">Total</sys:String>
+
+    <!-- SettingsView -->
+    <sys:String x:Key="Settings_Title">⚙️ Settings</sys:String>
+    <sys:String x:Key="Settings_Theme">🎨 Theme</sys:String>
+    <sys:String x:Key="Settings_ThemeSystem">System</sys:String>
+    <sys:String x:Key="Settings_ThemeDark">Dark</sys:String>
+    <sys:String x:Key="Settings_ThemeLight">Light</sys:String>
+    <sys:String x:Key="Settings_Language">🌐 Language</sys:String>
+    <sys:String x:Key="Settings_LangZh">中文</sys:String>
+    <sys:String x:Key="Settings_LangEn">English</sys:String>
+    <sys:String x:Key="Settings_Network">🌐 Network</sys:String>
+    <sys:String x:Key="Settings_ProxyHint">HTTP Proxy (e.g. http://127.0.0.1:7890)</sys:String>
+    <sys:String x:Key="Settings_CookieHint">Douban Cookie (copy from F12 after login)</sys:String>
+    <sys:String x:Key="Settings_Save">Save</sys:String>
+    <sys:String x:Key="Settings_ImportExport">📦 Import / Export</sys:String>
+    <sys:String x:Key="Settings_FolderPath">Folder Path</sys:String>
+    <sys:String x:Key="Settings_ImportFolderBtn">Import Folder</sys:String>
+    <sys:String x:Key="Settings_IncludeSubfolders">Include subfolders</sys:String>
+    <sys:String x:Key="Settings_Export">Export:</sys:String>
+    <sys:String x:Key="Settings_FullBackup">Full Backup</sys:String>
+    <sys:String x:Key="Settings_Import">Import:</sys:String>
+    <sys:String x:Key="Settings_RestoreData">Restore Data</sys:String>
+    <sys:String x:Key="Settings_Database">Database:</sys:String>
+    <sys:String x:Key="Settings_BackupDb">Backup Database</sys:String>
+    <sys:String x:Key="Settings_RestoreDb">Restore Database</sys:String>
+    <sys:String x:Key="Settings_Data">💾 Data</sys:String>
+    <sys:String x:Key="Settings_About">ℹ️ About</sys:String>
+    <sys:String x:Key="Settings_DataSources">Data sources: Douban / TMDB / 1905 / Maoyan</sys:String>
+
+    <!-- Code-behind strings -->
+    <sys:String x:Key="Msg_NoRecommendData">No recommendations yet. Please add some movies first.</sys:String>
+    <sys:String x:Key="Msg_Hint">Hint</sys:String>
+    <sys:String x:Key="Msg_PlayFailed">Playback failed: </sys:String>
+    <sys:String x:Key="Msg_YearSuffix"> </sys:String>
+    <sys:String x:Key="Msg_MinuteSuffix">min</sys:String>
+    <sys:String x:Key="Msg_RecommendTitle">For You</sys:String>
+    <sys:String x:Key="Msg_RecommendHint">Based on your watched/rated/favorited movies</sys:String>
+    <sys:String x:Key="Msg_LoadFailed">Load failed: </sys:String>
+    <sys:String x:Key="Msg_NetworkSaved">Network settings saved</sys:String>
+    <sys:String x:Key="Msg_ExportDone">Export completed</sys:String>
+    <sys:String x:Key="Msg_BackupDone">Backup completed</sys:String>
+    <sys:String x:Key="Msg_ImportCount">Imported {0} movies</sys:String>
+    <sys:String x:Key="Msg_FolderImportResult">Imported {0}, skipped {1}</sys:String>
+    <sys:String x:Key="Msg_ConfirmOverwrite">Overwrite all data?</sys:String>
+    <sys:String x:Key="Msg_Confirm">Confirm</sys:String>
+    <sys:String x:Key="Msg_ConfirmReplaceDb">Replace database? Restart required.</sys:String>
+    <sys:String x:Key="Msg_RestoreCount">Restored {0} movies</sys:String>
+    <sys:String x:Key="Msg_RestartRequired">Restore completed. Please restart the app.</sys:String>
+    <sys:String x:Key="Msg_SelectFolder">Select folder containing video files</sys:String>
+    <sys:String x:Key="Msg_InvalidFolder">Please select or enter a valid folder path.</sys:String>
+    <sys:String x:Key="Msg_MoviesUnit">movies</sys:String>
+    <sys:String x:Key="Msg_PageInfo">{0} movies · Page {1}/{2}</sys:String>
+    <sys:String x:Key="Msg_SaveFilterTitle">Save Filter</sys:String>
+    <sys:String x:Key="Msg_FilterName">Filter Name</sys:String>
+    <sys:String x:Key="Msg_LoadCategoryFailed">Load category tree failed: </sys:String>
+    <sys:String x:Key="Msg_EnterName">Please enter a name</sys:String>
+    <sys:String x:Key="Msg_Saved">Saved!</sys:String>
+    <sys:String x:Key="Msg_CannotDelete">Cannot delete</sys:String>
+    <sys:String x:Key="Msg_ConfirmDelete">Are you sure you want to delete?</sys:String>
+    <sys:String x:Key="Msg_Cancel">Cancel</sys:String>
+
+    <!-- Watch status display -->
+    <sys:String x:Key="WatchStatus_WantToWatch">📋 Want to Watch</sys:String>
+    <sys:String x:Key="WatchStatus_Watching">👀 Watching</sys:String>
+    <sys:String x:Key="WatchStatus_Watched">✅ Watched</sys:String>
+</ResourceDictionary>

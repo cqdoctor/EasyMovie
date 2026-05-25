@@ -12,6 +12,8 @@
                                              PrimaryColor="DeepPurple"
                                              SecondaryColor="Lime" />
                 <ResourceDictionary Source="pack://application:,,,/MaterialDesignThemes.Wpf;component/Themes/MaterialDesign3.Defaults.xaml" />
+                <!-- 默认语言 (zh-CN)，运行时由 LanguageManager 动态替换 -->
+                <ResourceDictionary Source="Strings/Strings.zh-CN.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
             <!-- 值转换器 -->

@@ -63,7 +63,7 @@ public partial class StatisticsView : UserControl
                 var count = d.RatingStats.FirstOrDefault(s => s.Rating == r)?.Count ?? 0;
                 return new RatingBarItem
                 {
-                    Label = r + "分",
+                    Label = r + LanguageManager.GetString("Msg_MoviesUnit"),
                     Count = count,
                     BarWidth = Math.Max(2, (double)count / Math.Max(d.RatingStats.Max(s => (int?)s.Count) ?? 1, 1) * MaxBarWidth)
                 };
@@ -111,10 +111,10 @@ public class BarItem : INotifyPropertyChanged
     private string _color = "#7C4DFF";
 
     public string Name { get => _name; set { _name = value; OnPropertyChanged(); } }
-    public int Count { get => _count; set { _count = value; OnPropertyChanged(); CountText = value + "部"; } }
+    public int Count { get => _count; set { _count = value; OnPropertyChanged(); CountText = value + LanguageManager.GetString("Msg_MoviesUnit"); } }
     public double BarWidth { get => _barWidth; set { _barWidth = value; OnPropertyChanged(); } }
     public string Color { get => _color; set { _color = value; OnPropertyChanged(); } }
-    public string CountText { get; private set; } = "0部";
+    public string CountText { get; private set; } = "0" + LanguageManager.GetString("Msg_MoviesUnit");
 
     public event PropertyChangedEventHandler? PropertyChanged;
     private void OnPropertyChanged([CallerMemberName] string? n = null) =>
@@ -128,9 +128,9 @@ public class RatingBarItem : INotifyPropertyChanged
     private double _barWidth;
 
     public string Label { get => _label; set { _label = value; OnPropertyChanged(); } }
-    public int Count { get => _count; set { _count = value; OnPropertyChanged(); CountText = value + "部"; } }
+    public int Count { get => _count; set { _count = value; OnPropertyChanged(); CountText = value + LanguageManager.GetString("Msg_MoviesUnit"); } }
     public double BarWidth { get => _barWidth; set { _barWidth = value; OnPropertyChanged(); } }
-    public string CountText { get; private set; } = "0部";
+    public string CountText { get; private set; } = "0" + LanguageManager.GetString("Msg_MoviesUnit");
 
     public event PropertyChangedEventHandler? PropertyChanged;
     private void OnPropertyChanged([CallerMemberName] string? n = null) =>

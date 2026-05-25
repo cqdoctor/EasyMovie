@@ -67,7 +67,7 @@ public partial class MovieListView : UserControl
     private async Task LoadDataAsync()
     {
         try { await RebuildSearchIndexAsync(); await AutoAssignCountryCategoriesAsync(); await LoadCategoriesAsync(); await LoadYearsAsync(); await LoadAdvancedFilterOptionsAsync(); await LoadMoviesAsync(); }
-        catch (Exception ex) { MessageBox.Show("加载失败: " + ex.Message); }
+        catch (Exception ex) { MessageBox.Show(LanguageManager.GetString("Msg_LoadFailed") + ex.Message); }
     }
 
     /// <summary>为缺少搜索索引的电影重建拼音索引</summary>
@@ -131,8 +131,8 @@ public partial class MovieListView : UserControl
     {
         var categories = await _categoryService.GetAllAsync();
         CategoryFilter.Items.Clear();
-        CategoryFilter.Items.Add(new ComboBoxItem { Content = "全部分类" });
-        CategoryFilter.Items.Add(new ComboBoxItem { Content = "未分类", Tag = -1 });
+        CategoryFilter.Items.Add(new ComboBoxItem { Content = LanguageManager.GetString("MovieLib_AllCategories") });
+        CategoryFilter.Items.Add(new ComboBoxItem { Content = LanguageManager.GetString("MovieLib_Uncategorized"), Tag = -1 });
         foreach (var cat in categories) CategoryFilter.Items.Add(new ComboBoxItem { Content = cat.Name, Tag = cat.Id });
         CategoryFilter.SelectedIndex = 0;
     }
@@ -140,7 +140,7 @@ public partial class MovieListView : UserControl
     private async Task LoadYearsAsync()
     {
         YearFilter.Items.Clear();
-        YearFilter.Items.Add(new ComboBoxItem { Content = "全部年份" });
+        YearFilter.Items.Add(new ComboBoxItem { Content = LanguageManager.GetString("MovieLib_AllYears") });
         var allMovies = await _movieService.GetAllAsync();
         var years = allMovies.Where(m => m.Year > 0).Select(m => m.Year).Distinct().OrderByDescending(y => y).ToList();
         foreach (var year in years) YearFilter.Items.Add(new ComboBoxItem { Content = year.ToString(), Tag = year });
@@ -162,7 +162,7 @@ public partial class MovieListView : UserControl
         _totalCount = total;
         if (_isCardView) RenderCardView(movies); else if (_isPosterView) PosterWall.ItemsSource = movies; else MovieDataGrid.ItemsSource = movies;
         var totalPages = (int)Math.Ceiling((double)total / PageSize);
-        PageInfo.Text = "共 " + total + " 部 · 第 " + _currentPage + "/" + Math.Max(1, totalPages) + " 页";
+        PageInfo.Text = string.Format(LanguageManager.GetString("Msg_PageInfo"), total, _currentPage, Math.Max(1, totalPages));
         PrevPageBtn.IsEnabled = _currentPage > 1;
         NextPageBtn.IsEnabled = _currentPage < totalPages;
         var hasMovies = movies.Any();
@@ -232,7 +232,7 @@ public partial class MovieListView : UserControl
 
         // 国家
         CountryFilter.Items.Clear();
-        CountryFilter.Items.Add(new ComboBoxItem { Content = "全部国家", Tag = "_all" });
+        CountryFilter.Items.Add(new ComboBoxItem { Content = LanguageManager.GetString("MovieLib_AllCountries"), Tag = "_all" });
         var countries = allMovies
             .Where(m => !string.IsNullOrWhiteSpace(m.Country))
             .SelectMany(m => m.Country!.Split('/', ' ', '·', ','))
@@ -246,7 +246,7 @@ public partial class MovieListView : UserControl
 
         // 语言
         LanguageFilter.Items.Clear();
-        LanguageFilter.Items.Add(new ComboBoxItem { Content = "全部语言", Tag = "_all" });
+        LanguageFilter.Items.Add(new ComboBoxItem { Content = LanguageManager.GetString("MovieLib_AllLanguages"), Tag = "_all" });
         var languages = allMovies
             .Where(m => !string.IsNullOrWhiteSpace(m.Language))
             .SelectMany(m => m.Language!.Split('/', ' ', '·', ','))
@@ -260,7 +260,7 @@ public partial class MovieListView : UserControl
 
         // 导演
         DirectorFilter.Items.Clear();
-        DirectorFilter.Items.Add(new ComboBoxItem { Content = "全部导演", Tag = "_all" });
+        DirectorFilter.Items.Add(new ComboBoxItem { Content = LanguageManager.GetString("MovieLib_AllDirectors"), Tag = "_all" });
         var directors = allMovies
             .Where(m => !string.IsNullOrWhiteSpace(m.Director))
             .SelectMany(m => m.Director!.Split('/', ','))
@@ -296,20 +296,20 @@ public partial class MovieListView : UserControl
 
     private void SaveFilter_Click(object sender, RoutedEventArgs e)
     {
-        var dlg = CreateThemedWindow("保存筛选条件", 350, 160);
+        var dlg = CreateThemedWindow(LanguageManager.GetString("Msg_SaveFilterTitle"), 350, 160);
         var panel = new StackPanel { Margin = new Thickness(16) };
-        panel.Children.Add(new TextBlock { Text = "为当前筛选条件命名：", Margin = new Thickness(0, 0, 0, 8) });
+        panel.Children.Add(new TextBlock { Text = LanguageManager.GetString("Msg_FilterName") + "：", Margin = new Thickness(0, 0, 0, 8) });
         var nameBox = new TextBox { Style = (Style)Application.Current.FindResource("MaterialDesignFloatingHintTextBox") };
-        MaterialDesignThemes.Wpf.HintAssist.SetHint(nameBox, "筛选名称");
+        MaterialDesignThemes.Wpf.HintAssist.SetHint(nameBox, LanguageManager.GetString("Msg_FilterName"));
         panel.Children.Add(nameBox);
         var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 12, 0, 0) };
-        var cancelBtn = new Button { Content = "取消", Style = (Style)Application.Current.FindResource("MaterialDesignFlatButton"), Margin = new Thickness(0, 0, 8, 0) };
+        var cancelBtn = new Button { Content = LanguageManager.GetString("Msg_Cancel"), Style = (Style)Application.Current.FindResource("MaterialDesignFlatButton"), Margin = new Thickness(0, 0, 8, 0) };
         cancelBtn.Click += (s, ev) => { dlg.Close(); };
-        var saveBtn = new Button { Content = "保存", Style = (Style)Application.Current.FindResource("MaterialDesignRaisedButton") };
+        var saveBtn = new Button { Content = LanguageManager.GetString("CatTag_Save"), Style = (Style)Application.Current.FindResource("MaterialDesignRaisedButton") };
         saveBtn.Click += (s, ev) =>
         {
             var name = nameBox.Text?.Trim();
-            if (string.IsNullOrEmpty(name)) { MessageBox.Show("请输入名称"); return; }
+            if (string.IsNullOrEmpty(name)) { MessageBox.Show(LanguageManager.GetString("Msg_EnterName")); return; }
             var filter = new SavedFilter
             {
                 Name = name,
@@ -395,14 +395,14 @@ public partial class MovieListView : UserControl
             var recommendations = await _recommendationService.GetRecommendationsAsync(20);
             if (recommendations.Count == 0)
             {
-                MessageBox.Show("暂无推荐数据，请先添加一些电影。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(LanguageManager.GetString("Msg_NoRecommendData"), LanguageManager.GetString("Msg_Hint"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
             var ownerWindow = Window.GetWindow(this) ?? Application.Current.MainWindow;
             var dlg = new Window
             {
-                Title = "为你推荐",
+                Title = LanguageManager.GetString("Msg_RecommendTitle"),
                 Width = 1200,
                 Height = 580,
                 WindowStartupLocation = ownerWindow != null ? WindowStartupLocation.CenterOwner : WindowStartupLocation.CenterScreen,
@@ -419,9 +419,9 @@ public partial class MovieListView : UserControl
             var header = new DockPanel { Margin = new Thickness(16, 12, 16, 0) };
             var titlePanel = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
             titlePanel.Children.Add(new PackIcon { Kind = PackIconKind.StarShooting, Width = 22, Height = 22, Margin = new Thickness(0, 0, 8, 0), Foreground = new SolidColorBrush(Color.FromRgb(121, 134, 203)) });
-            titlePanel.Children.Add(new TextBlock { Text = "为你推荐", FontSize = 20, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center });
+            titlePanel.Children.Add(new TextBlock { Text = LanguageManager.GetString("Msg_RecommendTitle"), FontSize = 20, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center });
             header.Children.Add(titlePanel);
-            var hint = new TextBlock { Text = "  基于你的已看/评分/收藏电影推荐", FontSize = 12, Foreground = SafeFindBrush("MaterialDesignHintForeground", Color.FromRgb(117, 117, 117)), VerticalAlignment = VerticalAlignment.Center };
+            var hint = new TextBlock { Text = "  " + LanguageManager.GetString("Msg_RecommendHint"), FontSize = 12, Foreground = SafeFindBrush("MaterialDesignHintForeground", Color.FromRgb(117, 117, 117)), VerticalAlignment = VerticalAlignment.Center };
             DockPanel.SetDock(hint, Dock.Right);
             header.Children.Add(hint);
             root.Children.Add(header);
@@ -563,7 +563,7 @@ public partial class MovieListView : UserControl
             {
                 e.Handled = true;
                 try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(movie.FilePath) { UseShellExecute = true }); }
-                catch (Exception ex) { MessageBox.Show("播放失败: " + ex.Message); }
+                catch (Exception ex) { MessageBox.Show(LanguageManager.GetString("Msg_PlayFailed") + ex.Message); }
             };
             posterGrid.Children.Add(playOverlay);
         }
@@ -599,8 +599,10 @@ public partial class MovieListView : UserControl
 
         // 年份/时长/评分
         var metaLine = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 4) };
-        if (movie.Year > 0) metaLine.Children.Add(new TextBlock { Text = movie.Year + "年", FontSize = 11, Foreground = bodyBrush, Margin = new Thickness(0, 0, 8, 0) });
-        if (movie.Runtime.HasValue) metaLine.Children.Add(new TextBlock { Text = movie.Runtime + "分钟", FontSize = 11, Foreground = bodyBrush, Margin = new Thickness(0, 0, 8, 0) });
+        var yearSuffix = LanguageManager.GetString("Msg_YearSuffix");
+        var minSuffix = LanguageManager.GetString("Msg_MinuteSuffix");
+        if (movie.Year > 0) metaLine.Children.Add(new TextBlock { Text = movie.Year + yearSuffix, FontSize = 11, Foreground = bodyBrush, Margin = new Thickness(0, 0, 8, 0) });
+        if (movie.Runtime.HasValue) metaLine.Children.Add(new TextBlock { Text = movie.Runtime + minSuffix, FontSize = 11, Foreground = bodyBrush, Margin = new Thickness(0, 0, 8, 0) });
         if (movie.Rating.HasValue) metaLine.Children.Add(new TextBlock { Text = "⭐" + movie.Rating, FontSize = 11, Foreground = new SolidColorBrush(Color.FromRgb(255, 215, 0)) });
         if (metaLine.Children.Count > 0) detailPanel.Children.Add(metaLine);
 
@@ -614,9 +616,9 @@ public partial class MovieListView : UserControl
         // 观看状态
         var statusText = movie.WatchStatus switch
         {
-            WatchStatus.WantToWatch => "📋 想看",
-            WatchStatus.Watching => "👀 在看",
-            WatchStatus.Watched => "✅ 已看",
+            WatchStatus.WantToWatch => LanguageManager.GetString("WatchStatus_WantToWatch"),
+            WatchStatus.Watching => LanguageManager.GetString("WatchStatus_Watching"),
+            WatchStatus.Watched => LanguageManager.GetString("WatchStatus_Watched"),
             _ => ""
         };
         if (!string.IsNullOrEmpty(statusText))

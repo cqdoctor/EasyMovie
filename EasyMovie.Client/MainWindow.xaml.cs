@@ -1,12 +1,10 @@
 using System;
 using System.IO;
 using System.Net.Http;
-using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using System.Windows.Interop;
 using EasyMovie.Client.Views;
 using EasyMovie.Core.Enums;
 using EasyMovie.Core.Models;
@@ -15,13 +13,6 @@ namespace EasyMovie.Client;
 
 public partial class MainWindow : Window
 {
-    [DllImport("user32.dll")]
-    private static extern IntPtr SendMessage(IntPtr hWnd, int Msg, IntPtr wParam, IntPtr lParam);
-
-    private const int WM_SETICON = 0x0080;
-    private const int ICON_SMALL = 0;
-    private const int ICON_BIG = 1;
-
     private static HttpClient? _imgClient;
     private static HttpClient? _tmdbImgClient;
     private static HttpClient? _generalImgClient;
@@ -80,7 +71,7 @@ public partial class MainWindow : Window
 
     private void SetEmojiIcon()
     {
-        // 用 🎬 emoji 渲染为窗口图标
+        // 窗口标题栏图标：用 🎬 emoji 渲染
         var tb = new TextBlock { Text = "🎬", FontSize = 48, FontFamily = new FontFamily("Segoe UI Emoji") };
         tb.Measure(new Size(64, 64));
         tb.Arrange(new Rect(0, 0, 64, 64));
@@ -98,7 +89,7 @@ public partial class MainWindow : Window
 
     public void ClearStatus()
     {
-        StatusBarText.Text = "就绪";
+        StatusBarText.Text = LanguageManager.GetString("Status_Ready");
         StatusBarProgress.Visibility = Visibility.Collapsed;
     }
 
@@ -127,21 +118,32 @@ public partial class MainWindow : Window
             _pageCache[page] = view;
         }
         ContentArea.Content = view;
+
+        // 非电影页面时隐藏电影详情面板
+        MovieDetailPanel.Visibility = page == "Movies" && _lastSelectedMovie != null
+            ? Visibility.Visible
+            : Visibility.Collapsed;
     }
+
+    private Movie? _lastSelectedMovie;
 
     public async void ShowMovieDetail(Movie? movie)
     {
         if (movie == null)
         {
+            _lastSelectedMovie = null;
             MovieDetailPanel.Visibility = Visibility.Collapsed;
             return;
         }
 
+        _lastSelectedMovie = movie;
         MovieDetailPanel.Visibility = Visibility.Visible;
         DetailTitle.Text = movie.Title;
         DetailOriginalTitle.Text = movie.OriginalTitle ?? "";
-        DetailYear.Text = movie.Year > 0 ? movie.Year + "年" : "";
-        DetailRuntime.Text = movie.Runtime.HasValue ? movie.Runtime + "分钟" : "";
+        var yearSuffix = LanguageManager.GetString("Msg_YearSuffix");
+        var minSuffix = LanguageManager.GetString("Msg_MinuteSuffix");
+        DetailYear.Text = movie.Year > 0 ? movie.Year + yearSuffix : "";
+        DetailRuntime.Text = movie.Runtime.HasValue ? movie.Runtime + minSuffix : "";
         DetailRating.Text = movie.Rating.HasValue ? "⭐" + movie.Rating : "";
         DetailDirector.Text = string.IsNullOrEmpty(movie.Director) ? "" : "🎬 " + movie.Director;
         DetailCountry.Text = string.IsNullOrEmpty(movie.Country) ? "" : "🌍 " + movie.Country;
@@ -149,9 +151,9 @@ public partial class MainWindow : Window
         DetailSynopsis.Text = movie.Synopsis ?? "";
         DetailStatus.Text = movie.WatchStatus switch
         {
-            WatchStatus.WantToWatch => "📋 想看",
-            WatchStatus.Watching => "👀 在看",
-            WatchStatus.Watched => "✅ 已看",
+            WatchStatus.WantToWatch => LanguageManager.GetString("WatchStatus_WantToWatch"),
+            WatchStatus.Watching => LanguageManager.GetString("WatchStatus_Watching"),
+            WatchStatus.Watched => LanguageManager.GetString("WatchStatus_Watched"),
             _ => ""
         };
 

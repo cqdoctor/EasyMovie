@@ -59,6 +59,13 @@ public static class AppSettings
         set { _current.DoubanCookie = value; Save(); }
     }
 
+    /// <summary>界面语言 (zh-CN / en-US)</summary>
+    public static string Language
+    {
+        get => _current.Language;
+        set { _current.Language = value; Save(); }
+    }
+
     static AppSettings() => Load();
 
     private static void Load()
@@ -109,6 +116,7 @@ public static class AppSettings
         public string? TmdbApiKey { get; set; }
         public string? HttpProxy { get; set; }
         public string? DoubanCookie { get; set; }
+        public string Language { get; set; } = "zh-CN";
     }
 }
 
