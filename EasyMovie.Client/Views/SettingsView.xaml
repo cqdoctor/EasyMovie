@@ -44,6 +44,37 @@
                     </Grid>
                 </Border>
 
+                <!-- 导入导出 -->
+                <Border Background="{DynamicResource MaterialDesignCardBackground}" CornerRadius="8" Padding="24" Margin="0,0,0,16">
+                    <Grid>
+                        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                        <TextBlock Grid.Row="0" Text="📦 导入导出" FontSize="18" FontWeight="Bold" Margin="0,0,0,12"/>
+                        <StackPanel Grid.Row="1" Margin="0,0,0,12" Orientation="Horizontal">
+                            <TextBox x:Name="FolderPathBox" Width="300" materialDesign:HintAssist.Hint="文件夹路径"
+                                     Style="{StaticResource MaterialDesignFloatingHintTextBox}" Margin="0,0,8,0" />
+                            <Button Content="选择文件夹导入" Style="{StaticResource MaterialDesignRaisedButton}" Click="ImportFolder_Click" Margin="0,0,8,0"/>
+                            <CheckBox x:Name="RecursiveCheck" Content="包含子文件夹" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <StackPanel Grid.Row="2" Margin="0,0,0,12" Orientation="Horizontal">
+                            <TextBlock Text="导出:" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <Button Content="CSV" Style="{StaticResource MaterialDesignRaisedButton}" Click="ExportCsv_Click" Margin="0,0,6,0"/>
+                            <Button Content="JSON" Style="{StaticResource MaterialDesignRaisedButton}" Click="ExportJson_Click" Margin="0,0,6,0"/>
+                            <Button Content="全量备份" Style="{StaticResource MaterialDesignRaisedButton}" Click="ExportFullBackup_Click"/>
+                        </StackPanel>
+                        <StackPanel Grid.Row="3" Margin="0,0,0,12" Orientation="Horizontal">
+                            <TextBlock Text="导入:" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <Button Content="CSV" Style="{StaticResource MaterialDesignRaisedButton}" Click="ImportCsv_Click" Margin="0,0,6,0"/>
+                            <Button Content="JSON" Style="{StaticResource MaterialDesignRaisedButton}" Click="ImportJson_Click" Margin="0,0,6,0"/>
+                            <Button Content="数据还原" Style="{StaticResource MaterialDesignRaisedButton}" Click="RestoreBackup_Click"/>
+                        </StackPanel>
+                        <StackPanel Grid.Row="4" Orientation="Horizontal">
+                            <TextBlock Text="数据库:" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <Button Content="备份数据库" Style="{StaticResource MaterialDesignRaisedButton}" Click="BackupDbFile_Click" Margin="0,0,6,0"/>
+                            <Button Content="还原数据库" Style="{StaticResource MaterialDesignRaisedButton}" Click="RestoreDbFile_Click"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
                 <Border Background="{DynamicResource MaterialDesignCardBackground}" CornerRadius="8" Padding="24" Margin="0,0,0,16">
                     <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                         <TextBlock Grid.Row="0" Text="💾 数据" FontSize="18" FontWeight="Bold" Margin="0,0,0,16"/>

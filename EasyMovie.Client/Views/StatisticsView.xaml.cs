@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
@@ -33,7 +33,6 @@ public partial class StatisticsView : UserControl
         _context = DbHelper.CreateContext();
         _statsService = new StatisticsService(_context);
         Loaded += async (s, e) => await LoadAsync();
-        Unloaded += (s, e) => _context.Dispose();
     }
 
     private async Task LoadAsync()

@@ -14,6 +14,7 @@ using EasyMovie.Core.Interfaces;
 using EasyMovie.Core.Models;
 using EasyMovie.Core.Services;
 using EasyMovie.Data;
+using System.Windows.Media.Imaging;
 using EasyMovie.Data.Repositories;
 using EasyMovie.Tools.ImportExport;
 using EasyMovie.Tools.MovieApi;
@@ -26,12 +27,15 @@ public partial class MovieListView : UserControl
     private readonly IMovieService _movieService;
     private readonly ICategoryService _categoryService;
     private readonly ITagService _tagService;
+    private readonly IRecommendationService _recommendationService;
     private readonly MainWindow? _mainWindow;
     private int _currentPage = 1;
     private const int PageSize = 20;
     private int _totalCount;
     private bool _isCardView;
     private bool _isPosterView;
+
+    private bool _isFirstLoad = true;
 
     public MovieListView(MainWindow? mainWindow = null)
     {
@@ -44,8 +48,20 @@ public partial class MovieListView : UserControl
         _movieService = new MovieService(movieRepo, tagRepo);
         _categoryService = new CategoryService(categoryRepo);
         _tagService = new TagService(tagRepo);
-        Loaded += async (s, e) => await LoadDataAsync();
-        Unloaded += (s, e) => _context.Dispose();
+        _recommendationService = new RecommendationService(movieRepo);
+        Loaded += async (s, e) =>
+        {
+            if (_isFirstLoad)
+            {
+                _isFirstLoad = false;
+                UpdateViewButtons();
+                await LoadDataAsync();
+            }
+            else
+            {
+                await LoadMoviesAsync();
+            }
+        };
     }
 
     private async Task LoadDataAsync()
@@ -257,11 +273,6 @@ public partial class MovieListView : UserControl
         DirectorFilter.SelectedIndex = 0;
     }
 
-    private void AdvancedFilterToggle_Changed(object sender, RoutedEventArgs e)
-    {
-        AdvancedFilterPanel.IsExpanded = AdvancedFilterToggle.IsChecked == true;
-    }
-
     private async void ApplyAdvancedFilter_Click(object sender, RoutedEventArgs e)
     {
         _currentPage = 1;
@@ -375,6 +386,313 @@ public partial class MovieListView : UserControl
             }
             catch { }
         }
+    }
+
+    private async Task LoadRecommendationsAsync()
+    {
+        try
+        {
+            var recommendations = await _recommendationService.GetRecommendationsAsync(20);
+            if (recommendations.Count == 0)
+            {
+                MessageBox.Show("暂无推荐数据，请先添加一些电影。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var ownerWindow = Window.GetWindow(this) ?? Application.Current.MainWindow;
+            var dlg = new Window
+            {
+                Title = "为你推荐",
+                Width = 1200,
+                Height = 580,
+                WindowStartupLocation = ownerWindow != null ? WindowStartupLocation.CenterOwner : WindowStartupLocation.CenterScreen,
+                Owner = ownerWindow,
+                ResizeMode = ResizeMode.CanResizeWithGrip,
+                Background = (Brush)Application.Current.FindResource("MaterialDesignPaper")
+            };
+
+            var root = new Grid();
+            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+
+            // 标题栏
+            var header = new DockPanel { Margin = new Thickness(16, 12, 16, 0) };
+            var titlePanel = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            titlePanel.Children.Add(new PackIcon { Kind = PackIconKind.StarShooting, Width = 22, Height = 22, Margin = new Thickness(0, 0, 8, 0), Foreground = new SolidColorBrush(Color.FromRgb(121, 134, 203)) });
+            titlePanel.Children.Add(new TextBlock { Text = "为你推荐", FontSize = 20, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center });
+            header.Children.Add(titlePanel);
+            var hint = new TextBlock { Text = "  基于你的已看/评分/收藏电影推荐", FontSize = 12, Foreground = SafeFindBrush("MaterialDesignHintForeground", Color.FromRgb(117, 117, 117)), VerticalAlignment = VerticalAlignment.Center };
+            DockPanel.SetDock(hint, Dock.Right);
+            header.Children.Add(hint);
+            root.Children.Add(header);
+            Grid.SetRow(header, 0);
+
+            // 海报墙区域
+            var wallPanel = new Grid { Margin = new Thickness(4, 4, 4, 8) };
+            wallPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            wallPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            wallPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            // 左箭头 - 垂直居中，圆形按钮
+            var leftBtn = new Button
+            {
+                Style = (Style)Application.Current.FindResource("MaterialDesignIconButton"),
+                Content = new PackIcon { Kind = PackIconKind.ChevronLeft, Width = 36, Height = 36 },
+                VerticalAlignment = VerticalAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Width = 48, Height = 48
+            };
+            Grid.SetColumn(leftBtn, 0);
+            wallPanel.Children.Add(leftBtn);
+
+            // 海报墙 ScrollViewer
+            var posterScroll = new ScrollViewer
+            {
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                CanContentScroll = false,
+                VerticalAlignment = VerticalAlignment.Stretch
+            };
+            var posterWrap = new WrapPanel { Orientation = Orientation.Horizontal };
+            foreach (var rec in recommendations)
+            {
+                posterWrap.Children.Add(BuildPosterCard(rec));
+            }
+            posterScroll.Content = posterWrap;
+            Grid.SetColumn(posterScroll, 1);
+            wallPanel.Children.Add(posterScroll);
+
+            // 右箭头 - 垂直居中，圆形按钮
+            var rightBtn = new Button
+            {
+                Style = (Style)Application.Current.FindResource("MaterialDesignIconButton"),
+                Content = new PackIcon { Kind = PackIconKind.ChevronRight, Width = 36, Height = 36 },
+                VerticalAlignment = VerticalAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Width = 48, Height = 48
+            };
+            Grid.SetColumn(rightBtn, 2);
+            wallPanel.Children.Add(rightBtn);
+
+            // 左右按钮滚动
+            leftBtn.Click += (s, e) => posterScroll.ScrollToHorizontalOffset(posterScroll.HorizontalOffset - 360);
+            rightBtn.Click += (s, e) => posterScroll.ScrollToHorizontalOffset(posterScroll.HorizontalOffset + 360);
+            // 鼠标滚轮横向滚动
+            posterScroll.PreviewMouseWheel += (s, e) =>
+            {
+                posterScroll.ScrollToHorizontalOffset(posterScroll.HorizontalOffset - e.Delta);
+                e.Handled = true;
+            };
+
+            root.Children.Add(wallPanel);
+            Grid.SetRow(wallPanel, 1);
+            dlg.Content = root;
+            dlg.ShowDialog();
+        }
+        catch { }
+    }
+
+    private Border BuildPosterCard(RecommendedMovie rec)
+    {
+        var movie = rec.Movie;
+        var dividerBrush = SafeFindBrush("MaterialDesignDivider", Color.FromRgb(48, 48, 48));
+        var hintBrush = SafeFindBrush("MaterialDesignHintForeground", Color.FromRgb(117, 117, 117));
+        var bodyBrush = SafeFindBrush("MaterialDesignBody", Colors.White);
+
+        var card = new Border
+        {
+            Width = 200,
+            Margin = new Thickness(6, 6, 6, 6),
+            CornerRadius = new CornerRadius(8),
+            ClipToBounds = true,
+            Background = (Brush)Application.Current.FindResource("MaterialDesignCardBackground"),
+            Tag = movie
+        };
+
+        var stack = new StackPanel();
+
+        // 海报区域（带播放按钮叠加）
+        var posterGrid = new Grid { Height = 260 };
+
+        var posterBorder = new Border { ClipToBounds = true, CornerRadius = new CornerRadius(8, 8, 0, 0) };
+        var img = new Image { Stretch = Stretch.UniformToFill, VerticalAlignment = VerticalAlignment.Center };
+        RenderOptions.SetBitmapScalingMode(img, BitmapScalingMode.HighQuality);
+
+        if (movie.PosterData != null && movie.PosterData.Length > 0)
+        {
+            try
+            {
+                var bitmap = new BitmapImage();
+                using var ms = new MemoryStream(movie.PosterData);
+                bitmap.BeginInit(); bitmap.CacheOption = BitmapCacheOption.OnLoad; bitmap.StreamSource = ms; bitmap.EndInit(); bitmap.Freeze();
+                img.Source = bitmap;
+            }
+            catch { }
+        }
+
+        if (img.Source != null)
+        {
+            posterBorder.Child = img;
+        }
+        else
+        {
+            var ph = new StackPanel { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center, Background = dividerBrush };
+            ph.Children.Add(new PackIcon { Kind = PackIconKind.MovieOpen, Width = 40, Height = 40, HorizontalAlignment = HorizontalAlignment.Center, Foreground = hintBrush });
+            posterBorder.Child = ph;
+        }
+
+        posterGrid.Children.Add(posterBorder);
+
+        // 播放按钮叠加层（仅当有文件时显示）
+        if (!string.IsNullOrEmpty(movie.FilePath) && File.Exists(movie.FilePath))
+        {
+            var playOverlay = new Border
+            {
+                VerticalAlignment = VerticalAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Width = 44, Height = 44,
+                CornerRadius = new CornerRadius(22),
+                Background = new SolidColorBrush(Color.FromArgb(160, 0, 0, 0)),
+                Cursor = System.Windows.Input.Cursors.Hand
+            };
+            var playIcon = new PackIcon { Kind = PackIconKind.Play, Width = 22, Height = 22, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+            var playContainer = new Grid();
+            playContainer.Children.Add(playIcon);
+            playOverlay.Child = playContainer;
+            playOverlay.MouseLeftButtonUp += (s, e) =>
+            {
+                e.Handled = true;
+                try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(movie.FilePath) { UseShellExecute = true }); }
+                catch (Exception ex) { MessageBox.Show("播放失败: " + ex.Message); }
+            };
+            posterGrid.Children.Add(playOverlay);
+        }
+
+        // 底部渐变标题条
+        var infoBar = new Border
+        {
+            VerticalAlignment = VerticalAlignment.Bottom,
+            Padding = new Thickness(8, 6, 8, 6)
+        };
+        var gradBrush = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(0, 1) };
+        gradBrush.GradientStops.Add(new GradientStop(Color.FromArgb(0, 0, 0, 0), 0));
+        gradBrush.GradientStops.Add(new GradientStop(Color.FromArgb(180, 0, 0, 0), 0.5));
+        gradBrush.GradientStops.Add(new GradientStop(Color.FromArgb(230, 0, 0, 0), 1));
+        infoBar.Background = gradBrush;
+
+        var infoStack = new StackPanel();
+        infoStack.Children.Add(new TextBlock { Text = movie.Title, FontSize = 13, FontWeight = FontWeights.SemiBold, Foreground = Brushes.White, TextTrimming = TextTrimming.CharacterEllipsis });
+        var metaRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 0) };
+        if (movie.Year > 0) metaRow.Children.Add(new TextBlock { Text = movie.Year.ToString(), FontSize = 10, Foreground = ColorToBrush(Color.FromArgb(187, 255, 255, 255)), Margin = new Thickness(0, 0, 8, 0) });
+        if (movie.Rating.HasValue) metaRow.Children.Add(new TextBlock { Text = "⭐" + movie.Rating, FontSize = 10, Foreground = Brushes.Gold });
+        infoStack.Children.Add(metaRow);
+        infoBar.Child = infoStack;
+        posterGrid.Children.Add(infoBar);
+
+        stack.Children.Add(posterGrid);
+
+        // 详细信息区域（和主界面左侧详情一致）
+        var detailPanel = new StackPanel { Margin = new Thickness(10, 8, 10, 8) };
+
+        if (!string.IsNullOrEmpty(movie.OriginalTitle))
+            detailPanel.Children.Add(new TextBlock { Text = movie.OriginalTitle, FontSize = 10, Foreground = hintBrush, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 4) });
+
+        // 年份/时长/评分
+        var metaLine = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 4) };
+        if (movie.Year > 0) metaLine.Children.Add(new TextBlock { Text = movie.Year + "年", FontSize = 11, Foreground = bodyBrush, Margin = new Thickness(0, 0, 8, 0) });
+        if (movie.Runtime.HasValue) metaLine.Children.Add(new TextBlock { Text = movie.Runtime + "分钟", FontSize = 11, Foreground = bodyBrush, Margin = new Thickness(0, 0, 8, 0) });
+        if (movie.Rating.HasValue) metaLine.Children.Add(new TextBlock { Text = "⭐" + movie.Rating, FontSize = 11, Foreground = new SolidColorBrush(Color.FromRgb(255, 215, 0)) });
+        if (metaLine.Children.Count > 0) detailPanel.Children.Add(metaLine);
+
+        if (!string.IsNullOrEmpty(movie.Director))
+            detailPanel.Children.Add(new TextBlock { Text = "🎬 " + movie.Director, FontSize = 11, Foreground = bodyBrush, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 2) });
+        if (!string.IsNullOrEmpty(movie.Country))
+            detailPanel.Children.Add(new TextBlock { Text = "🌍 " + movie.Country, FontSize = 11, Foreground = bodyBrush, Margin = new Thickness(0, 0, 0, 2) });
+        if (!string.IsNullOrEmpty(movie.Cast))
+            detailPanel.Children.Add(new TextBlock { Text = "🎭 " + movie.Cast, FontSize = 11, Foreground = bodyBrush, TextWrapping = TextWrapping.Wrap, MaxHeight = 36, Margin = new Thickness(0, 0, 0, 2) });
+
+        // 观看状态
+        var statusText = movie.WatchStatus switch
+        {
+            WatchStatus.WantToWatch => "📋 想看",
+            WatchStatus.Watching => "👀 在看",
+            WatchStatus.Watched => "✅ 已看",
+            _ => ""
+        };
+        if (!string.IsNullOrEmpty(statusText))
+            detailPanel.Children.Add(new TextBlock { Text = statusText, FontSize = 11, Foreground = new SolidColorBrush(Color.FromRgb(255, 215, 0)), Margin = new Thickness(0, 0, 0, 2) });
+
+        // 简介
+        if (!string.IsNullOrEmpty(movie.Synopsis))
+            detailPanel.Children.Add(new TextBlock { Text = movie.Synopsis, FontSize = 10, Foreground = hintBrush, TextWrapping = TextWrapping.Wrap, MaxHeight = 48, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 2, 0, 0) });
+
+        // 推荐理由
+        if (!string.IsNullOrEmpty(rec.Reason))
+        {
+            var reasonBadge = new Border
+            {
+                Background = new SolidColorBrush(Color.FromArgb(40, 121, 134, 203)),
+                CornerRadius = new CornerRadius(4),
+                Padding = new Thickness(6, 2, 6, 2),
+                Margin = new Thickness(0, 4, 0, 0),
+                HorizontalAlignment = HorizontalAlignment.Left
+            };
+            reasonBadge.Child = new TextBlock { Text = rec.Reason, FontSize = 9, Foreground = new SolidColorBrush(Color.FromRgb(121, 134, 203)), TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 160 };
+            detailPanel.Children.Add(reasonBadge);
+        }
+
+        stack.Children.Add(detailPanel);
+        card.Child = stack;
+
+        // 点击卡片显示主界面详情
+        card.MouseLeftButtonUp += (s, e) =>
+        {
+            if (e.Handled) return;
+            _mainWindow?.ShowMovieDetail(movie);
+        };
+
+        // 异步加载远程海报
+        if (img.Source == null && !string.IsNullOrEmpty(movie.PosterUrl))
+        {
+            _ = LoadPosterAsync(img, posterBorder, movie.PosterUrl, dividerBrush);
+        }
+
+        return card;
+    }
+
+    private async Task LoadPosterAsync(Image img, Border posterBorder, string posterUrl, Brush fallbackBg)
+    {
+        try
+        {
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
+            var bytes = await http.GetByteArrayAsync(posterUrl);
+            var bmp = new BitmapImage();
+            bmp.BeginInit(); bmp.CacheOption = BitmapCacheOption.OnLoad; bmp.StreamSource = new MemoryStream(bytes); bmp.EndInit(); bmp.Freeze();
+            img.Source = bmp;
+            if (posterBorder.Child is not Image) posterBorder.Child = img;
+        }
+        catch { }
+    }
+
+    private static Brush SafeFindBrush(string resourceKey, Color fallback)
+    {
+        var brush = Application.Current.TryFindResource(resourceKey) as Brush;
+        if (brush != null) return brush;
+        var solid = new SolidColorBrush(fallback);
+        solid.Freeze();
+        return solid;
+    }
+
+    private async void RecommendToggle_Click(object sender, RoutedEventArgs e)
+    {
+        await LoadRecommendationsAsync();
+    }
+
+    private static SolidColorBrush ColorToBrush(Color color)
+    {
+        var brush = new SolidColorBrush(color);
+        brush.Freeze();
+        return brush;
     }
 
     private void MovieDataGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -515,9 +833,17 @@ public partial class MovieListView : UserControl
 
     private async void SearchBox_TextChanged(object sender, TextChangedEventArgs e) { _currentPage = 1; await LoadMoviesAsync(); }
     private async void Filter_Changed(object sender, SelectionChangedEventArgs e) { _currentPage = 1; await LoadMoviesAsync(); }
-    private async void TableViewBtn_Click(object sender, RoutedEventArgs e) { _isCardView = false; _isPosterView = false; await LoadMoviesAsync(); }
-    private async void CardViewBtn_Click(object sender, RoutedEventArgs e) { _isCardView = true; _isPosterView = false; await LoadMoviesAsync(); }
-    private async void PosterViewBtn_Click(object sender, RoutedEventArgs e) { _isCardView = false; _isPosterView = true; await LoadMoviesAsync(); }
+    private async void TableViewBtn_Click(object sender, RoutedEventArgs e) { _isCardView = false; _isPosterView = false; UpdateViewButtons(); await LoadMoviesAsync(); }
+    private async void CardViewBtn_Click(object sender, RoutedEventArgs e) { _isCardView = true; _isPosterView = false; UpdateViewButtons(); await LoadMoviesAsync(); }
+    private async void PosterViewBtn_Click(object sender, RoutedEventArgs e) { _isCardView = false; _isPosterView = true; UpdateViewButtons(); await LoadMoviesAsync(); }
+
+    private void UpdateViewButtons()
+    {
+        var selectedBg = new SolidColorBrush(Color.FromArgb(40, 0, 0, 0));
+        TableViewBtn.Background = !_isCardView && !_isPosterView ? selectedBg : Brushes.Transparent;
+        CardViewBtn.Background = _isCardView ? selectedBg : Brushes.Transparent;
+        PosterViewBtn.Background = _isPosterView ? selectedBg : Brushes.Transparent;
+    }
     private void AddMovie_Click(object sender, RoutedEventArgs e) => OpenDetailView(0);
 
     private void OnlineSearch_Click(object sender, RoutedEventArgs e)

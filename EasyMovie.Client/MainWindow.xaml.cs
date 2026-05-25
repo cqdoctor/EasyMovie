@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Net.Http;
 using System.Runtime.InteropServices;
@@ -110,18 +110,23 @@ public partial class MainWindow : Window
         }
     }
 
+    private readonly Dictionary<string, UserControl> _pageCache = new();
+
     private void NavigateTo(string page)
     {
-        ContentArea.Content = page switch
+        if (!_pageCache.TryGetValue(page, out var view))
         {
-            "Movies" => new MovieListView(this),
-            "Categories" => new CategoryManageView(),
-            "Tags" => new TagManageView(),
-            "Statistics" => new StatisticsView(),
-            "ImportExport" => new ImportExportView(),
-            "Settings" => new SettingsView(),
-            _ => new MovieListView(this)
-        };
+            view = page switch
+            {
+                "Movies" => new MovieListView(this),
+                "Categories" => new CategoryTagManageView(),
+                "Statistics" => new StatisticsView(),
+                "Settings" => new SettingsView(),
+                _ => new MovieListView(this)
+            };
+            _pageCache[page] = view;
+        }
+        ContentArea.Content = view;
     }
 
     public async void ShowMovieDetail(Movie? movie)

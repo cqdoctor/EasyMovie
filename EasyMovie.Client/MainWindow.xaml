@@ -1,4 +1,4 @@
-﻿<Window x:Class="EasyMovie.Client.MainWindow"
+<Window x:Class="EasyMovie.Client.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -35,7 +35,7 @@
                 <StackPanel Grid.Row="0" VerticalAlignment="Center" Margin="16,0" Orientation="Horizontal">
                     <TextBlock Text="🎬" FontSize="24" VerticalAlignment="Center" Margin="0,0,8,0" />
                     <TextBlock Text="EasyMovie" FontSize="18"
-                               FontWeight="Bold" Foreground="White" VerticalAlignment="Center" />
+                               FontWeight="Bold" Foreground="{DynamicResource MaterialDesignBody}" VerticalAlignment="Center" />
                 </StackPanel>
 
                 <!-- 导航菜单 -->
@@ -53,25 +53,13 @@
                     <ListBoxItem Tag="Categories">
                         <StackPanel Orientation="Horizontal">
                             <materialDesign:PackIcon Kind="Shape" Margin="0,0,12,0" />
-                            <TextBlock Text="分类管理" />
-                        </StackPanel>
-                    </ListBoxItem>
-                    <ListBoxItem Tag="Tags">
-                        <StackPanel Orientation="Horizontal">
-                            <materialDesign:PackIcon Kind="Tag" Margin="0,0,12,0" />
-                            <TextBlock Text="标签管理" />
+                            <TextBlock Text="分类与标签" />
                         </StackPanel>
                     </ListBoxItem>
                     <ListBoxItem Tag="Statistics">
                         <StackPanel Orientation="Horizontal">
                             <materialDesign:PackIcon Kind="ChartBar" Margin="0,0,12,0" />
                             <TextBlock Text="统计面板" />
-                        </StackPanel>
-                    </ListBoxItem>
-                    <ListBoxItem Tag="ImportExport">
-                        <StackPanel Orientation="Horizontal">
-                            <materialDesign:PackIcon Kind="Import" Margin="0,0,12,0" />
-                            <TextBlock Text="导入导出" />
                         </StackPanel>
                     </ListBoxItem>
                     <ListBoxItem Tag="Settings">
