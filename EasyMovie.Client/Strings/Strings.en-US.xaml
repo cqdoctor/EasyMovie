@@ -184,4 +184,22 @@
     <sys:String x:Key="WatchStatus_WantToWatch">📋 Want to Watch</sys:String>
     <sys:String x:Key="WatchStatus_Watching">👀 Watching</sys:String>
     <sys:String x:Key="WatchStatus_Watched">✅ Watched</sys:String>
+
+    <!-- Duplicate Detection -->
+    <sys:String x:Key="Settings_DetectDuplicates">Detect Duplicates</sys:String>
+    <sys:String x:Key="Dup_DialogTitle">🔍 Duplicate Detection</sys:String>
+    <sys:String x:Key="Dup_Detecting">Detecting duplicate movies...</sys:String>
+    <sys:String x:Key="Dup_ScanProgress">Scanned {0}/{1} movies</sys:String>
+    <sys:String x:Key="Dup_ResultTitle">Found {0} duplicate groups</sys:String>
+    <sys:String x:Key="Dup_NoDuplicates">🎉 No duplicates found</sys:String>
+    <sys:String x:Key="Dup_ExactMatch">Exact Match</sys:String>
+    <sys:String x:Key="Dup_FuzzyMatch">Fuzzy Match</sys:String>
+    <sys:String x:Key="Dup_ExternalIdMatch">External ID Match</sys:String>
+    <sys:String x:Key="Dup_Merge">Merge</sys:String>
+    <sys:String x:Key="Dup_KeepAll">Keep All</sys:String>
+    <sys:String x:Key="Dup_MergeAll">Merge All</sys:String>
+    <sys:String x:Key="Dup_MergeConfirm">Confirm merge? Non-primary records will be deleted and data merged into the primary record.</sys:String>
+    <sys:String x:Key="Dup_MergeAllConfirm">Confirm merging all duplicate groups? Non-primary records will be deleted.</sys:String>
+    <sys:String x:Key="Dup_HasNotes">Has notes</sys:String>
+    <sys:String x:Key="Dup_TagsSuffix"> tags</sys:String>
 </ResourceDictionary>

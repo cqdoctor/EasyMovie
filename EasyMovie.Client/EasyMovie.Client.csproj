@@ -31,6 +31,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Content Include="app.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
     <Using Include="EasyMovie.Core" />
   </ItemGroup>
 

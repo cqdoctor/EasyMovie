@@ -184,4 +184,22 @@
     <sys:String x:Key="WatchStatus_WantToWatch">📋 想看</sys:String>
     <sys:String x:Key="WatchStatus_Watching">👀 在看</sys:String>
     <sys:String x:Key="WatchStatus_Watched">✅ 已看</sys:String>
+
+    <!-- Duplicate Detection -->
+    <sys:String x:Key="Settings_DetectDuplicates">检测重复电影</sys:String>
+    <sys:String x:Key="Dup_DialogTitle">🔍 重复电影检测</sys:String>
+    <sys:String x:Key="Dup_Detecting">正在检测重复电影...</sys:String>
+    <sys:String x:Key="Dup_ScanProgress">已扫描 {0}/{1} 部电影</sys:String>
+    <sys:String x:Key="Dup_ResultTitle">检测到 {0} 组重复电影</sys:String>
+    <sys:String x:Key="Dup_NoDuplicates">🎉 未发现重复电影</sys:String>
+    <sys:String x:Key="Dup_ExactMatch">精确匹配</sys:String>
+    <sys:String x:Key="Dup_FuzzyMatch">模糊匹配</sys:String>
+    <sys:String x:Key="Dup_ExternalIdMatch">外部ID匹配</sys:String>
+    <sys:String x:Key="Dup_Merge">合并</sys:String>
+    <sys:String x:Key="Dup_KeepAll">全部保留</sys:String>
+    <sys:String x:Key="Dup_MergeAll">全部合并</sys:String>
+    <sys:String x:Key="Dup_MergeConfirm">确认合并？非主记录将被删除，数据将合并到主记录。</sys:String>
+    <sys:String x:Key="Dup_MergeAllConfirm">确认合并所有重复组？非主记录将被删除。</sys:String>
+    <sys:String x:Key="Dup_HasNotes">有笔记</sys:String>
+    <sys:String x:Key="Dup_TagsSuffix">个标签</sys:String>
 </ResourceDictionary>

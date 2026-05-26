@@ -14,9 +14,15 @@
 
         <TextBlock Grid.Row="0" Text="{DynamicResource CatTag_Title}" FontSize="28" FontWeight="Bold" Margin="0,0,0,16" />
 
-        <TabControl Grid.Row="1" Style="{StaticResource MaterialDesignFilledTabControl}">
+        <TabControl Grid.Row="1" Style="{StaticResource MaterialDesignTabControl}">
             <!-- 分类管理 Tab -->
-            <TabItem Header="{DynamicResource CatTag_CategoryTab}">
+            <TabItem>
+                <TabItem.Header>
+                    <StackPanel Orientation="Horizontal" Margin="4,0">
+                        <materialDesign:PackIcon Kind="FolderOutline" Width="18" Height="18" VerticalAlignment="Center" Margin="0,0,6,0" />
+                        <TextBlock Text="{DynamicResource CatTag_CategoryTab}" VerticalAlignment="Center" FontSize="13" />
+                    </StackPanel>
+                </TabItem.Header>
                 <Grid Margin="8">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="280" />
@@ -91,7 +97,13 @@
             </TabItem>
 
             <!-- 标签管理 Tab -->
-            <TabItem Header="{DynamicResource CatTag_TagTab}">
+            <TabItem>
+                <TabItem.Header>
+                    <StackPanel Orientation="Horizontal" Margin="4,0">
+                        <materialDesign:PackIcon Kind="TagOutline" Width="18" Height="18" VerticalAlignment="Center" Margin="0,0,6,0" />
+                        <TextBlock Text="{DynamicResource CatTag_TagTab}" VerticalAlignment="Center" FontSize="13" />
+                    </StackPanel>
+                </TabItem.Header>
                 <Grid Margin="8">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />

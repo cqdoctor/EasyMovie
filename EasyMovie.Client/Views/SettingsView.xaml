@@ -91,9 +91,25 @@
                 </Border>
 
                 <Border Background="{DynamicResource MaterialDesignCardBackground}" CornerRadius="8" Padding="24" Margin="0,0,0,16">
-                    <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <Grid>
+                        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                         <TextBlock Grid.Row="0" Text="{DynamicResource Settings_Data}" FontSize="18" FontWeight="Bold" Margin="0,0,0,16"/>
-                        <StackPanel Grid.Row="1"><TextBlock Text="数据库: %LocalAppData%/EasyMovie/" FontSize="13"/></StackPanel>
+                        <StackPanel Grid.Row="1">
+                            <TextBlock Text="数据库: %LocalAppData%/EasyMovie/" FontSize="13" Margin="0,0,0,12"/>
+                            <Button x:Name="DetectDuplicatesBtn" Content="{DynamicResource Settings_DetectDuplicates}"
+                                    Style="{StaticResource MaterialDesignRaisedButton}"
+                                    Click="DetectDuplicates_Click" Height="30" FontSize="12" Padding="12,4"
+                                    materialDesign:ButtonAssist.CornerRadius="6">
+                                <Button.ContentTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal">
+                                            <materialDesign:PackIcon Kind="ContentDuplicate" Width="16" Height="16" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                            <TextBlock Text="{Binding}" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </Button.ContentTemplate>
+                            </Button>
+                        </StackPanel>
                     </Grid>
                 </Border>
 

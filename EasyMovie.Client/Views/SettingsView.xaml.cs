@@ -95,4 +95,13 @@ public partial class SettingsView : UserControl
     private async void RestoreDbFile_Click(object sender, RoutedEventArgs e) { if (MessageBox.Show(LanguageManager.GetString("Msg_ConfirmReplaceDb"), LanguageManager.GetString("Msg_Confirm"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return; var d = new OpenFileDialog { Filter = "DB|*.db" }; if (d.ShowDialog() != true) return; try { await _importExportService.RestoreDatabaseAsync(d.FileName); MessageBox.Show(LanguageManager.GetString("Msg_RestartRequired")); } catch (Exception ex) { MessageBox.Show(ex.Message); } }
 
     #endregion
+
+    private void DetectDuplicates_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new DuplicateResultDialog
+        {
+            Owner = Window.GetWindow(this)
+        };
+        dialog.ShowDialog();
+    }
 }

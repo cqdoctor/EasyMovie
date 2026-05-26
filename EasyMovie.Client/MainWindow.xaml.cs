@@ -66,19 +66,6 @@ public partial class MainWindow : Window
         InitializeComponent();
         NavListBox.SelectedIndex = 0;
         NavigateTo("Movies");
-        Loaded += (s, e) => SetEmojiIcon();
-    }
-
-    private void SetEmojiIcon()
-    {
-        // 窗口标题栏图标：用 🎬 emoji 渲染
-        var tb = new TextBlock { Text = "🎬", FontSize = 48, FontFamily = new FontFamily("Segoe UI Emoji") };
-        tb.Measure(new Size(64, 64));
-        tb.Arrange(new Rect(0, 0, 64, 64));
-        var rtb = new RenderTargetBitmap(64, 64, 96, 96, PixelFormats.Pbgra32);
-        rtb.Render(tb);
-        rtb.Freeze();
-        Icon = rtb;
     }
 
     public void SetStatus(string text, bool isWorking = false)
