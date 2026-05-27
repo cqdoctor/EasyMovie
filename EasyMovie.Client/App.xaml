@@ -12,8 +12,13 @@
                                              PrimaryColor="DeepPurple"
                                              SecondaryColor="Lime" />
                 <ResourceDictionary Source="pack://application:,,,/MaterialDesignThemes.Wpf;component/Themes/MaterialDesign3.Defaults.xaml" />
+                <!-- MDIX 5.x 兼容旧版样式键名 -->
+                <ResourceDictionary Source="pack://application:,,,/MaterialDesignThemes.Wpf;component/Themes/MaterialDesignTheme.ObsoleteStyles.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/MaterialDesignThemes.Wpf;component/Themes/MaterialDesignTheme.ObsoleteBrushes.xaml" />
                 <!-- 默认语言 (zh-CN)，运行时由 LanguageManager 动态替换 -->
                 <ResourceDictionary Source="Strings/Strings.zh-CN.xaml" />
+                <!-- 自定义控件样式 -->
+                <ResourceDictionary Source="Controls/RangeSliderStyle.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
             <!-- 值转换器 -->

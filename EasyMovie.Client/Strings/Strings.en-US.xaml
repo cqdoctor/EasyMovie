@@ -202,4 +202,10 @@
     <sys:String x:Key="Dup_MergeAllConfirm">Confirm merging all duplicate groups? Non-primary records will be deleted.</sys:String>
     <sys:String x:Key="Dup_HasNotes">Has notes</sys:String>
     <sys:String x:Key="Dup_TagsSuffix"> tags</sys:String>
+
+    <!-- Advanced Filter Enhancement -->
+    <sys:String x:Key="MovieLib_LoadFilter">Load Filter</sys:String>
+    <sys:String x:Key="MovieLib_DeleteFilter">Delete Filter</sys:String>
+    <sys:String x:Key="Msg_FilterSaved">Filter saved</sys:String>
+    <sys:String x:Key="Msg_ConfirmDeleteFilter">Delete filter '{0}'?</sys:String>
 </ResourceDictionary>

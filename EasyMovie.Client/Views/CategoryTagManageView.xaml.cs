@@ -22,6 +22,7 @@ public partial class CategoryTagManageView : UserControl
     private bool _isAddingChild;
     private int? _addChildParentId;
     private string _selectedColor = "#5C6BC0";
+    private bool _isInitialized;
 
     public CategoryTagManageView()
     {
@@ -29,7 +30,15 @@ public partial class CategoryTagManageView : UserControl
         _context = DbHelper.CreateContext();
         _categoryService = new CategoryService(new CategoryRepository(_context));
         _tagService = new TagService(new TagRepository(_context));
-        Loaded += async (s, e) => { await LoadTreeAsync(); await InitTagsAsync(); };
+        Loaded += async (s, e) => await InitializeAsync();
+    }
+
+    public async Task InitializeAsync()
+    {
+        if (_isInitialized) return;
+        _isInitialized = true;
+        await LoadTreeAsync();
+        await InitTagsAsync();
     }
 
     #region 分类管理

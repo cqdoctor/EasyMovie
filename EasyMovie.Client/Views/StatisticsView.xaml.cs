@@ -27,12 +27,21 @@ public partial class StatisticsView : UserControl
         "#8BC34A", "#FF5722", "#607D8B", "#CDDC39", "#795548"
     };
 
+    private bool _isInitialized;
+
     public StatisticsView()
     {
         InitializeComponent();
         _context = DbHelper.CreateContext();
         _statsService = new StatisticsService(_context);
-        Loaded += async (s, e) => await LoadAsync();
+        Loaded += async (s, e) => await InitializeAsync();
+    }
+
+    public async Task InitializeAsync()
+    {
+        if (_isInitialized) return;
+        _isInitialized = true;
+        await LoadAsync();
     }
 
     private async Task LoadAsync()
