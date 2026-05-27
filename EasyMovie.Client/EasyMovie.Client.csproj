@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
     <ProjectReference Include="..\EasyMovie.Core\EasyMovie.Core.csproj" />
@@ -27,14 +27,7 @@
     <UseWPF>true</UseWPF>
     <NoWarn>NU1701</NoWarn>
     <Version>1.01</Version>
-    <ApplicationIcon>app.ico</ApplicationIcon>
   </PropertyGroup>
-
-  <ItemGroup>
-    <Content Include="app.ico">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-  </ItemGroup>
 
   <ItemGroup>
     <Using Include="EasyMovie.Core" />

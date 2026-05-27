@@ -4,6 +4,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+             xmlns:controls="clr-namespace:EasyMovie.Client.Controls"
              mc:Ignorable="d"
              d:DesignHeight="600" d:DesignWidth="900">
 
@@ -222,68 +223,71 @@
                         </StackPanel>
                     </Expander.Header>
                     <StackPanel>
-                    <UniformGrid Columns="4" Margin="0,0,0,0">
-                        <!-- 年份范围 -->
-                        <StackPanel Margin="0,0,12,4">
-                            <TextBlock Text="{DynamicResource MovieLib_YearRange}" FontSize="11" Foreground="{DynamicResource MaterialDesignHintForeground}" Margin="0,0,0,2" />
-                            <StackPanel Orientation="Horizontal">
-                                <TextBox x:Name="YearFromBox" Width="55" materialDesign:HintAssist.Hint="{DynamicResource MovieLib_From}" Style="{StaticResource MaterialDesignTextBox}" FontSize="12" Margin="0,0,4,0" />
-                                <TextBlock Text="-" VerticalAlignment="Center" Margin="0,0,4,0" FontSize="12" />
-                                <TextBox x:Name="YearToBox" Width="55" materialDesign:HintAssist.Hint="{DynamicResource MovieLib_To}" Style="{StaticResource MaterialDesignTextBox}" FontSize="12" />
-                            </StackPanel>
-                        </StackPanel>
+                    <!-- 范围筛选：标签一行 + 滑块一行 -->
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
 
-                        <!-- 评分范围 -->
-                        <StackPanel Margin="0,0,12,4">
-                            <TextBlock Text="{DynamicResource MovieLib_RatingRange}" FontSize="11" Foreground="{DynamicResource MaterialDesignHintForeground}" Margin="0,0,0,2" />
-                            <StackPanel Orientation="Horizontal">
-                                <TextBox x:Name="RatingMinBox" Width="55" materialDesign:HintAssist.Hint="{DynamicResource MovieLib_Min}" Style="{StaticResource MaterialDesignTextBox}" FontSize="12" Margin="0,0,4,0" />
-                                <TextBlock Text="-" VerticalAlignment="Center" Margin="0,0,4,0" FontSize="12" />
-                                <TextBox x:Name="RatingMaxBox" Width="55" materialDesign:HintAssist.Hint="{DynamicResource MovieLib_Max}" Style="{StaticResource MaterialDesignTextBox}" FontSize="12" />
-                            </StackPanel>
-                        </StackPanel>
+                        <!-- 标签行 -->
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="{DynamicResource MovieLib_YearRange}" FontSize="11" Foreground="{DynamicResource MaterialDesignHintForeground}" Margin="0,0,12,2" />
+                        <TextBlock Grid.Row="0" Grid.Column="1" Text="{DynamicResource MovieLib_RatingRange}" FontSize="11" Foreground="{DynamicResource MaterialDesignHintForeground}" Margin="0,0,12,2" />
+                        <TextBlock Grid.Row="0" Grid.Column="2" Text="{DynamicResource MovieLib_Runtime}" FontSize="11" Foreground="{DynamicResource MaterialDesignHintForeground}" Margin="0,0,12,2" />
 
-                        <!-- 国家 -->
+                        <!-- 滑块行 -->
+                        <controls:RangeSlider Grid.Row="1" Grid.Column="0" x:Name="YearRangeSlider"
+                                              TickFrequency="10" IsSnapToTickEnabled="True"
+                                              Margin="0,0,12,0"
+                                              RangeChanged="RangeSlider_RangeChanged" />
+                        <controls:RangeSlider Grid.Row="1" Grid.Column="1" x:Name="RatingRangeSlider"
+                                              IsSnapToTickEnabled="True"
+                                              Margin="0,0,12,0"
+                                              RangeChanged="RangeSlider_RangeChanged" />
+                        <controls:RangeSlider Grid.Row="1" Grid.Column="2" x:Name="RuntimeRangeSlider"
+                                              TickFrequency="30" IsSnapToTickEnabled="True"
+                                              Margin="0,0,12,0"
+                                              RangeChanged="RangeSlider_RangeChanged" />
+                    </Grid>
+
+                    <!-- 多选行：国家/语言/导演 -->
+                    <UniformGrid Columns="3" Margin="0,4,0,0">
+                        <!-- 国家（多选） -->
                         <StackPanel Margin="0,0,12,4">
                             <TextBlock Text="{DynamicResource MovieLib_Country}" FontSize="11" Foreground="{DynamicResource MaterialDesignHintForeground}" Margin="0,0,0,2" />
-                            <ComboBox x:Name="CountryFilter"
-                                      materialDesign:HintAssist.Hint="{DynamicResource MovieLib_AllCountries}"
-                                      Style="{StaticResource MaterialDesignComboBox}"
-                                      FontSize="12"
-                                      Width="140" />
+                            <ListBox x:Name="CountryFilter"
+                                     SelectionMode="Multiple"
+                                     Height="80"
+                                     FontSize="12"
+                                     Style="{StaticResource MaterialDesignFilterChipListBox}" />
                         </StackPanel>
 
-                        <!-- 语言 -->
+                        <!-- 语言（多选） -->
                         <StackPanel Margin="0,0,12,4">
                             <TextBlock Text="{DynamicResource MovieLib_Language}" FontSize="11" Foreground="{DynamicResource MaterialDesignHintForeground}" Margin="0,0,0,2" />
-                            <ComboBox x:Name="LanguageFilter"
-                                      materialDesign:HintAssist.Hint="{DynamicResource MovieLib_AllLanguages}"
-                                      Style="{StaticResource MaterialDesignComboBox}"
-                                      FontSize="12"
-                                      Width="140" />
+                            <ListBox x:Name="LanguageFilter"
+                                     SelectionMode="Multiple"
+                                     Height="80"
+                                     FontSize="12"
+                                     Style="{StaticResource MaterialDesignFilterChipListBox}" />
                         </StackPanel>
 
-                        <!-- 片长范围 -->
-                        <StackPanel Margin="0,0,12,4">
-                            <TextBlock Text="{DynamicResource MovieLib_Runtime}" FontSize="11" Foreground="{DynamicResource MaterialDesignHintForeground}" Margin="0,0,0,2" />
-                            <StackPanel Orientation="Horizontal">
-                                <TextBox x:Name="RuntimeMinBox" Width="55" materialDesign:HintAssist.Hint="{DynamicResource MovieLib_Shortest}" Style="{StaticResource MaterialDesignTextBox}" FontSize="12" Margin="0,0,4,0" />
-                                <TextBlock Text="-" VerticalAlignment="Center" Margin="0,0,4,0" FontSize="12" />
-                                <TextBox x:Name="RuntimeMaxBox" Width="55" materialDesign:HintAssist.Hint="{DynamicResource MovieLib_Longest}" Style="{StaticResource MaterialDesignTextBox}" FontSize="12" />
-                            </StackPanel>
-                        </StackPanel>
-
-                        <!-- 导演 -->
+                        <!-- 导演（多选） -->
                         <StackPanel Margin="0,0,12,4">
                             <TextBlock Text="{DynamicResource MovieLib_Director}" FontSize="11" Foreground="{DynamicResource MaterialDesignHintForeground}" Margin="0,0,0,2" />
-                            <ComboBox x:Name="DirectorFilter"
-                                      materialDesign:HintAssist.Hint="{DynamicResource MovieLib_AllDirectors}"
-                                      Style="{StaticResource MaterialDesignComboBox}"
-                                      FontSize="12"
-                                      Width="140"
-                                      IsEditable="True" />
+                            <ListBox x:Name="DirectorFilter"
+                                     SelectionMode="Multiple"
+                                     Height="80"
+                                     FontSize="12"
+                                     Style="{StaticResource MaterialDesignFilterChipListBox}" />
                         </StackPanel>
                     </UniformGrid>
+
                     <!-- 操作按钮 -->
                     <StackPanel Orientation="Horizontal" Margin="0,6,0,0" HorizontalAlignment="Left">
                         <Button Content="{DynamicResource MovieLib_ApplyFilter}" Style="{StaticResource MaterialDesignRaisedButton}"
@@ -291,7 +295,15 @@
                         <Button Content="{DynamicResource MovieLib_Reset}" Style="{StaticResource MaterialDesignOutlinedButton}"
                                 Click="ResetAdvancedFilter_Click" Margin="0,0,8,0" />
                         <Button Content="{DynamicResource MovieLib_SaveFilter}" Style="{StaticResource MaterialDesignOutlinedButton}"
-                                Click="SaveFilter_Click" ToolTip="{DynamicResource Tip_SaveFilter}" />
+                                Click="SaveFilter_Click" ToolTip="{DynamicResource Tip_SaveFilter}" Margin="0,0,8,0" />
+                        <ComboBox x:Name="SavedFilterCombo"
+                                  materialDesign:HintAssist.Hint="{DynamicResource MovieLib_LoadFilter}"
+                                  Style="{StaticResource MaterialDesignComboBox}"
+                                  FontSize="12" Width="140"
+                                  SelectionChanged="SavedFilterCombo_SelectionChanged" />
+                        <Button x:Name="DeleteFilterBtn" Content="✕" Style="{StaticResource MaterialDesignIconButton}"
+                                Click="DeleteFilter_Click" ToolTip="{DynamicResource MovieLib_DeleteFilter}"
+                                Width="28" Height="28" FontSize="12" Margin="4,0,0,0" Visibility="Collapsed" />
                     </StackPanel>
                     </StackPanel>
                 </Expander>
