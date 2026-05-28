@@ -12,11 +12,11 @@ public interface IMovieRepository
     Task<List<Movie>> GetAllAsync();
     Task<List<Movie>> SearchAsync(string? keyword, int? categoryId, List<int>? tagIds,
         int? yearFrom, int? yearTo, int? ratingMin, int? ratingMax, WatchStatus? status,
-        string? country, string? language, int? runtimeMin, int? runtimeMax, string? director,
+        List<string>? countries, List<string>? languages, int? runtimeMin, int? runtimeMax, List<string>? directors,
         string? sortBy, bool sortDesc, int skip, int take);
     Task<int> CountAsync(string? keyword, int? categoryId, List<int>? tagIds,
         int? yearFrom, int? yearTo, int? ratingMin, int? ratingMax, WatchStatus? status,
-        string? country, string? language, int? runtimeMin, int? runtimeMax, string? director);
+        List<string>? countries, List<string>? languages, int? runtimeMin, int? runtimeMax, List<string>? directors);
     Task<Movie> AddAsync(Movie movie);
     Task<Movie> UpdateAsync(Movie movie);
     Task<bool> DeleteAsync(int id);

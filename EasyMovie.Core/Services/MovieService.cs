@@ -31,15 +31,15 @@ public class MovieService : IMovieService
     public async Task<(List<Movie> Movies, int TotalCount)> SearchAsync(
         string? keyword, int? categoryId, List<int>? tagIds,
         int? yearFrom, int? yearTo, int? ratingMin, int? ratingMax, WatchStatus? status,
-        string? country, string? language, int? runtimeMin, int? runtimeMax, string? director,
+        List<string>? countries, List<string>? languages, int? runtimeMin, int? runtimeMax, List<string>? directors,
         string? sortBy, bool sortDesc, int page, int pageSize)
     {
         var totalCount = await _movieRepo.CountAsync(keyword, categoryId, tagIds,
-            yearFrom, yearTo, ratingMin, ratingMax, status, country, language, runtimeMin, runtimeMax, director);
+            yearFrom, yearTo, ratingMin, ratingMax, status, countries, languages, runtimeMin, runtimeMax, directors);
 
         var skip = (page - 1) * pageSize;
         var movies = await _movieRepo.SearchAsync(keyword, categoryId, tagIds,
-            yearFrom, yearTo, ratingMin, ratingMax, status, country, language, runtimeMin, runtimeMax, director,
+            yearFrom, yearTo, ratingMin, ratingMax, status, countries, languages, runtimeMin, runtimeMax, directors,
             sortBy, sortDesc, skip, pageSize);
 
         return (movies, totalCount);

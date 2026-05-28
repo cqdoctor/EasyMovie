@@ -36,7 +36,7 @@ public class MovieRepository : IMovieRepository
     public async Task<List<Movie>> SearchAsync(
         string? keyword, int? categoryId, List<int>? tagIds,
         int? yearFrom, int? yearTo, int? ratingMin, int? ratingMax, WatchStatus? status,
-        string? country, string? language, int? runtimeMin, int? runtimeMax, string? director,
+        List<string>? countries, List<string>? languages, int? runtimeMin, int? runtimeMax, List<string>? directors,
         string? sortBy, bool sortDesc, int skip, int take)
     {
         var query = _context.Movies
@@ -88,13 +88,13 @@ public class MovieRepository : IMovieRepository
         if (status.HasValue)
             query = query.Where(m => m.WatchStatus == status.Value);
 
-        // 国家
-        if (!string.IsNullOrWhiteSpace(country))
-            query = query.Where(m => m.Country != null && m.Country.Contains(country));
+        // 国家（多选 OR）
+        if (countries is { Count: > 0 })
+            query = query.Where(m => m.Country != null && countries.Any(c => m.Country.Contains(c)));
 
-        // 语言
-        if (!string.IsNullOrWhiteSpace(language))
-            query = query.Where(m => m.Language != null && m.Language.Contains(language));
+        // 语言（多选 OR）
+        if (languages is { Count: > 0 })
+            query = query.Where(m => m.Language != null && languages.Any(l => m.Language.Contains(l)));
 
         // 片长范围
         if (runtimeMin.HasValue)
@@ -102,9 +102,9 @@ public class MovieRepository : IMovieRepository
         if (runtimeMax.HasValue)
             query = query.Where(m => m.Runtime <= runtimeMax.Value);
 
-        // 导演
-        if (!string.IsNullOrWhiteSpace(director))
-            query = query.Where(m => m.Director != null && m.Director.Contains(director));
+        // 导演（多选 OR）
+        if (directors is { Count: > 0 })
+            query = query.Where(m => m.Director != null && directors.Any(d => m.Director.Contains(d)));
 
         // 排序
         query = sortBy?.ToLowerInvariant() switch
@@ -132,7 +132,7 @@ public class MovieRepository : IMovieRepository
     public async Task<int> CountAsync(
         string? keyword, int? categoryId, List<int>? tagIds,
         int? yearFrom, int? yearTo, int? ratingMin, int? ratingMax, WatchStatus? status,
-        string? country, string? language, int? runtimeMin, int? runtimeMax, string? director)
+        List<string>? countries, List<string>? languages, int? runtimeMin, int? runtimeMax, List<string>? directors)
     {
         var query = _context.Movies.AsQueryable();
 
@@ -171,19 +171,19 @@ public class MovieRepository : IMovieRepository
         if (status.HasValue)
             query = query.Where(m => m.WatchStatus == status.Value);
 
-        if (!string.IsNullOrWhiteSpace(country))
-            query = query.Where(m => m.Country != null && m.Country.Contains(country));
+        if (countries is { Count: > 0 })
+            query = query.Where(m => m.Country != null && countries.Any(c => m.Country.Contains(c)));
 
-        if (!string.IsNullOrWhiteSpace(language))
-            query = query.Where(m => m.Language != null && m.Language.Contains(language));
+        if (languages is { Count: > 0 })
+            query = query.Where(m => m.Language != null && languages.Any(l => m.Language.Contains(l)));
 
         if (runtimeMin.HasValue)
             query = query.Where(m => m.Runtime >= runtimeMin.Value);
         if (runtimeMax.HasValue)
             query = query.Where(m => m.Runtime <= runtimeMax.Value);
 
-        if (!string.IsNullOrWhiteSpace(director))
-            query = query.Where(m => m.Director != null && m.Director.Contains(director));
+        if (directors is { Count: > 0 })
+            query = query.Where(m => m.Director != null && directors.Any(d => m.Director.Contains(d)));
 
         return await query.CountAsync();
     }
