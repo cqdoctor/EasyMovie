@@ -91,6 +91,7 @@ public partial class MovieListView : UserControl
             allCats = await _categoryService.GetAllAsync();
 
             PopulateCategoryFilter(allCats);
+            PopulateBatchCategoryCombo(allCats);
             PopulateYearFilter(allMovies);
             PopulateAdvancedFilterOptions(allMovies);
             await LoadMoviesAsync();
@@ -864,31 +865,14 @@ public partial class MovieListView : UserControl
 
     private void MovieDataGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (sender is DataGrid grid && grid.SelectedItem is Movie movie)
+        UpdateBatchPanel();
+        if (MovieDataGrid.SelectedItems.Count == 1 && MovieDataGrid.SelectedItem is Movie movie)
             _mainWindow?.ShowMovieDetail(movie);
-    }
-
-    private void MovieDataGrid_PreviewMouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
-    {
-        if (sender is not DataGrid grid) return;
-        var hit = VisualTreeHelper.HitTest(grid, e.GetPosition(grid));
-        if (hit == null) return;
-        var dep = hit.VisualHit;
-        while (dep != null)
-        {
-            if (dep is DataGridRow row)
-            {
-                row.IsSelected = true;
-                grid.SelectedItem = row.Item;
-                return;
-            }
-            if (dep is System.Windows.Media.Visual v) dep = System.Windows.Media.VisualTreeHelper.GetParent(v);
-            else break;
-        }
     }
 
     private void RenderCardView(List<Movie> movies)
     {
+        _selectedCardIds.Clear();
         CardPanel.Children.Clear();
         var hintFg = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(117, 117, 117));
         foreach (var movie in movies)
@@ -968,7 +952,29 @@ public partial class MovieListView : UserControl
 
             stack.Children.Add(infoPanel);
             card.Content = stack;
-            card.MouseLeftButtonUp += (s, e) => { _mainWindow?.ShowMovieDetail(movie); OpenDetailView(movie.Id); };
+            card.MouseLeftButtonUp += (s, e) =>
+            {
+                if (System.Windows.Input.Keyboard.Modifiers == System.Windows.Input.ModifierKeys.Control)
+                {
+                    if (_selectedCardIds.Contains(movie.Id))
+                        _selectedCardIds.Remove(movie.Id);
+                    else
+                        _selectedCardIds.Add(movie.Id);
+                    UpdateBatchPanel();
+                }
+                else if (_selectedCardIds.Count > 0 && _selectedCardIds.Contains(movie.Id))
+                {
+                    _selectedCardIds.Remove(movie.Id);
+                    UpdateBatchPanel();
+                }
+                else
+                {
+                    _selectedCardIds.Clear();
+                    _mainWindow?.ShowMovieDetail(movie);
+                    OpenDetailView(movie.Id);
+                }
+            };
+            card.DataContext = movie;
             card.Tag = movie.Id;
             CardPanel.Children.Add(card);
         }
@@ -1023,8 +1029,34 @@ public partial class MovieListView : UserControl
     }
 
     private void MovieDataGrid_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e) { if (MovieDataGrid.SelectedItem is Movie m) OpenDetailView(m.Id); }
+
+    private void MovieDataGrid_PreviewMouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (sender is not DataGrid grid) return;
+        var dep = e.OriginalSource as DependencyObject;
+        while (dep != null)
+        {
+            if (dep is DataGridRow row)
+            {
+                if (System.Windows.Input.Keyboard.Modifiers == System.Windows.Input.ModifierKeys.Control)
+                    row.IsSelected = !row.IsSelected;
+                else if (System.Windows.Input.Keyboard.Modifiers != System.Windows.Input.ModifierKeys.Shift)
+                {
+                    grid.SelectedItem = row.Item;
+                }
+                return;
+            }
+            if (dep is Visual v) dep = VisualTreeHelper.GetParent(v);
+            else break;
+        }
+    }
     private void PosterWall_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e) { if (PosterWall.SelectedItem is Movie m) OpenDetailView(m.Id); }
-    private void PosterWall_SelectionChanged(object sender, SelectionChangedEventArgs e) { if (PosterWall.SelectedItem is Movie movie) _mainWindow?.ShowMovieDetail(movie); }
+    private void PosterWall_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        UpdateBatchPanel();
+        if (PosterWall.SelectedItems.Count == 1 && PosterWall.SelectedItem is Movie movie)
+            _mainWindow?.ShowMovieDetail(movie);
+    }
     private void EditMovie_Click(object sender, RoutedEventArgs e) { if (sender is Button b && b.Tag is int id) OpenDetailView(id); }
     private async void DeleteMovie_Click(object sender, RoutedEventArgs e) { if (sender is Button b && b.Tag is int id && MessageBox.Show("确定删除？", "确认", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes) { await _movieService.DeleteAsync(id); await LoadMoviesAsync(); } }
     private async void PlayMovie_Click(object sender, RoutedEventArgs e) { if (sender is Button b && b.Tag is int id) { var m = await _movieService.GetByIdAsync(id); if (m?.FilePath != null && File.Exists(m.FilePath)) System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = m.FilePath, UseShellExecute = true }); else MessageBox.Show("该电影没有关联视频文件。"); } }
@@ -1462,5 +1494,147 @@ public partial class MovieListView : UserControl
             _mainWindow?.ClearStatus();
         }
         catch (Exception ex) { _mainWindow?.ClearStatus(); MessageBox.Show("导入失败: " + ex.Message); }
+    }
+
+    private List<Movie> GetSelectedMovies()
+    {
+        if (_isCardView)
+        {
+            return CardPanel.Children.OfType<Card>()
+                .Where(c => c.Tag is int id && _selectedCardIds.Contains(id))
+                .Select(c => c.DataContext as Movie)
+                .Where(m => m != null).Cast<Movie>().ToList();
+        }
+        if (_isPosterView)
+        {
+            return PosterWall.SelectedItems.Cast<Movie>().ToList();
+        }
+        return MovieDataGrid.SelectedItems.Cast<Movie>().ToList();
+    }
+
+    private readonly HashSet<int> _selectedCardIds = new();
+
+    private void UpdateBatchPanel()
+    {
+        var selected = GetSelectedMovies();
+        if (selected.Count >= 2)
+        {
+            BatchEditPanel.Visibility = Visibility.Visible;
+            PaginationBorder.Visibility = Visibility.Collapsed;
+            BatchCountText.Text = string.Format(LanguageManager.GetString("MovieLib_BatchSelected"), selected.Count);
+        }
+        else
+        {
+            BatchEditPanel.Visibility = Visibility.Collapsed;
+            PaginationBorder.Visibility = Visibility.Visible;
+        }
+    }
+
+    private void BatchPanelClose_Click(object sender, RoutedEventArgs e)
+    {
+        BatchEditPanel.Visibility = Visibility.Collapsed;
+        PaginationBorder.Visibility = Visibility.Visible;
+        if (!_isCardView && !_isPosterView)
+            MovieDataGrid.SelectedItems.Clear();
+        else if (_isPosterView)
+            PosterWall.SelectedItems.Clear();
+        else
+            _selectedCardIds.Clear();
+    }
+
+    private async void BatchApply_Click(object sender, RoutedEventArgs e)
+    {
+        var selected = GetSelectedMovies();
+        if (selected.Count == 0)
+        {
+            MessageBox.Show(LanguageManager.GetString("MovieLib_BatchNoSelection"));
+            return;
+        }
+
+        int? categoryId = null;
+        if (BatchCategoryCombo.SelectedItem is ComboBoxItem catItem && catItem.Tag is int cid)
+            categoryId = cid;
+
+        WatchStatus? status = null;
+        if (BatchStatusCombo.SelectedItem is ComboBoxItem stItem && stItem.Tag is string st && !string.IsNullOrEmpty(st))
+            status = st switch { "WantToWatch" => WatchStatus.WantToWatch, "Watching" => WatchStatus.Watching, "Watched" => WatchStatus.Watched, _ => null };
+
+        int? rating = null;
+        if (BatchRatingCombo.SelectedItem is ComboBoxItem rtItem && rtItem.Tag is string rt && int.TryParse(rt, out var rv))
+            rating = rv;
+
+        bool? favorite = null;
+        if (BatchFavoriteCombo.SelectedItem is ComboBoxItem favItem && favItem.Tag is string fav && bool.TryParse(fav, out var fv))
+            favorite = fv;
+
+        foreach (var m in selected)
+        {
+            if (categoryId.HasValue) m.CategoryId = categoryId;
+            if (status.HasValue) m.WatchStatus = status.Value;
+            if (rating.HasValue) m.Rating = rating.Value;
+            if (favorite.HasValue) m.IsFavorite = favorite.Value;
+        }
+
+        await _context.SaveChangesAsync();
+        MessageBox.Show(string.Format(LanguageManager.GetString("MovieLib_BatchApplied"), selected.Count));
+
+        BatchCategoryCombo.SelectedIndex = 0;
+        BatchStatusCombo.SelectedIndex = 0;
+        BatchRatingCombo.SelectedIndex = 0;
+        BatchFavoriteCombo.SelectedIndex = 0;
+        BatchEditPanel.Visibility = Visibility.Collapsed;
+
+        await LoadMoviesAsync();
+    }
+
+    private async void BatchDelete_Click(object sender, RoutedEventArgs e)
+    {
+        var selected = GetSelectedMovies();
+        if (selected.Count == 0)
+        {
+            MessageBox.Show(LanguageManager.GetString("MovieLib_BatchNoSelection"));
+            return;
+        }
+
+        var confirm = MessageBox.Show(
+            string.Format(LanguageManager.GetString("MovieLib_BatchConfirmDelete"), selected.Count),
+            "", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+        if (confirm != MessageBoxResult.Yes) return;
+
+        _context.Movies.RemoveRange(selected);
+        await _context.SaveChangesAsync();
+        MessageBox.Show(string.Format(LanguageManager.GetString("MovieLib_BatchDeleted"), selected.Count));
+        BatchEditPanel.Visibility = Visibility.Collapsed;
+        await LoadMoviesAsync();
+    }
+
+    private void BatchSelectAll_Click(object sender, RoutedEventArgs e)
+    {
+        if (_isPosterView)
+        {
+            PosterWall.SelectAll();
+        }
+        else if (!_isCardView)
+        {
+            MovieDataGrid.SelectAll();
+        }
+        else
+        {
+            foreach (var child in CardPanel.Children.OfType<Card>())
+            {
+                if (child.DataContext is Movie m)
+                    _selectedCardIds.Add(m.Id);
+            }
+            UpdateBatchPanel();
+        }
+    }
+
+    private void PopulateBatchCategoryCombo(List<Category> categories)
+    {
+        BatchCategoryCombo.Items.Clear();
+        BatchCategoryCombo.Items.Add(new ComboBoxItem { Content = LanguageManager.GetString("MovieLib_BatchNoChange"), Tag = "" });
+        foreach (var cat in categories)
+            BatchCategoryCombo.Items.Add(new ComboBoxItem { Content = cat.Name, Tag = cat.Id });
+        BatchCategoryCombo.SelectedIndex = 0;
     }
 }

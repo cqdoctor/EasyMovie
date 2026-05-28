@@ -15,11 +15,11 @@
                 <Setter Property="BorderThickness" Value="0" />
                 <Setter Property="Padding" Value="6,0" />
                 <Setter Property="VerticalContentAlignment" Value="Center" />
-                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="VerticalAlignment" Value="Stretch" />
                 <Setter Property="Foreground" Value="{DynamicResource MaterialDesignBody}" />
                 <Setter Property="Focusable" Value="False" />
                 <Setter Property="IsTabStop" Value="False" />
-                <Setter Property="Background" Value="#01FFFFFF" />
+                <Setter Property="Background" Value="Transparent" />
                 <Style.Triggers>
                     <Trigger Property="IsSelected" Value="True">
                         <Setter Property="Foreground" Value="{DynamicResource MaterialDesignBody}" />
@@ -319,14 +319,21 @@
                       IsReadOnly="True"
                       CanUserAddRows="False"
                       CanUserDeleteRows="False"
-                      SelectionMode="Single"
+                      SelectionMode="Extended"
                       SelectionUnit="FullRow"
-                      RowHeight="52"
-                      VerticalContentAlignment="Center"
+                      MinRowHeight="36"
+                      EnableRowVirtualization="True"
+                      EnableColumnVirtualization="True"
+                      VerticalContentAlignment="Stretch"
                       MouseDoubleClick="MovieDataGrid_MouseDoubleClick"
                       PreviewMouseLeftButtonDown="MovieDataGrid_PreviewMouseLeftButtonDown"
                       SelectionChanged="MovieDataGrid_SelectionChanged"
-                      Style="{StaticResource MaterialDesignDataGrid}" GridLinesVisibility="None">
+                      Style="{StaticResource MaterialDesignDataGrid}" GridLinesVisibility="None"
+                      Background="{DynamicResource MaterialDesignBackground}"
+                      HeadersVisibility="Column"
+                      BorderThickness="0"
+                      ClipToBounds="True"
+                      ScrollViewer.VerticalScrollBarVisibility="Auto">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="{DynamicResource MovieLib_ColTitle}" Binding="{Binding Title}"
                                         Width="180" ElementStyle="{StaticResource CellTextBlock}" />
@@ -336,7 +343,7 @@
                     <DataGridTemplateColumn Header="{DynamicResource MovieLib_ColRating}" Width="100">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
-                                <StackPanel Orientation="Horizontal">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                     <TextBlock Text="{Binding Rating, StringFormat='⭐{0}'}"
                                                Visibility="{Binding Rating, Converter={StaticResource NullToVisibilityConverter}}" />
                                     <TextBlock Text="-"
@@ -350,7 +357,7 @@
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <TextBlock Text="{Binding WatchStatus, Converter={StaticResource WatchStatusConverter}}"
-                                           Foreground="{DynamicResource MaterialDesignBody}" />
+                                           Foreground="{DynamicResource MaterialDesignBody}" VerticalAlignment="Center" />
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
@@ -358,7 +365,7 @@
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <TextBlock Text="{Binding IsFavorite, Converter={StaticResource BoolToStarConverter}}"
-                                           FontSize="16" HorizontalAlignment="Center" />
+                                           FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center" />
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
@@ -366,14 +373,14 @@
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <TextBlock Text="{Binding FilePath, Converter={StaticResource FilePathIconConverter}}"
-                                           FontSize="14" HorizontalAlignment="Center" />
+                                           FontSize="14" HorizontalAlignment="Center" VerticalAlignment="Center" />
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
-                    <DataGridTemplateColumn Header="{DynamicResource MovieLib_ColAction}" Width="140">
+                    <DataGridTemplateColumn Header="{DynamicResource MovieLib_ColAction}" Width="*">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
-                                <StackPanel Orientation="Horizontal">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                     <Button Style="{StaticResource MaterialDesignIconForegroundButton}"
                                             Click="PlayMovie_Click" Tag="{Binding Id}"
                                             ToolTip="{DynamicResource Tip_Play}">
@@ -410,7 +417,7 @@
             <!-- 海报墙视图 -->
             <ListBox x:Name="PosterWall"
                      Visibility="Collapsed"
-                     SelectionMode="Single"
+                     SelectionMode="Extended"
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                      ScrollViewer.VerticalScrollBarVisibility="Auto"
                      BorderThickness="0"
@@ -509,8 +516,73 @@
                        Visibility="Collapsed" />
         </Grid>
 
+        <!-- 批量操作面板 -->
+        <Border x:Name="BatchEditPanel" Grid.Row="3" Visibility="Collapsed"
+                Background="{DynamicResource MaterialDesignCardBackground}"
+                CornerRadius="8" Padding="12,8" Margin="0,8,0,0">
+            <StackPanel>
+                <Grid>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <materialDesign:PackIcon Kind="PlaylistEdit" Width="20" Height="20" Margin="0,0,6,0" VerticalAlignment="Center" />
+                        <TextBlock x:Name="BatchCountText" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <Button Style="{StaticResource MaterialDesignIconButton}" HorizontalAlignment="Right"
+                            Click="BatchPanelClose_Click" Width="28" Height="28">
+                        <materialDesign:PackIcon Kind="Close" Width="16" Height="16" />
+                    </Button>
+                </Grid>
+                <UniformGrid Columns="4" Margin="0,8,0,0">
+                    <StackPanel Margin="0,0,8,0">
+                        <TextBlock Text="{DynamicResource MovieLib_BatchCategory}" FontSize="11" Foreground="{DynamicResource MaterialDesignHintForeground}" Margin="0,0,0,2" />
+                        <ComboBox x:Name="BatchCategoryCombo" Style="{StaticResource MaterialDesignComboBox}" FontSize="12" />
+                    </StackPanel>
+                    <StackPanel Margin="0,0,8,0">
+                        <TextBlock Text="{DynamicResource MovieLib_BatchStatus}" FontSize="11" Foreground="{DynamicResource MaterialDesignHintForeground}" Margin="0,0,0,2" />
+                        <ComboBox x:Name="BatchStatusCombo" Style="{StaticResource MaterialDesignComboBox}" FontSize="12">
+                            <ComboBoxItem Content="{DynamicResource MovieLib_BatchNoChange}" Tag="" />
+                            <ComboBoxItem Content="{DynamicResource MovieLib_WantToWatch}" Tag="WantToWatch" />
+                            <ComboBoxItem Content="{DynamicResource MovieLib_Watching}" Tag="Watching" />
+                            <ComboBoxItem Content="{DynamicResource MovieLib_Watched}" Tag="Watched" />
+                        </ComboBox>
+                    </StackPanel>
+                    <StackPanel Margin="0,0,8,0">
+                        <TextBlock Text="{DynamicResource MovieLib_BatchRating}" FontSize="11" Foreground="{DynamicResource MaterialDesignHintForeground}" Margin="0,0,0,2" />
+                        <ComboBox x:Name="BatchRatingCombo" Style="{StaticResource MaterialDesignComboBox}" FontSize="12">
+                            <ComboBoxItem Content="{DynamicResource MovieLib_BatchNoChange}" Tag="" />
+                            <ComboBoxItem Content="1" Tag="1" />
+                            <ComboBoxItem Content="2" Tag="2" />
+                            <ComboBoxItem Content="3" Tag="3" />
+                            <ComboBoxItem Content="4" Tag="4" />
+                            <ComboBoxItem Content="5" Tag="5" />
+                            <ComboBoxItem Content="6" Tag="6" />
+                            <ComboBoxItem Content="7" Tag="7" />
+                            <ComboBoxItem Content="8" Tag="8" />
+                            <ComboBoxItem Content="9" Tag="9" />
+                            <ComboBoxItem Content="10" Tag="10" />
+                        </ComboBox>
+                    </StackPanel>
+                    <StackPanel>
+                        <TextBlock Text="{DynamicResource MovieLib_BatchFavorite}" FontSize="11" Foreground="{DynamicResource MaterialDesignHintForeground}" Margin="0,0,0,2" />
+                        <ComboBox x:Name="BatchFavoriteCombo" Style="{StaticResource MaterialDesignComboBox}" FontSize="12">
+                            <ComboBoxItem Content="{DynamicResource MovieLib_BatchNoChange}" Tag="" />
+                            <ComboBoxItem Content="{DynamicResource MovieLib_BatchFavSet}" Tag="true" />
+                            <ComboBoxItem Content="{DynamicResource MovieLib_BatchFavUnset}" Tag="false" />
+                        </ComboBox>
+                    </StackPanel>
+                </UniformGrid>
+                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                    <Button Content="{DynamicResource MovieLib_BatchApply}" Style="{StaticResource MaterialDesignRaisedButton}"
+                            Click="BatchApply_Click" Margin="0,0,8,0" />
+                    <Button Content="{DynamicResource MovieLib_BatchDelete}" Style="{StaticResource MaterialDesignOutlinedButton}"
+                            Click="BatchDelete_Click" Margin="0,0,8,0" />
+                    <Button Content="{DynamicResource MovieLib_BatchSelectAll}" Style="{StaticResource MaterialDesignFlatButton}"
+                            Click="BatchSelectAll_Click" Margin="0,0,8,0" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
         <!-- 分页 -->
-        <Border Grid.Row="3" Margin="0,12,0,0">
+        <Border x:Name="PaginationBorder" Grid.Row="4" Margin="0,12,0,0">
             <Grid>
                 <TextBlock x:Name="PageInfo" VerticalAlignment="Center"
                            Foreground="{DynamicResource MaterialDesignHintForeground}" />
