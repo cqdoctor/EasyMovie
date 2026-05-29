@@ -10,6 +10,7 @@ public class MovieDbContext : DbContext
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<Tag> Tags => Set<Tag>();
     public DbSet<MovieTag> MovieTags => Set<MovieTag>();
+    public DbSet<MovieCollection> Collections => Set<MovieCollection>();
 
     public MovieDbContext(DbContextOptions<MovieDbContext> options) : base(options)
     {
@@ -23,5 +24,6 @@ public class MovieDbContext : DbContext
         modelBuilder.ApplyConfiguration(new CategoryConfiguration());
         modelBuilder.ApplyConfiguration(new TagConfiguration());
         modelBuilder.ApplyConfiguration(new MovieTagConfiguration());
+        modelBuilder.ApplyConfiguration(new MovieCollectionConfiguration());
     }
 }

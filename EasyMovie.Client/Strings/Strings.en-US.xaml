@@ -223,4 +223,51 @@
     <sys:String x:Key="MovieLib_DeleteFilter">Delete Filter</sys:String>
     <sys:String x:Key="Msg_FilterSaved">Filter saved</sys:String>
     <sys:String x:Key="Msg_ConfirmDeleteFilter">Delete filter '{0}'?</sys:String>
+
+    <!-- Keyboard Shortcuts -->
+    <sys:String x:Key="Shortcuts_Title">Keyboard Shortcuts</sys:String>
+    <sys:String x:Key="Shortcuts_Search">Focus search box</sys:String>
+    <sys:String x:Key="Shortcuts_AddNew">Add new movie</sys:String>
+    <sys:String x:Key="Shortcuts_Delete">Delete selected movie</sys:String>
+    <sys:String x:Key="Shortcuts_Detail">View movie details</sys:String>
+    <sys:String x:Key="Shortcuts_Escape">Close detail / Deselect</sys:String>
+    <sys:String x:Key="Shortcuts_Refresh">Refresh movie list</sys:String>
+    <sys:String x:Key="Shortcuts_SelectAll">Select all on current page</sys:String>
+    <sys:String x:Key="Shortcuts_CycleView">Switch view mode</sys:String>
+    <sys:String x:Key="Shortcuts_Nav1">Movie Library</sys:String>
+    <sys:String x:Key="Shortcuts_Nav2">Categories &amp; Tags</sys:String>
+    <sys:String x:Key="Shortcuts_Nav3">Statistics</sys:String>
+    <sys:String x:Key="Shortcuts_Nav4">Settings</sys:String>
+    <sys:String x:Key="Shortcuts_Help">Show keyboard shortcuts</sys:String>
+    <sys:String x:Key="Shortcuts_ClickToEdit">Click a shortcut to reassign. Press Esc to cancel recording.</sys:String>
+    <sys:String x:Key="Shortcuts_PressKey">Press key...</sys:String>
+    <sys:String x:Key="Shortcuts_Conflict">This shortcut is already used by '{0}'. Please choose another.</sys:String>
+    <sys:String x:Key="Shortcuts_ResetDefault">Reset to Default</sys:String>
+    <sys:String x:Key="Settings_Shortcuts">⌨️ Keyboard Shortcuts</sys:String>
+    <sys:String x:Key="Shortcuts_SettingsHint">Customize keyboard shortcuts. Click the button below to open settings. Changes take effect immediately.</sys:String>
+    <sys:String x:Key="Settings_ConfigureShortcuts">Configure Shortcuts</sys:String>
+
+    <!-- Collections -->
+    <sys:String x:Key="MovieLib_Collections">Collections</sys:String>
+    <sys:String x:Key="Tip_Collections">Movie Collections</sys:String>
+    <sys:String x:Key="Collection_Empty">No collections yet. Click the button below to create one.</sys:String>
+    <sys:String x:Key="Collection_AddNew">New Collection</sys:String>
+    <sys:String x:Key="Collection_AddTitle">New Collection</sys:String>
+    <sys:String x:Key="Collection_EditTitle">Edit Collection</sys:String>
+    <sys:String x:Key="Collection_Name">Collection Name</sys:String>
+    <sys:String x:Key="Collection_Description">Description (optional)</sys:String>
+    <sys:String x:Key="Collection_NameRequired">Please enter a collection name</sys:String>
+    <sys:String x:Key="Collection_Edit">Edit</sys:String>
+    <sys:String x:Key="Collection_Delete">Delete</sys:String>
+    <sys:String x:Key="Collection_ConfirmDelete">Delete this collection? Movies in the collection will not be deleted, only removed from the collection.</sys:String>
+    <sys:String x:Key="Collection_AddMovie">Add Movie</sys:String>
+    <sys:String x:Key="Collection_AddMovieTitle">Add Movies to Collection</sys:String>
+    <sys:String x:Key="Collection_SearchMovie">Search movies</sys:String>
+    <sys:String x:Key="Collection_AddSelected">Add Selected</sys:String>
+    <sys:String x:Key="Collection_RemoveMovie">Remove from collection</sys:String>
+    <sys:String x:Key="Collection_AlreadyIn">Already in collection</sys:String>
+    <sys:String x:Key="Collection_BackToList">← Back to Movie List</sys:String>
+
+    <sys:String x:Key="Msg_NoFilePath">No video file associated with this movie.</sys:String>
+    <sys:String x:Key="Msg_FileNotFound">Video file not found: {0}&#x0a;The file may have been moved, renamed, or the storage device is not connected.</sys:String>
 </ResourceDictionary>

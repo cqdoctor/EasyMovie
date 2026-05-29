@@ -5,6 +5,7 @@ using System.Net.Http;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -16,6 +17,19 @@ namespace EasyMovie.Client;
 
 public partial class MainWindow : Window
 {
+    public static RoutedCommand SearchCommand { get; } = new();
+    public static RoutedCommand AddNewCommand { get; } = new();
+    public static RoutedCommand DeleteCommand { get; } = new();
+    public static RoutedCommand DetailCommand { get; } = new();
+    public static RoutedCommand EscapeCommand { get; } = new();
+    public static RoutedCommand RefreshCommand { get; } = new();
+    public static RoutedCommand SelectAllCommand { get; } = new();
+    public static RoutedCommand Nav1Command { get; } = new();
+    public static RoutedCommand Nav2Command { get; } = new();
+    public static RoutedCommand Nav3Command { get; } = new();
+    public static RoutedCommand Nav4Command { get; } = new();
+    public static RoutedCommand CycleViewCommand { get; } = new();
+    public static RoutedCommand ShortcutsHelpCommand { get; } = new();
     [DllImport("user32.dll")]
     private static extern IntPtr SendMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
 
@@ -89,6 +103,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        LoadInputBindings();
         SourceInitialized += (_, _) =>
         {
             var hwnd = new WindowInteropHelper(this).Handle;
@@ -270,5 +285,189 @@ public partial class MainWindow : Window
             }
             catch { }
         }
+    }
+
+    private MovieListView? GetCurrentMovieView()
+    {
+        if (_currentPage == "Movies" && _pageCache.TryGetValue("Movies", out var view) && view is MovieListView mlv)
+            return mlv;
+        return null;
+    }
+
+    private void LoadInputBindings()
+    {
+        InputBindings.Clear();
+        var configs = ShortcutConfig.LoadAll();
+        var commandMap = new Dictionary<string, RoutedCommand>
+        {
+            ["Search"] = SearchCommand,
+            ["AddNew"] = AddNewCommand,
+            ["Delete"] = DeleteCommand,
+            ["Detail"] = DetailCommand,
+            ["Escape"] = EscapeCommand,
+            ["Refresh"] = RefreshCommand,
+            ["SelectAll"] = SelectAllCommand,
+            ["CycleView"] = CycleViewCommand,
+            ["Nav1"] = Nav1Command,
+            ["Nav2"] = Nav2Command,
+            ["Nav3"] = Nav3Command,
+            ["Nav4"] = Nav4Command,
+            ["ShortcutsHelp"] = ShortcutsHelpCommand,
+        };
+
+        foreach (var cfg in configs)
+        {
+            if (!commandMap.TryGetValue(cfg.Action, out var cmd)) continue;
+            var gesture = ShortcutConfig.ParseGesture(cfg.KeyGesture);
+            if (gesture != null)
+                InputBindings.Add(new KeyBinding(cmd, gesture));
+        }
+    }
+
+    public void ApplyShortcuts()
+    {
+        LoadInputBindings();
+    }
+
+    private void Search_Executed(object sender, ExecutedRoutedEventArgs e)
+    {
+        if (GetCurrentMovieView() is { } mv) mv.FocusSearchBox();
+        else { NavListBox.SelectedIndex = 0; NavigateTo("Movies"); Dispatcher.BeginInvoke(new Action(() => GetCurrentMovieView()?.FocusSearchBox()), System.Windows.Threading.DispatcherPriority.Background); }
+    }
+
+    private void AddNew_Executed(object sender, ExecutedRoutedEventArgs e)
+    {
+        if (GetCurrentMovieView() is { } mv) mv.AddNewMovie();
+    }
+
+    private void Delete_Executed(object sender, ExecutedRoutedEventArgs e)
+    {
+        if (GetCurrentMovieView() is { } mv) mv.DeleteSelectedMovie();
+    }
+
+    private void Detail_Executed(object sender, ExecutedRoutedEventArgs e)
+    {
+        if (GetCurrentMovieView() is { } mv) mv.OpenSelectedMovieDetail();
+    }
+
+    private void Escape_Executed(object sender, ExecutedRoutedEventArgs e)
+    {
+        if (_lastSelectedMovie != null) ShowMovieDetail(null);
+        else if (GetCurrentMovieView() is { } mv) mv.DeselectAll();
+    }
+
+    private void Refresh_Executed(object sender, ExecutedRoutedEventArgs e)
+    {
+        if (GetCurrentMovieView() is { } mv) mv.RefreshData();
+    }
+
+    private void SelectAll_Executed(object sender, ExecutedRoutedEventArgs e)
+    {
+        if (GetCurrentMovieView() is { } mv) mv.SelectAllMovies();
+    }
+
+    private void Nav1_Executed(object sender, ExecutedRoutedEventArgs e) { NavListBox.SelectedIndex = 0; }
+    private void Nav2_Executed(object sender, ExecutedRoutedEventArgs e) { NavListBox.SelectedIndex = 1; }
+    private void Nav3_Executed(object sender, ExecutedRoutedEventArgs e) { NavListBox.SelectedIndex = 2; }
+    private void Nav4_Executed(object sender, ExecutedRoutedEventArgs e) { NavListBox.SelectedIndex = 3; }
+
+    private void CycleView_Executed(object sender, ExecutedRoutedEventArgs e)
+    {
+        if (GetCurrentMovieView() is { } mv) mv.CycleView();
+    }
+
+    private void ShortcutsHelp_Executed(object sender, ExecutedRoutedEventArgs e)
+    {
+        var dlg = new Window
+        {
+            Title = LanguageManager.GetString("Shortcuts_Title"),
+            Width = 420,
+            Height = 480,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Owner = this,
+            ResizeMode = ResizeMode.NoResize,
+            Background = (Brush)FindResource("MaterialDesignPaper")
+        };
+
+        var scroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+        var panel = new StackPanel { Margin = new Thickness(20) };
+
+        panel.Children.Add(new TextBlock
+        {
+            Text = "⌨️ " + LanguageManager.GetString("Shortcuts_Title"),
+            FontSize = 20,
+            FontWeight = FontWeights.Bold,
+            Margin = new Thickness(0, 0, 0, 16),
+            Foreground = (Brush)FindResource("MaterialDesignBody")
+        });
+
+        var shortcuts = new (string key, string desc)[]
+        {
+            ("Ctrl+F", LanguageManager.GetString("Shortcuts_Search")),
+            ("Ctrl+N", LanguageManager.GetString("Shortcuts_AddNew")),
+            ("Delete", LanguageManager.GetString("Shortcuts_Delete")),
+            ("Enter", LanguageManager.GetString("Shortcuts_Detail")),
+            ("Esc", LanguageManager.GetString("Shortcuts_Escape")),
+            ("F5", LanguageManager.GetString("Shortcuts_Refresh")),
+            ("Ctrl+A", LanguageManager.GetString("Shortcuts_SelectAll")),
+            ("F3", LanguageManager.GetString("Shortcuts_CycleView")),
+            ("Ctrl+1", LanguageManager.GetString("Shortcuts_Nav1")),
+            ("Ctrl+2", LanguageManager.GetString("Shortcuts_Nav2")),
+            ("Ctrl+3", LanguageManager.GetString("Shortcuts_Nav3")),
+            ("Ctrl+4", LanguageManager.GetString("Shortcuts_Nav4")),
+            ("Ctrl+/", LanguageManager.GetString("Shortcuts_Help")),
+        };
+
+        foreach (var (key, desc) in shortcuts)
+        {
+            var row = new Grid { Margin = new Thickness(0, 4, 0, 4) };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(90) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            var keyBorder = new Border
+            {
+                Background = (Brush)FindResource("MaterialDesignCardBackground"),
+                CornerRadius = new CornerRadius(4),
+                Padding = new Thickness(8, 4, 8, 4),
+                HorizontalAlignment = HorizontalAlignment.Left
+            };
+            keyBorder.Child = new TextBlock
+            {
+                Text = key,
+                FontSize = 12,
+                FontWeight = FontWeights.SemiBold,
+                FontFamily = new FontFamily("Consolas"),
+                Foreground = (Brush)FindResource("MaterialDesignBody")
+            };
+            Grid.SetColumn(keyBorder, 0);
+            row.Children.Add(keyBorder);
+
+            var descText = new TextBlock
+            {
+                Text = desc,
+                FontSize = 13,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(12, 0, 0, 0),
+                Foreground = (Brush)FindResource("MaterialDesignBody")
+            };
+            Grid.SetColumn(descText, 1);
+            row.Children.Add(descText);
+
+            panel.Children.Add(row);
+        }
+
+        var closeBtn = new Button
+        {
+            Content = LanguageManager.GetString("Msg_Cancel"),
+            Style = (Style)FindResource("MaterialDesignRaisedButton"),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Margin = new Thickness(0, 16, 0, 0)
+        };
+        closeBtn.Click += (s, ev) => dlg.Close();
+        panel.Children.Add(closeBtn);
+
+        scroll.Content = panel;
+        dlg.Content = scroll;
+        dlg.ShowDialog();
     }
 }

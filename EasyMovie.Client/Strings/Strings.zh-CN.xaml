@@ -223,4 +223,51 @@
     <sys:String x:Key="MovieLib_DeleteFilter">删除筛选</sys:String>
     <sys:String x:Key="Msg_FilterSaved">筛选条件已保存</sys:String>
     <sys:String x:Key="Msg_ConfirmDeleteFilter">确认删除筛选条件「{0}」？</sys:String>
+
+    <!-- Keyboard Shortcuts -->
+    <sys:String x:Key="Shortcuts_Title">键盘快捷键</sys:String>
+    <sys:String x:Key="Shortcuts_Search">聚焦搜索框</sys:String>
+    <sys:String x:Key="Shortcuts_AddNew">添加新电影</sys:String>
+    <sys:String x:Key="Shortcuts_Delete">删除选中电影</sys:String>
+    <sys:String x:Key="Shortcuts_Detail">查看电影详情</sys:String>
+    <sys:String x:Key="Shortcuts_Escape">关闭详情 / 取消选择</sys:String>
+    <sys:String x:Key="Shortcuts_Refresh">刷新电影列表</sys:String>
+    <sys:String x:Key="Shortcuts_SelectAll">全选当前页</sys:String>
+    <sys:String x:Key="Shortcuts_CycleView">切换视图模式</sys:String>
+    <sys:String x:Key="Shortcuts_Nav1">电影库</sys:String>
+    <sys:String x:Key="Shortcuts_Nav2">分类与标签</sys:String>
+    <sys:String x:Key="Shortcuts_Nav3">统计面板</sys:String>
+    <sys:String x:Key="Shortcuts_Nav4">设置</sys:String>
+    <sys:String x:Key="Shortcuts_Help">显示快捷键帮助</sys:String>
+    <sys:String x:Key="Shortcuts_ClickToEdit">点击快捷键可重新设置，按 Esc 取消录制</sys:String>
+    <sys:String x:Key="Shortcuts_PressKey">按键设置...</sys:String>
+    <sys:String x:Key="Shortcuts_Conflict">该快捷键已被「{0}」占用，请选择其他组合</sys:String>
+    <sys:String x:Key="Shortcuts_ResetDefault">恢复默认</sys:String>
+    <sys:String x:Key="Settings_Shortcuts">⌨️ 键盘快捷键</sys:String>
+    <sys:String x:Key="Shortcuts_SettingsHint">自定义键盘快捷键，点击下方按钮打开设置面板。修改后即时生效。</sys:String>
+    <sys:String x:Key="Settings_ConfigureShortcuts">配置快捷键</sys:String>
+
+    <!-- Collections -->
+    <sys:String x:Key="MovieLib_Collections">合集</sys:String>
+    <sys:String x:Key="Tip_Collections">电影合集</sys:String>
+    <sys:String x:Key="Collection_Empty">暂无合集，点击下方按钮创建第一个合集</sys:String>
+    <sys:String x:Key="Collection_AddNew">新建合集</sys:String>
+    <sys:String x:Key="Collection_AddTitle">新建合集</sys:String>
+    <sys:String x:Key="Collection_EditTitle">编辑合集</sys:String>
+    <sys:String x:Key="Collection_Name">合集名称</sys:String>
+    <sys:String x:Key="Collection_Description">合集描述（可选）</sys:String>
+    <sys:String x:Key="Collection_NameRequired">请输入合集名称</sys:String>
+    <sys:String x:Key="Collection_Edit">编辑</sys:String>
+    <sys:String x:Key="Collection_Delete">删除</sys:String>
+    <sys:String x:Key="Collection_ConfirmDelete">确认删除此合集？合集中的电影不会被删除，只会从合集中移出。</sys:String>
+    <sys:String x:Key="Collection_AddMovie">添加电影</sys:String>
+    <sys:String x:Key="Collection_AddMovieTitle">添加电影到合集</sys:String>
+    <sys:String x:Key="Collection_SearchMovie">搜索电影</sys:String>
+    <sys:String x:Key="Collection_AddSelected">添加选中</sys:String>
+    <sys:String x:Key="Collection_RemoveMovie">从合集中移除</sys:String>
+    <sys:String x:Key="Collection_AlreadyIn">已在合集中</sys:String>
+    <sys:String x:Key="Collection_BackToList">← 返回电影列表</sys:String>
+
+    <sys:String x:Key="Msg_NoFilePath">该电影尚未关联视频文件。</sys:String>
+    <sys:String x:Key="Msg_FileNotFound">找不到视频文件：{0}&#x0a;文件可能已被移动、重命名或存储设备未连接。</sys:String>
 </ResourceDictionary>

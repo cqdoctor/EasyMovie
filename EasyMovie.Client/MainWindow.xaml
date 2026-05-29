@@ -4,11 +4,28 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+        xmlns:local="clr-namespace:EasyMovie.Client"
         mc:Ignorable="d"
         Title="🎬 EasyMovie" Height="720" Width="1280"
         Icon="{x:Null}"
         WindowStartupLocation="CenterScreen"
         Background="{DynamicResource MaterialDesignPaper}">
+
+    <Window.CommandBindings>
+        <CommandBinding Command="{x:Static local:MainWindow.SearchCommand}" Executed="Search_Executed" />
+        <CommandBinding Command="{x:Static local:MainWindow.AddNewCommand}" Executed="AddNew_Executed" />
+        <CommandBinding Command="{x:Static local:MainWindow.DeleteCommand}" Executed="Delete_Executed" />
+        <CommandBinding Command="{x:Static local:MainWindow.DetailCommand}" Executed="Detail_Executed" />
+        <CommandBinding Command="{x:Static local:MainWindow.EscapeCommand}" Executed="Escape_Executed" />
+        <CommandBinding Command="{x:Static local:MainWindow.RefreshCommand}" Executed="Refresh_Executed" />
+        <CommandBinding Command="{x:Static local:MainWindow.SelectAllCommand}" Executed="SelectAll_Executed" />
+        <CommandBinding Command="{x:Static local:MainWindow.Nav1Command}" Executed="Nav1_Executed" />
+        <CommandBinding Command="{x:Static local:MainWindow.Nav2Command}" Executed="Nav2_Executed" />
+        <CommandBinding Command="{x:Static local:MainWindow.Nav3Command}" Executed="Nav3_Executed" />
+        <CommandBinding Command="{x:Static local:MainWindow.Nav4Command}" Executed="Nav4_Executed" />
+        <CommandBinding Command="{x:Static local:MainWindow.CycleViewCommand}" Executed="CycleView_Executed" />
+        <CommandBinding Command="{x:Static local:MainWindow.ShortcutsHelpCommand}" Executed="ShortcutsHelp_Executed" />
+    </Window.CommandBindings>
 
     <Grid>
         <Grid.RowDefinitions>

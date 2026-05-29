@@ -103,6 +103,16 @@
                         <TextBlock Text="{DynamicResource MovieLib_OnlineSearch}" />
                     </StackPanel>
                 </Button>
+                <Button Style="{StaticResource MaterialDesignFlatButton}"
+                        Click="CollectionView_Click"
+                        ToolTip="{DynamicResource Tip_Collections}"
+                        Padding="8,4,8,4"
+                        Margin="0,0,6,0">
+                    <StackPanel Orientation="Horizontal">
+                        <materialDesign:PackIcon Kind="FolderStar" Margin="0,0,4,0" />
+                        <TextBlock Text="{DynamicResource MovieLib_Collections}" />
+                    </StackPanel>
+                </Button>
                 <Button Style="{StaticResource MaterialDesignIconForegroundButton}"
                         Click="AddMovie_Click"
                         ToolTip="{DynamicResource Tip_AddMovie}"
@@ -514,6 +524,12 @@
                        HorizontalAlignment="Center"
                        VerticalAlignment="Center"
                        Visibility="Collapsed" />
+
+            <!-- 合集视图 -->
+            <ScrollViewer x:Name="CollectionScrollViewer" Visibility="Collapsed"
+                          VerticalScrollBarVisibility="Auto">
+                <StackPanel x:Name="CollectionPanel" Margin="0,0,0,16" />
+            </ScrollViewer>
         </Grid>
 
         <!-- 批量操作面板 -->
