@@ -41,6 +41,11 @@ public class Movie
     public Category? Category { get; set; }
     public ICollection<MovieTag> MovieTags { get; set; } = new List<MovieTag>();
 
+    // ── 合集 ──
+    public int? CollectionId { get; set; }
+    public MovieCollection? Collection { get; set; }
+    public int? CollectionOrder { get; set; }
+
     // ── 评分 & 状态 ──
     /// <summary>个人评分 1-10，null 表示未评分</summary>
     public int? Rating { get; set; }

@@ -25,6 +25,7 @@ public partial class SettingsView : UserControl
         TmdbKeyBox.Text = AppSettings.TmdbApiKey ?? "";
         ProxyBox.Text = AppSettings.HttpProxy ?? "";
         DoubanCookieBox.Text = AppSettings.DoubanCookie ?? "";
+        ConfigureShortcutsBtn.Content = LanguageManager.GetString("Settings_ConfigureShortcuts");
         UpdateButtonStyles();
         UpdateLanguageStyles();
     }
@@ -103,5 +104,14 @@ public partial class SettingsView : UserControl
             Owner = Window.GetWindow(this)
         };
         dialog.ShowDialog();
+    }
+
+    private void ConfigureShortcuts_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new ShortcutSettingsDialog
+        {
+            Owner = Window.GetWindow(this)
+        };
+        dlg.ShowDialog();
     }
 }

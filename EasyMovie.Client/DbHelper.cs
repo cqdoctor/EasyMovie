@@ -54,6 +54,9 @@ public static class DbHelper
                 cmd.CommandText = "PRAGMA table_info(Movies)";
                 var hasSearchIndex = false;
                 var hasPosterData = false;
+                var hasCollectionId = false;
+                var hasCollectionOrder = false;
+                var hasCollectionsTable = false;
                 using (var reader = cmd.ExecuteReader())
                 {
                     while (reader.Read())
@@ -61,7 +64,38 @@ public static class DbHelper
                         var colName = reader.GetString(1);
                         if (colName == "SearchIndex") hasSearchIndex = true;
                         if (colName == "PosterData") hasPosterData = true;
+                        if (colName == "CollectionId") hasCollectionId = true;
+                        if (colName == "CollectionOrder") hasCollectionOrder = true;
                     }
+                }
+
+                cmd.CommandText = "SELECT name FROM sqlite_master WHERE type='table' AND name='Collections'";
+                using (var tableReader = cmd.ExecuteReader())
+                {
+                    if (tableReader.Read()) hasCollectionsTable = true;
+                }
+
+                if (!hasCollectionsTable)
+                {
+                    cmd.CommandText = @"CREATE TABLE Collections (
+                        Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        Name TEXT NOT NULL,
+                        Description TEXT,
+                        SortOrder INTEGER NOT NULL DEFAULT 0,
+                        CreatedAt TEXT NOT NULL,
+                        UpdatedAt TEXT NOT NULL);";
+                    cmd.ExecuteNonQuery();
+                }
+
+                if (!hasCollectionId)
+                {
+                    cmd.CommandText = "ALTER TABLE Movies ADD COLUMN CollectionId INTEGER REFERENCES Collections(Id) ON DELETE SET NULL;";
+                    cmd.ExecuteNonQuery();
+                }
+                if (!hasCollectionOrder)
+                {
+                    cmd.CommandText = "ALTER TABLE Movies ADD COLUMN CollectionOrder INTEGER;";
+                    cmd.ExecuteNonQuery();
                 }
 
                 if (!hasSearchIndex)

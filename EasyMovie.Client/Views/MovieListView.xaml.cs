@@ -7,6 +7,7 @@ using System.Net.Http;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using MaterialDesignThemes.Wpf;
 using EasyMovie.Core.Enums;
@@ -29,12 +30,14 @@ public partial class MovieListView : UserControl
     private readonly ICategoryService _categoryService;
     private readonly ITagService _tagService;
     private readonly IRecommendationService _recommendationService;
+    private readonly CollectionService _collectionService;
     private readonly MainWindow? _mainWindow;
     private int _currentPage = 1;
     private const int PageSize = 20;
     private int _totalCount;
     private bool _isCardView;
     private bool _isPosterView;
+    private bool _isCollectionView;
 
     private bool _isFirstLoad = true;
 
@@ -50,6 +53,7 @@ public partial class MovieListView : UserControl
         _categoryService = new CategoryService(categoryRepo);
         _tagService = new TagService(tagRepo);
         _recommendationService = new RecommendationService(movieRepo);
+        _collectionService = new CollectionService(_context);
         Loaded += async (s, e) =>
         {
             if (_isFirstLoad)
@@ -200,14 +204,28 @@ public partial class MovieListView : UserControl
         PrevPageBtn.IsEnabled = _currentPage > 1;
         NextPageBtn.IsEnabled = _currentPage < totalPages;
         var hasMovies = movies.Any();
-        MovieDataGrid.Visibility = !_isCardView && !_isPosterView && hasMovies ? Visibility.Visible : Visibility.Collapsed;
+        MovieDataGrid.Visibility = !_isCardView && !_isPosterView && !_isCollectionView && hasMovies ? Visibility.Visible : Visibility.Collapsed;
         CardScrollViewer.Visibility = _isCardView && hasMovies ? Visibility.Visible : Visibility.Collapsed;
         PosterWall.Visibility = _isPosterView && hasMovies ? Visibility.Visible : Visibility.Collapsed;
-        EmptyLabel.Visibility = hasMovies ? Visibility.Collapsed : Visibility.Visible;
+        EmptyLabel.Visibility = hasMovies || _isCollectionView ? Visibility.Collapsed : Visibility.Visible;
+        CollectionScrollViewer.Visibility = _isCollectionView ? Visibility.Visible : Visibility.Collapsed;
 
         if (_isPosterView) PosterWall.ScrollIntoView(PosterWall.Items[0]);
         else if (_isCardView) CardScrollViewer.ScrollToTop();
         else if (MovieDataGrid.Items.Count > 0) MovieDataGrid.ScrollIntoView(MovieDataGrid.Items[0]);
+
+        if (_isFirstLoad && hasMovies)
+        {
+            _isFirstLoad = false;
+            if (!_isCardView && !_isPosterView && MovieDataGrid.Items.Count > 0)
+            {
+                MovieDataGrid.SelectedIndex = 0;
+                if (MovieDataGrid.Items[0] is Movie firstMovie)
+                    _mainWindow?.ShowMovieDetail(firstMovie);
+            }
+            else if (movies.Count > 0)
+                _mainWindow?.ShowMovieDetail(movies[0]);
+        }
     }
 
     private (string? keyword, int? categoryId, WatchStatus? status) GetFilterValues()
@@ -709,27 +727,36 @@ public partial class MovieListView : UserControl
 
         posterGrid.Children.Add(posterBorder);
 
-        // 播放按钮叠加层（仅当有文件时显示）
-        if (!string.IsNullOrEmpty(movie.FilePath) && File.Exists(movie.FilePath))
+        // 播放按钮叠加层
+        if (!string.IsNullOrEmpty(movie.FilePath))
         {
+            var playBg = new SolidColorBrush(Color.FromArgb(160, 0, 0, 0));
+            var playBgHover = new SolidColorBrush(Color.FromArgb(220, 121, 134, 203));
             var playOverlay = new Border
             {
                 VerticalAlignment = VerticalAlignment.Center,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Width = 44, Height = 44,
                 CornerRadius = new CornerRadius(22),
-                Background = new SolidColorBrush(Color.FromArgb(160, 0, 0, 0)),
-                Cursor = System.Windows.Input.Cursors.Hand
+                Background = playBg,
+                Cursor = System.Windows.Input.Cursors.Hand,
+                RenderTransform = new ScaleTransform(1, 1),
+                RenderTransformOrigin = new Point(0.5, 0.5)
             };
             var playIcon = new PackIcon { Kind = PackIconKind.Play, Width = 22, Height = 22, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
             var playContainer = new Grid();
             playContainer.Children.Add(playIcon);
             playOverlay.Child = playContainer;
+            playOverlay.MouseEnter += (s, e) => { playOverlay.Background = playBgHover; playOverlay.RenderTransform = new ScaleTransform(1.15, 1.15); };
+            playOverlay.MouseLeave += (s, e) => { playOverlay.Background = playBg; playOverlay.RenderTransform = new ScaleTransform(1, 1); };
             playOverlay.MouseLeftButtonUp += (s, e) =>
             {
                 e.Handled = true;
-                try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(movie.FilePath) { UseShellExecute = true }); }
-                catch (Exception ex) { MessageBox.Show(LanguageManager.GetString("Msg_PlayFailed") + ex.Message); }
+                if (!File.Exists(movie.FilePath))
+                    MessageBox.Show(string.Format(LanguageManager.GetString("Msg_FileNotFound"), movie.FilePath), LanguageManager.GetString("Msg_Hint"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                else
+                    try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(movie.FilePath) { UseShellExecute = true }); }
+                    catch (Exception ex) { MessageBox.Show(LanguageManager.GetString("Msg_PlayFailed") + ex.Message); }
             };
             posterGrid.Children.Add(playOverlay);
         }
@@ -1006,14 +1033,15 @@ public partial class MovieListView : UserControl
 
     private async void SearchBox_TextChanged(object sender, TextChangedEventArgs e) { _currentPage = 1; await LoadMoviesAsync(); }
     private async void Filter_Changed(object sender, SelectionChangedEventArgs e) { _currentPage = 1; await LoadMoviesAsync(); }
-    private async void TableViewBtn_Click(object sender, RoutedEventArgs e) { _isCardView = false; _isPosterView = false; UpdateViewButtons(); await LoadMoviesAsync(); }
-    private async void CardViewBtn_Click(object sender, RoutedEventArgs e) { _isCardView = true; _isPosterView = false; UpdateViewButtons(); await LoadMoviesAsync(); }
-    private async void PosterViewBtn_Click(object sender, RoutedEventArgs e) { _isCardView = false; _isPosterView = true; UpdateViewButtons(); await LoadMoviesAsync(); }
+    private async void TableViewBtn_Click(object sender, RoutedEventArgs e) { _isCardView = false; _isPosterView = false; _isCollectionView = false; UpdateViewButtons(); await LoadMoviesAsync(); }
+    private async void CardViewBtn_Click(object sender, RoutedEventArgs e) { _isCardView = true; _isPosterView = false; _isCollectionView = false; UpdateViewButtons(); await LoadMoviesAsync(); }
+    private async void PosterViewBtn_Click(object sender, RoutedEventArgs e) { _isCardView = false; _isPosterView = true; _isCollectionView = false; UpdateViewButtons(); await LoadMoviesAsync(); }
+    private async void CollectionView_Click(object sender, RoutedEventArgs e) { _isCardView = false; _isPosterView = false; _isCollectionView = true; UpdateViewButtons(); await LoadCollectionViewAsync(); }
 
     private void UpdateViewButtons()
     {
         var selectedBg = new SolidColorBrush(Color.FromArgb(40, 0, 0, 0));
-        TableViewBtn.Background = !_isCardView && !_isPosterView ? selectedBg : Brushes.Transparent;
+        TableViewBtn.Background = !_isCardView && !_isPosterView && !_isCollectionView ? selectedBg : Brushes.Transparent;
         CardViewBtn.Background = _isCardView ? selectedBg : Brushes.Transparent;
         PosterViewBtn.Background = _isPosterView ? selectedBg : Brushes.Transparent;
     }
@@ -1059,7 +1087,7 @@ public partial class MovieListView : UserControl
     }
     private void EditMovie_Click(object sender, RoutedEventArgs e) { if (sender is Button b && b.Tag is int id) OpenDetailView(id); }
     private async void DeleteMovie_Click(object sender, RoutedEventArgs e) { if (sender is Button b && b.Tag is int id && MessageBox.Show("确定删除？", "确认", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes) { await _movieService.DeleteAsync(id); await LoadMoviesAsync(); } }
-    private async void PlayMovie_Click(object sender, RoutedEventArgs e) { if (sender is Button b && b.Tag is int id) { var m = await _movieService.GetByIdAsync(id); if (m?.FilePath != null && File.Exists(m.FilePath)) System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = m.FilePath, UseShellExecute = true }); else MessageBox.Show("该电影没有关联视频文件。"); } }
+    private async void PlayMovie_Click(object sender, RoutedEventArgs e) { if (sender is Button b && b.Tag is int id) { var m = await _movieService.GetByIdAsync(id); if (m == null) return; if (string.IsNullOrEmpty(m.FilePath)) MessageBox.Show(LanguageManager.GetString("Msg_NoFilePath"), LanguageManager.GetString("Msg_Hint"), MessageBoxButton.OK, MessageBoxImage.Information); else if (!File.Exists(m.FilePath)) MessageBox.Show(string.Format(LanguageManager.GetString("Msg_FileNotFound"), m.FilePath), LanguageManager.GetString("Msg_Hint"), MessageBoxButton.OK, MessageBoxImage.Warning); else System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = m.FilePath, UseShellExecute = true }); } }
 
     private async void FetchInfo_Click(object sender, RoutedEventArgs e)
     {
@@ -1214,7 +1242,7 @@ public partial class MovieListView : UserControl
                 if (source == "douban" && !string.IsNullOrEmpty(info.ExternalId) && info.ExternalId != m.DoubanId) { m.DoubanId = info.ExternalId; updated = true; }
                 if (source == "tmdb" && !string.IsNullOrEmpty(info.ExternalId) && info.ExternalId != m.TmdbId) { m.TmdbId = info.ExternalId; updated = true; }
 
-                if (!string.IsNullOrEmpty(info.Country) && !m.CategoryId.HasValue)
+                if (!string.IsNullOrEmpty(info.Country))
                 {
                     var firstCountry = info.Country.Split('/', ' ', '·').FirstOrDefault(c => IsValidCategoryName(c.Trim()))?.Trim();
                     if (!string.IsNullOrEmpty(firstCountry) && IsValidCategoryName(firstCountry))
@@ -1222,8 +1250,11 @@ public partial class MovieListView : UserControl
                         try
                         {
                             var category = await _categoryService.GetOrCreateByNameAsync(firstCountry);
-                            m.CategoryId = category.Id;
-                            updated = true;
+                            if (m.CategoryId != category.Id)
+                            {
+                                m.CategoryId = category.Id;
+                                updated = true;
+                            }
                         }
                         catch { }
                     }
@@ -1627,6 +1658,368 @@ public partial class MovieListView : UserControl
             }
             UpdateBatchPanel();
         }
+    }
+
+    public void FocusSearchBox()
+    {
+        SearchBox.Focus();
+        SearchBox.SelectAll();
+    }
+
+    public void AddNewMovie() => OpenDetailView(0);
+
+    public async void DeleteSelectedMovie()
+    {
+        var selected = GetSelectedMovies();
+        if (selected.Count == 0) return;
+        if (selected.Count == 1)
+        {
+            if (MessageBox.Show(LanguageManager.GetString("Msg_ConfirmDelete"), LanguageManager.GetString("Msg_Confirm"), MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
+            {
+                await _movieService.DeleteAsync(selected[0].Id);
+                await LoadMoviesAsync();
+            }
+        }
+        else
+        {
+            BatchDelete_Click(null, null);
+        }
+    }
+
+    public void OpenSelectedMovieDetail()
+    {
+        var selected = GetSelectedMovies();
+        if (selected.Count == 1) OpenDetailView(selected[0].Id);
+    }
+
+    public async void RefreshData()
+    {
+        _currentPage = 1;
+        await LoadMoviesAsync();
+    }
+
+    public void SelectAllMovies()
+    {
+        if (_isPosterView) PosterWall.SelectAll();
+        else if (!_isCardView) MovieDataGrid.SelectAll();
+        else
+        {
+            foreach (var child in CardPanel.Children.OfType<Card>())
+                if (child.DataContext is Movie m) _selectedCardIds.Add(m.Id);
+            UpdateBatchPanel();
+        }
+    }
+
+    public void DeselectAll()
+    {
+        if (_isPosterView) PosterWall.SelectedItems.Clear();
+        else if (!_isCardView) MovieDataGrid.SelectedItems.Clear();
+        else { _selectedCardIds.Clear(); UpdateBatchPanel(); }
+        _mainWindow?.ShowMovieDetail(null);
+    }
+
+    public async void CycleView()
+    {
+        if (!_isCardView && !_isPosterView && !_isCollectionView) { _isCardView = true; _isPosterView = false; _isCollectionView = false; }
+        else if (_isCardView) { _isCardView = false; _isPosterView = true; _isCollectionView = false; }
+        else if (_isPosterView) { _isCardView = false; _isPosterView = false; _isCollectionView = true; }
+        else { _isCardView = false; _isPosterView = false; _isCollectionView = false; }
+        UpdateViewButtons();
+        if (_isCollectionView) await LoadCollectionViewAsync();
+        else await LoadMoviesAsync();
+    }
+
+    private async Task LoadCollectionViewAsync()
+    {
+        MovieDataGrid.Visibility = Visibility.Collapsed;
+        CardScrollViewer.Visibility = Visibility.Collapsed;
+        PosterWall.Visibility = Visibility.Collapsed;
+        EmptyLabel.Visibility = Visibility.Collapsed;
+        CollectionScrollViewer.Visibility = Visibility.Visible;
+        PaginationBorder.Visibility = Visibility.Collapsed;
+
+        CollectionPanel.Children.Clear();
+
+        var backBar = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
+        var backBtn = new Button
+        {
+            Style = (Style)Application.Current.FindResource("MaterialDesignFlatButton"),
+            Content = LanguageManager.GetString("Collection_BackToList"),
+            Padding = new Thickness(8, 4, 8, 4),
+            HorizontalAlignment = HorizontalAlignment.Left
+        };
+        backBtn.Click += async (s, e) => { _isCollectionView = false; UpdateViewButtons(); await LoadMoviesAsync(); };
+        backBar.Children.Add(backBtn);
+        CollectionPanel.Children.Add(backBar);
+
+        var collections = await _collectionService.GetAllWithMoviesAsync();
+
+        if (collections.Count == 0)
+        {
+            var emptyText = new TextBlock
+            {
+                Text = LanguageManager.GetString("Collection_Empty"),
+                FontSize = 14,
+                Foreground = SafeFindBrush("MaterialDesignHintForeground", Color.FromRgb(117, 117, 117)),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(0, 40, 0, 16)
+            };
+            CollectionPanel.Children.Add(emptyText);
+        }
+
+        if (collections.Count == 0) return;
+
+        foreach (var col in collections)
+        {
+            var card = new Border
+            {
+                Background = SafeFindBrush("MaterialDesignCardBackground", Color.FromRgb(45, 45, 45)),
+                CornerRadius = new CornerRadius(8),
+                Padding = new Thickness(16),
+                Margin = new Thickness(0, 0, 0, 12)
+            };
+
+            var stack = new StackPanel();
+
+            var header = new Grid();
+            header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            var titlePanel = new StackPanel { Orientation = Orientation.Horizontal };
+            titlePanel.Children.Add(new PackIcon { Kind = PackIconKind.FolderStar, Width = 20, Height = 20, Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center, Foreground = new SolidColorBrush(Color.FromRgb(121, 134, 203)) });
+            titlePanel.Children.Add(new TextBlock { Text = col.Name, FontSize = 16, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center, Foreground = SafeFindBrush("MaterialDesignBody", Colors.White) });
+            titlePanel.Children.Add(new TextBlock { Text = $" ({col.Movies.Count})", FontSize = 13, Foreground = SafeFindBrush("MaterialDesignHintForeground", Color.FromRgb(117, 117, 117)), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 0, 0) });
+            Grid.SetColumn(titlePanel, 0);
+            header.Children.Add(titlePanel);
+
+            var btnPanel = new StackPanel { Orientation = Orientation.Horizontal };
+            var editBtn = new Button { Style = (Style)Application.Current.FindResource("MaterialDesignIconForegroundButton"), Tag = col.Id, ToolTip = LanguageManager.GetString("Collection_Edit"), Width = 28, Height = 28 };
+            editBtn.Content = new PackIcon { Kind = PackIconKind.Pencil, Width = 16, Height = 16 };
+            editBtn.Click += EditCollection_Click;
+            btnPanel.Children.Add(editBtn);
+
+            var deleteBtn = new Button { Style = (Style)Application.Current.FindResource("MaterialDesignIconForegroundButton"), Tag = col.Id, ToolTip = LanguageManager.GetString("Collection_Delete"), Width = 28, Height = 28, Margin = new Thickness(4, 0, 0, 0) };
+            deleteBtn.Content = new PackIcon { Kind = PackIconKind.Delete, Width = 16, Height = 16 };
+            deleteBtn.Click += DeleteCollection_Click;
+            btnPanel.Children.Add(deleteBtn);
+
+            Grid.SetColumn(btnPanel, 1);
+            header.Children.Add(btnPanel);
+
+            stack.Children.Add(header);
+
+            if (!string.IsNullOrEmpty(col.Description))
+                stack.Children.Add(new TextBlock { Text = col.Description, FontSize = 12, Foreground = SafeFindBrush("MaterialDesignHintForeground", Color.FromRgb(117, 117, 117)), Margin = new Thickness(0, 4, 0, 8), TextWrapping = TextWrapping.Wrap });
+
+            var movieWrap = new WrapPanel { Margin = new Thickness(0, 8, 0, 0) };
+            foreach (var movie in col.Movies)
+            {
+                var movieCard = BuildCollectionMovieCard(movie, col.Id);
+                movieWrap.Children.Add(movieCard);
+            }
+
+            var addMovieBtn = new Border
+            {
+                Width = 120, Height = 170, Margin = new Thickness(6),
+                Background = SafeFindBrush("MaterialDesignCardBackground", Color.FromRgb(45, 45, 45)),
+                CornerRadius = new CornerRadius(8),
+                BorderBrush = SafeFindBrush("MaterialDesignDivider", Color.FromRgb(80, 80, 80)),
+                BorderThickness = new Thickness(1, 1, 1, 1),
+                Cursor = Cursors.Hand,
+                Tag = col.Id
+            };
+            var addStack = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+            addStack.Children.Add(new PackIcon { Kind = PackIconKind.Plus, Width = 28, Height = 28, HorizontalAlignment = HorizontalAlignment.Center, Foreground = SafeFindBrush("MaterialDesignHintForeground", Color.FromRgb(117, 117, 117)) });
+            addStack.Children.Add(new TextBlock { Text = LanguageManager.GetString("Collection_AddMovie"), FontSize = 11, HorizontalAlignment = HorizontalAlignment.Center, Foreground = SafeFindBrush("MaterialDesignHintForeground", Color.FromRgb(117, 117, 117)), Margin = new Thickness(0, 4, 0, 0) });
+            addMovieBtn.Child = addStack;
+            addMovieBorder_MouseLeftButtonUp(addMovieBtn, col.Id);
+            movieWrap.Children.Add(addMovieBtn);
+
+            stack.Children.Add(movieWrap);
+            card.Child = stack;
+            CollectionPanel.Children.Add(card);
+        }
+
+        var addColBtn = new Button
+        {
+            Content = LanguageManager.GetString("Collection_AddNew"),
+            Style = (Style)Application.Current.FindResource("MaterialDesignRaisedButton"),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Margin = new Thickness(0, 8, 0, 0)
+        };
+        addColBtn.Click += AddCollection_Click;
+        CollectionPanel.Children.Add(addColBtn);
+    }
+
+    private void addMovieBorder_MouseLeftButtonUp(Border border, int collectionId)
+    {
+        border.MouseLeftButtonUp += async (s, e) =>
+        {
+            var dlg = new AddMovieToCollectionDialog(collectionId, _context)
+            {
+                Owner = Window.GetWindow(this)
+            };
+            if (dlg.ShowDialog() == true)
+                await LoadCollectionViewAsync();
+        };
+    }
+
+    private Border BuildCollectionMovieCard(Movie movie, int collectionId)
+    {
+        var card = new Border
+        {
+            Width = 120, Height = 170, Margin = new Thickness(6),
+            Background = SafeFindBrush("MaterialDesignCardBackground", Color.FromRgb(45, 45, 45)),
+            CornerRadius = new CornerRadius(8),
+            ClipToBounds = true,
+            Cursor = Cursors.Hand,
+            Tag = movie.Id
+        };
+
+        var grid = new Grid();
+
+        if (movie.PosterData is { Length: > 0 })
+        {
+            try
+            {
+                var img = new Image { Stretch = Stretch.UniformToFill, VerticalAlignment = VerticalAlignment.Center };
+                var bmp = new BitmapImage();
+                bmp.BeginInit(); bmp.CacheOption = BitmapCacheOption.OnLoad; bmp.StreamSource = new MemoryStream(movie.PosterData); bmp.EndInit(); bmp.Freeze();
+                img.Source = bmp;
+                RenderOptions.SetBitmapScalingMode(img, BitmapScalingMode.HighQuality);
+                grid.Children.Add(img);
+            }
+            catch { }
+        }
+
+        if (grid.Children.Count == 0)
+        {
+            var ph = new StackPanel { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center, Background = SafeFindBrush("MaterialDesignDivider", Color.FromRgb(48, 48, 48)) };
+            ph.Children.Add(new PackIcon { Kind = PackIconKind.MovieOpen, Width = 28, Height = 28, HorizontalAlignment = HorizontalAlignment.Center, Foreground = SafeFindBrush("MaterialDesignHintForeground", Color.FromRgb(117, 117, 117)) });
+            grid.Children.Add(ph);
+        }
+
+        // 播放按钮叠加层
+        if (!string.IsNullOrEmpty(movie.FilePath))
+        {
+            var playBg = new SolidColorBrush(Color.FromArgb(160, 0, 0, 0));
+            var playBgHover = new SolidColorBrush(Color.FromArgb(220, 121, 134, 203));
+            var playOverlay = new Border
+            {
+                VerticalAlignment = VerticalAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Width = 36, Height = 36,
+                CornerRadius = new CornerRadius(18),
+                Background = playBg,
+                Cursor = Cursors.Hand,
+                RenderTransform = new ScaleTransform(1, 1),
+                RenderTransformOrigin = new Point(0.5, 0.5)
+            };
+            var playIcon = new PackIcon { Kind = PackIconKind.Play, Width = 18, Height = 18, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+            var playContainer = new Grid();
+            playContainer.Children.Add(playIcon);
+            playOverlay.Child = playContainer;
+            playOverlay.MouseEnter += (s, e) => { playOverlay.Background = playBgHover; playOverlay.RenderTransform = new ScaleTransform(1.15, 1.15); };
+            playOverlay.MouseLeave += (s, e) => { playOverlay.Background = playBg; playOverlay.RenderTransform = new ScaleTransform(1, 1); };
+            playOverlay.MouseLeftButtonUp += (s, e) =>
+            {
+                e.Handled = true;
+                if (!File.Exists(movie.FilePath))
+                    MessageBox.Show(string.Format(LanguageManager.GetString("Msg_FileNotFound"), movie.FilePath), LanguageManager.GetString("Msg_Hint"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                else
+                    try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(movie.FilePath) { UseShellExecute = true }); }
+                    catch { }
+            };
+            grid.Children.Add(playOverlay);
+        }
+
+        var infoBar = new Border { VerticalAlignment = VerticalAlignment.Bottom, Padding = new Thickness(6, 4, 6, 4) };
+        var gradBrush = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(0, 1) };
+        gradBrush.GradientStops.Add(new GradientStop(Color.FromArgb(0, 0, 0, 0), 0));
+        gradBrush.GradientStops.Add(new GradientStop(Color.FromArgb(200, 0, 0, 0), 1));
+        infoBar.Background = gradBrush;
+        var infoStack = new StackPanel();
+        infoStack.Children.Add(new TextBlock { Text = movie.Title, FontSize = 11, Foreground = Brushes.White, TextTrimming = TextTrimming.CharacterEllipsis });
+        if (movie.Year > 0) infoStack.Children.Add(new TextBlock { Text = movie.Year.ToString(), FontSize = 10, Foreground = ColorToBrush(Color.FromArgb(187, 255, 255, 255)) });
+        infoBar.Child = infoStack;
+        grid.Children.Add(infoBar);
+
+        var removeBtn = new Button
+        {
+            Style = (Style)Application.Current.FindResource("MaterialDesignIconForegroundButton"),
+            Width = 22, Height = 22,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(0, 2, 2, 0),
+            Tag = (movie.Id, collectionId),
+            ToolTip = LanguageManager.GetString("Collection_RemoveMovie")
+        };
+        removeBtn.Content = new PackIcon { Kind = PackIconKind.Close, Width = 12, Height = 12 };
+        removeBtn.Click += RemoveMovieFromCollection_Click;
+        grid.Children.Add(removeBtn);
+
+        card.Child = grid;
+        card.MouseLeftButtonUp += (s, e) =>
+        {
+            if (e.Handled) return;
+            _mainWindow?.ShowMovieDetail(movie);
+        };
+
+        return card;
+    }
+
+    private async void RemoveMovieFromCollection_Click(object sender, RoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (sender is Button btn && btn.Tag is ValueTuple<int, int> tuple)
+        {
+            await _collectionService.RemoveMovieFromCollectionAsync(tuple.Item1);
+            await LoadCollectionViewAsync();
+        }
+    }
+
+    private async void AddCollection_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new CollectionEditDialog()
+        {
+            Owner = Window.GetWindow(this)
+        };
+        if (dlg.ShowDialog() == true)
+        {
+            await _collectionService.AddAsync(new MovieCollection { Name = dlg.CollectionName, Description = dlg.CollectionDescription });
+            await LoadCollectionViewAsync();
+        }
+    }
+
+    private async void EditCollection_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn || btn.Tag is not int id) return;
+        var col = await _collectionService.GetByIdAsync(id);
+        if (col == null) return;
+        var dlg = new CollectionEditDialog(col)
+        {
+            Owner = Window.GetWindow(this)
+        };
+        if (dlg.ShowDialog() == true)
+        {
+            col.Name = dlg.CollectionName;
+            col.Description = dlg.CollectionDescription;
+            await _collectionService.UpdateAsync(col);
+            await LoadCollectionViewAsync();
+        }
+    }
+
+    private async void DeleteCollection_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn || btn.Tag is not int id) return;
+        if (MessageBox.Show(LanguageManager.GetString("Collection_ConfirmDelete"), LanguageManager.GetString("Msg_Confirm"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+        await _collectionService.DeleteAsync(id);
+        await LoadCollectionViewAsync();
+    }
+
+    public void CloseDetailPanel()
+    {
+        _mainWindow?.ShowMovieDetail(null);
     }
 
     private void PopulateBatchCategoryCombo(List<Category> categories)
