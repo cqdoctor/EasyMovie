@@ -59,46 +59,100 @@
                     </Grid>
                 </Border>
 
-                <!-- 导入导出 -->
+                <!-- 数据管理 -->
                 <Border Background="{DynamicResource MaterialDesignCardBackground}" CornerRadius="8" Padding="24" Margin="0,0,0,16">
                     <Grid>
-                        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                        <TextBlock Grid.Row="0" Text="{DynamicResource Settings_ImportExport}" FontSize="18" FontWeight="Bold" Margin="0,0,0,12"/>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <TextBlock Grid.Row="0" Text="{DynamicResource Settings_DataManagement}" FontSize="18" FontWeight="Bold" Margin="0,0,0,16"/>
+
+                        <!-- 导入文件夹 -->
                         <StackPanel Grid.Row="1" Margin="0,0,0,12" Orientation="Horizontal">
                             <TextBox x:Name="FolderPathBox" Width="300" materialDesign:HintAssist.Hint="{DynamicResource Settings_FolderPath}"
                                      Style="{StaticResource MaterialDesignFloatingHintTextBox}" Margin="0,0,8,0" />
                             <Button Content="{DynamicResource Settings_ImportFolderBtn}" Style="{StaticResource MaterialDesignRaisedButton}" Click="ImportFolder_Click" Margin="0,0,8,0"/>
                             <CheckBox x:Name="RecursiveCheck" Content="{DynamicResource Settings_IncludeSubfolders}" VerticalAlignment="Center"/>
                         </StackPanel>
+
+                        <!-- 导出 -->
                         <StackPanel Grid.Row="2" Margin="0,0,0,12" Orientation="Horizontal">
                             <TextBlock Text="{DynamicResource Settings_Export}" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0"/>
                             <Button Content="CSV" Style="{StaticResource MaterialDesignRaisedButton}" Click="ExportCsv_Click" Margin="0,0,6,0"/>
                             <Button Content="JSON" Style="{StaticResource MaterialDesignRaisedButton}" Click="ExportJson_Click" Margin="0,0,6,0"/>
                             <Button Content="{DynamicResource Settings_FullBackup}" Style="{StaticResource MaterialDesignRaisedButton}" Click="ExportFullBackup_Click"/>
                         </StackPanel>
+
+                        <!-- 导入 -->
                         <StackPanel Grid.Row="3" Margin="0,0,0,12" Orientation="Horizontal">
                             <TextBlock Text="{DynamicResource Settings_Import}" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0"/>
                             <Button Content="CSV" Style="{StaticResource MaterialDesignRaisedButton}" Click="ImportCsv_Click" Margin="0,0,6,0"/>
                             <Button Content="JSON" Style="{StaticResource MaterialDesignRaisedButton}" Click="ImportJson_Click" Margin="0,0,6,0"/>
                             <Button Content="{DynamicResource Settings_RestoreData}" Style="{StaticResource MaterialDesignRaisedButton}" Click="RestoreBackup_Click"/>
                         </StackPanel>
-                        <StackPanel Grid.Row="4" Orientation="Horizontal">
-                            <TextBlock Text="{DynamicResource Settings_Database}" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                            <Button Content="{DynamicResource Settings_BackupDb}" Style="{StaticResource MaterialDesignRaisedButton}" Click="BackupDbFile_Click" Margin="0,0,6,0"/>
-                            <Button Content="{DynamicResource Settings_RestoreDb}" Style="{StaticResource MaterialDesignRaisedButton}" Click="RestoreDbFile_Click"/>
+
+                        <!-- 自动备份配置 -->
+                        <StackPanel Grid.Row="5" Orientation="Horizontal" Margin="0,0,0,8">
+                            <TextBlock Text="{DynamicResource Backup_Interval}" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <ComboBox x:Name="BackupIntervalCombo" Style="{StaticResource MaterialDesignComboBox}" FontSize="13" Width="120" SelectionChanged="BackupInterval_Changed">
+                                <ComboBoxItem Content="{DynamicResource Backup_Daily}" Tag="1" />
+                                <ComboBoxItem Content="{DynamicResource Backup_Weekly}" Tag="7" />
+                                <ComboBoxItem Content="{DynamicResource Backup_Monthly}" Tag="30" />
+                                <ComboBoxItem Content="{DynamicResource Backup_Disabled}" Tag="0" />
+                            </ComboBox>
+                            <TextBlock Text="{DynamicResource Backup_MaxCount}" FontSize="13" VerticalAlignment="Center" Margin="24,0,8,0"/>
+                            <ComboBox x:Name="MaxBackupCombo" Style="{StaticResource MaterialDesignComboBox}" FontSize="13" Width="80" SelectionChanged="MaxBackup_Changed">
+                                <ComboBoxItem Content="5" Tag="5" />
+                                <ComboBoxItem Content="10" Tag="10" />
+                                <ComboBoxItem Content="20" Tag="20" />
+                                <ComboBoxItem Content="50" Tag="50" />
+                            </ComboBox>
                         </StackPanel>
+                        <StackPanel Grid.Row="6" Orientation="Horizontal" Margin="0,0,0,12">
+                            <Button Content="{DynamicResource Backup_ManualBackup}" Style="{StaticResource MaterialDesignRaisedButton}" Click="ManualBackup_Click" Margin="0,0,8,0"/>
+                            <Button Content="{DynamicResource Backup_OpenFolder}" Style="{StaticResource MaterialDesignFlatButton}" Click="OpenBackupFolder_Click"/>
+                        </StackPanel>
+
+                        <!-- 备份历史 -->
+                        <TextBlock Grid.Row="7" Text="{DynamicResource Backup_History}" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                        <ListBox Grid.Row="8" x:Name="BackupHistoryList" MaxHeight="200"
+                                 materialDesign:ListBoxItemAssist.ShowSelection="False" Margin="0,0,0,0">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,2">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding DisplayText}" FontSize="12" VerticalAlignment="Center" />
+                                        <Button Grid.Column="1" Content="{DynamicResource Backup_Restore}" Style="{StaticResource MaterialDesignFlatButton}" FontSize="11"
+                                                Click="RestoreBackupItem_Click" Tag="{Binding FilePath}" Margin="4,0" />
+                                        <Button Grid.Column="2" Content="{DynamicResource Backup_Delete}" Style="{StaticResource MaterialDesignFlatButton}" FontSize="11"
+                                                Click="DeleteBackupItem_Click" Tag="{Binding FilePath}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
                     </Grid>
                 </Border>
 
+                <!-- 工具 -->
                 <Border Background="{DynamicResource MaterialDesignCardBackground}" CornerRadius="8" Padding="24" Margin="0,0,0,16">
                     <Grid>
                         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                        <TextBlock Grid.Row="0" Text="{DynamicResource Settings_Data}" FontSize="18" FontWeight="Bold" Margin="0,0,0,16"/>
+                        <TextBlock Grid.Row="0" Text="{DynamicResource Settings_Tools}" FontSize="18" FontWeight="Bold" Margin="0,0,0,12"/>
                         <StackPanel Grid.Row="1">
-                            <TextBlock Text="数据库: %LocalAppData%/EasyMovie/" FontSize="13" Margin="0,0,0,12"/>
                             <Button x:Name="DetectDuplicatesBtn" Content="{DynamicResource Settings_DetectDuplicates}"
-                                    Style="{StaticResource MaterialDesignRaisedButton}"
-                                    Click="DetectDuplicates_Click" HorizontalAlignment="Left" />
+                                    Style="{StaticResource MaterialDesignRaisedButton}" Click="DetectDuplicates_Click" HorizontalAlignment="Left" />
                         </StackPanel>
                     </Grid>
                 </Border>
@@ -111,6 +165,7 @@
                         <StackPanel Grid.Row="1">
                             <TextBlock Text="{DynamicResource Shortcuts_SettingsHint}" FontSize="13" Foreground="{DynamicResource MaterialDesignHintForeground}" Margin="0,0,0,12" TextWrapping="Wrap"/>
                             <Button x:Name="ConfigureShortcutsBtn"
+                                    Content="{DynamicResource Settings_ConfigureShortcuts}"
                                     Style="{StaticResource MaterialDesignRaisedButton}"
                                     Click="ConfigureShortcuts_Click" HorizontalAlignment="Left" />
                         </StackPanel>

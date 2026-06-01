@@ -25,9 +25,9 @@ public partial class SettingsView : UserControl
         TmdbKeyBox.Text = AppSettings.TmdbApiKey ?? "";
         ProxyBox.Text = AppSettings.HttpProxy ?? "";
         DoubanCookieBox.Text = AppSettings.DoubanCookie ?? "";
-        ConfigureShortcutsBtn.Content = LanguageManager.GetString("Settings_ConfigureShortcuts");
         UpdateButtonStyles();
         UpdateLanguageStyles();
+        InitBackupSettings();
     }
 
     private void SystemTheme_Click(object sender, RoutedEventArgs e) { App.SetTheme(AppThemeMode.System); UpdateButtonStyles(); }
@@ -114,4 +114,86 @@ public partial class SettingsView : UserControl
         };
         dlg.ShowDialog();
     }
+
+    #region 自动备份
+
+    private void InitBackupSettings()
+    {
+        var interval = AppSettings.BackupIntervalDays;
+        for (var i = 0; i < BackupIntervalCombo.Items.Count; i++)
+            if (BackupIntervalCombo.Items[i] is ComboBoxItem ci && ci.Tag is string s && int.TryParse(s, out var v) && v == interval)
+            { BackupIntervalCombo.SelectedIndex = i; break; }
+
+        var maxCount = AppSettings.MaxBackupCount;
+        for (var i = 0; i < MaxBackupCombo.Items.Count; i++)
+            if (MaxBackupCombo.Items[i] is ComboBoxItem ci && ci.Tag is string s && int.TryParse(s, out var v) && v == maxCount)
+            { MaxBackupCombo.SelectedIndex = i; break; }
+
+        RefreshBackupHistory();
+    }
+
+    private void RefreshBackupHistory()
+    {
+        var history = BackupService.GetBackupHistory();
+        BackupHistoryList.ItemsSource = history;
+    }
+
+    private void BackupInterval_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (BackupIntervalCombo.SelectedItem is ComboBoxItem ci && ci.Tag is string s && int.TryParse(s, out var v))
+            AppSettings.BackupIntervalDays = v;
+    }
+
+    private void MaxBackup_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (MaxBackupCombo.SelectedItem is ComboBoxItem ci && ci.Tag is string s && int.TryParse(s, out var v))
+            AppSettings.MaxBackupCount = v;
+    }
+
+    private void ManualBackup_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            BackupService.CreateBackup();
+            RefreshBackupHistory();
+            AppMessageBox.ShowInfo(LanguageManager.GetString("Backup_Success"));
+        }
+        catch (Exception ex) { AppMessageBox.ShowError(ex.Message); }
+    }
+
+    private void OpenBackupFolder_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (!System.IO.Directory.Exists(BackupService.BackupDirectory))
+                System.IO.Directory.CreateDirectory(BackupService.BackupDirectory);
+            System.Diagnostics.Process.Start("explorer.exe", BackupService.BackupDirectory);
+        }
+        catch (Exception ex) { AppMessageBox.ShowError(ex.Message); }
+    }
+
+    private void RestoreBackupItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.Button btn || btn.Tag is not string path) return;
+        if (!AppMessageBox.Confirm(LanguageManager.GetString("Backup_ConfirmRestore"), LanguageManager.GetString("Msg_Confirm"))) return;
+        try
+        {
+            BackupService.RestoreBackup(path);
+            AppMessageBox.ShowInfo(LanguageManager.GetString("Backup_RestoreSuccess"));
+        }
+        catch (Exception ex) { AppMessageBox.ShowError(ex.Message); }
+    }
+
+    private void DeleteBackupItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.Button btn || btn.Tag is not string path) return;
+        try
+        {
+            BackupService.DeleteBackup(path);
+            RefreshBackupHistory();
+        }
+        catch (Exception ex) { AppMessageBox.ShowError(ex.Message); }
+    }
+
+    #endregion
 }

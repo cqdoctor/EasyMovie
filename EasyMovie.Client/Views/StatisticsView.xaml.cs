@@ -17,7 +17,7 @@ public partial class StatisticsView : UserControl
     private readonly IStatisticsService _statsService;
 
     // 柱状图最大宽度（像素）
-    private const double MaxBarWidth = 500;
+    private const double MaxBarWidth = 200;
 
     // 分类颜色
     private static readonly string[] CategoryColors =
@@ -60,45 +60,40 @@ public partial class StatisticsView : UserControl
             AvgRatingText.Text = d.AverageRating.ToString("F1");
             FavoritesText.Text = d.Favorites.ToString();
 
-            // 分类分布 - 水平条形图
-            var maxCat = Math.Max(d.CategoryStats.Max(c => (int?)c.Count) ?? 1, 1);
-            var catItems = d.CategoryStats.Select((c, i) => new BarItem
-            {
-                Name = c.Name,
-                Count = c.Count,
-                BarWidth = Math.Max(4, (double)c.Count / maxCat * MaxBarWidth),
-                Color = CategoryColors[i % CategoryColors.Length]
-            }).ToList();
-            CategoryChart.ItemsSource = catItems;
+            var hours = d.TotalRuntimeMinutes / 60;
+            var mins = d.TotalRuntimeMinutes % 60;
+            TotalRuntimeText.Text = string.Format(LanguageManager.GetString("Stats_HourFormat"), hours, mins);
 
-            // 评分分布 - 水平条形图
-            var ratingItems = Enumerable.Range(1, 10).Select(r =>
+            // 评分分布
+            var ratingItems = Enumerable.Range(1, 10).Reverse().Select(r =>
             {
                 var count = d.RatingStats.FirstOrDefault(s => s.Rating == r)?.Count ?? 0;
                 return new RatingBarItem
                 {
-                    Label = r + LanguageManager.GetString("Msg_MoviesUnit"),
+                    Label = r + LanguageManager.GetString("Stats_RatingUnit"),
                     Count = count,
-                    BarWidth = Math.Max(2, (double)count / Math.Max(d.RatingStats.Max(s => (int?)s.Count) ?? 1, 1) * MaxBarWidth)
+                    BarWidth = Math.Max(2, (double)count / Math.Max(d.RatingStats.Max(s => (int?)s.Count) ?? 1, 1) * MaxBarWidth),
+                    CountText = count.ToString()
                 };
             }).ToList();
             RatingChart.ItemsSource = ratingItems;
 
-            // 年度趋势 - 双色条形图
             var maxYear = Math.Max(
                 d.YearlyStats.Max(y => (int?)y.AddedCount) ?? 1,
                 d.YearlyStats.Max(y => (int?)y.WatchedCount) ?? 1);
-            var yearlyItems = d.YearlyStats.Select(y => new YearlyBarItem
-            {
-                YearText = y.Year.ToString(),
-                AddedCount = y.AddedCount,
-                WatchedCount = y.WatchedCount,
-                AddedWidth = Math.Max(2, (double)y.AddedCount / maxYear * MaxBarWidth * 0.5),
-                WatchedWidth = Math.Max(2, (double)y.WatchedCount / maxYear * MaxBarWidth * 0.5)
-            }).ToList();
+            var yearlyItems = d.YearlyStats
+                .OrderByDescending(y => y.Year)
+                .Take(10)
+                .Select(y => new YearlyBarItem
+                {
+                    YearText = y.Year.ToString(),
+                    AddedCount = y.AddedCount,
+                    WatchedCount = y.WatchedCount,
+                    AddedWidth = Math.Max(2, (double)y.AddedCount / maxYear * MaxBarWidth * 0.5),
+                    WatchedWidth = Math.Max(2, (double)y.WatchedCount / maxYear * MaxBarWidth * 0.5)
+                }).ToList();
             YearlyChart.ItemsSource = yearlyItems;
 
-            // 月度观影 - 水平条形图
             var maxMonth = Math.Max(d.MonthlyStats.Max(m => (int?)m.WatchedCount) ?? 1, 1);
             var monthlyItems = d.MonthlyStats.Select(m => new MonthlyBarItem
             {
@@ -108,6 +103,48 @@ public partial class StatisticsView : UserControl
                 CountText = m.WatchedCount.ToString()
             }).ToList();
             MonthlyChart.ItemsSource = monthlyItems;
+
+            var maxDir = Math.Max(d.DirectorStats.Max(p => (int?)p.Count) ?? 1, 1);
+            var directorItems = d.DirectorStats.Select((p, i) => new PersonBarItem
+            {
+                Rank = (i + 1).ToString(),
+                Name = p.Name,
+                Count = p.Count,
+                BarWidth = Math.Max(4, (double)p.Count / maxDir * 70),
+                CountText = p.Count + LanguageManager.GetString("Stats_MoviesUnit")
+            }).ToList();
+            DirectorChart.ItemsSource = directorItems;
+
+            var maxCast = Math.Max(d.CastStats.Max(p => (int?)p.Count) ?? 1, 1);
+            var castItems = d.CastStats.Select((p, i) => new PersonBarItem
+            {
+                Rank = (i + 1).ToString(),
+                Name = p.Name,
+                Count = p.Count,
+                BarWidth = Math.Max(4, (double)p.Count / maxCast * 70),
+                CountText = p.Count + LanguageManager.GetString("Stats_MoviesUnit")
+            }).ToList();
+            CastChart.ItemsSource = castItems;
+
+            var maxCountry = Math.Max(d.CountryStats.Max(c => (int?)c.Count) ?? 1, 1);
+            var countryItems = d.CountryStats.Take(12).Select(c => new BarItem
+            {
+                Name = c.Name,
+                Count = c.Count,
+                BarWidth = Math.Max(4, (double)c.Count / maxCountry * MaxBarWidth),
+                Color = "#00BCD4"
+            }).ToList();
+            CountryChart.ItemsSource = countryItems;
+
+            var maxRuntime = Math.Max(d.RuntimeStats.Max(r => (int?)r.Count) ?? 1, 1);
+            var runtimeItems = d.RuntimeStats.Select(r => new RuntimeBarItem
+            {
+                Label = r.Label + LanguageManager.GetString("Stats_MinutesUnit"),
+                Count = r.Count,
+                BarWidth = Math.Max(4, (double)r.Count / maxRuntime * MaxBarWidth),
+                CountText = r.Count + LanguageManager.GetString("Stats_MoviesUnit")
+            }).ToList();
+            RuntimeChart.ItemsSource = runtimeItems;
         }
         catch (Exception ex)
         {
@@ -140,11 +177,12 @@ public class RatingBarItem : INotifyPropertyChanged
     private string _label = "";
     private int _count;
     private double _barWidth;
+    private string _countText = "";
 
     public string Label { get => _label; set { _label = value; OnPropertyChanged(); } }
-    public int Count { get => _count; set { _count = value; OnPropertyChanged(); CountText = value + LanguageManager.GetString("Msg_MoviesUnit"); } }
+    public int Count { get => _count; set { _count = value; OnPropertyChanged(); } }
     public double BarWidth { get => _barWidth; set { _barWidth = value; OnPropertyChanged(); } }
-    public string CountText { get; private set; } = "0" + LanguageManager.GetString("Msg_MoviesUnit");
+    public string CountText { get => _countText; set { _countText = value; OnPropertyChanged(); } }
 
     public event PropertyChangedEventHandler? PropertyChanged;
     private void OnPropertyChanged([CallerMemberName] string? n = null) =>
@@ -181,6 +219,42 @@ public class MonthlyBarItem : INotifyPropertyChanged
     private string _countText = "0";
 
     public string MonthText { get => _monthText; set { _monthText = value; OnPropertyChanged(); } }
+    public int Count { get => _count; set { _count = value; OnPropertyChanged(); } }
+    public double BarWidth { get => _barWidth; set { _barWidth = value; OnPropertyChanged(); } }
+    public string CountText { get => _countText; set { _countText = value; OnPropertyChanged(); } }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+    private void OnPropertyChanged([CallerMemberName] string? n = null) =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(n));
+}
+
+public class PersonBarItem : INotifyPropertyChanged
+{
+    private string _rank = "";
+    private string _name = "";
+    private int _count;
+    private double _barWidth;
+    private string _countText = "";
+
+    public string Rank { get => _rank; set { _rank = value; OnPropertyChanged(); } }
+    public string Name { get => _name; set { _name = value; OnPropertyChanged(); } }
+    public int Count { get => _count; set { _count = value; OnPropertyChanged(); } }
+    public double BarWidth { get => _barWidth; set { _barWidth = value; OnPropertyChanged(); } }
+    public string CountText { get => _countText; set { _countText = value; OnPropertyChanged(); } }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+    private void OnPropertyChanged([CallerMemberName] string? n = null) =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(n));
+}
+
+public class RuntimeBarItem : INotifyPropertyChanged
+{
+    private string _label = "";
+    private int _count;
+    private double _barWidth;
+    private string _countText = "";
+
+    public string Label { get => _label; set { _label = value; OnPropertyChanged(); } }
     public int Count { get => _count; set { _count = value; OnPropertyChanged(); } }
     public double BarWidth { get => _barWidth; set { _barWidth = value; OnPropertyChanged(); } }
     public string CountText { get => _countText; set { _countText = value; OnPropertyChanged(); } }

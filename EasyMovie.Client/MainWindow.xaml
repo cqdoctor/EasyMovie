@@ -163,7 +163,7 @@
                 Padding="16,6">
             <Grid>
                 <TextBlock x:Name="StatusBarText"
-                           Text="就绪"
+                           Text="{DynamicResource Status_Ready}"
                            FontSize="12"
                            VerticalAlignment="Center"
                            Foreground="{DynamicResource MaterialDesignHintForeground}" />

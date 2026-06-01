@@ -17,6 +17,7 @@
 - **拼音搜索** — 支持中文拼音全拼、首字母快速检索
 - **批量编辑** — 多选电影 + 批量修改分类/状态/评分/收藏
 - **排序分页** — 多字段排序 + 分页浏览
+- **文件缺失提示** — 本地文件不存在时播放按钮禁用，悬浮提示
 
 ### 📁 分类与标签
 - **分类管理** — 多级分类树，无限嵌套，按国家/地区自动归类
@@ -32,18 +33,37 @@
 - **评分系统** — 1-10 评分 + 观看状态 + 笔记 + 收藏
 - **重复检测** — 自动检测重复电影，一键清理
 
-### 📊 统计面板
-- **多种图表** — 饼图/柱状图/折线图等多种图表
-- **数据概览** — 总数/评分分布/年份分布/分类占比
+### 📖 观影日记
+- **观影记录** — 为每部电影添加多条观影记录，含日期、笔记、评分
+- **日记视图** — 独立观影日记页面，分页浏览，支持编辑和删除
+- **电影详情集成** — 电影详情面板直接查看和添加观影记录
 
-### 📦 导入导出
-- **多格式** — CSV/JSON 导入导出 + 全量备份还原
+### ⭐ 我的收藏
+- **收藏视图** — 独立收藏页面，只显示已收藏的电影
+- **快速收藏** — 电影列表一键收藏/取消收藏
+
+### 📊 统计面板
+- **概览卡片** — 总数/已看/想看/评分/收藏/总观影时长
+- **评分分布** — 水平条形图，10分到1分
+- **年度趋势** — 双色条形图（总数+已看），倒序排列
+- **月度观影** — 今年每月观影数量
+- **导演/演员排行** — Top 10 出现次数排行
+- **国家/地区分布** — 电影产地分布
+- **片长分布** — 短片/标准/长片区间分布
+
+### 📦 数据管理
+- **多格式导入导出** — CSV/JSON 导入导出 + 全量备份还原
 - **文件夹导入** — 自动扫描本地电影文件并匹配信息
+- **自动备份** — 可配置每天/每周/每月自动备份数据库
+- **备份历史** — 查看备份列表，一键恢复或删除
+- **手动备份** — 随时创建备份，打开备份目录
 
 ### 🌐 多源搜索
 - **在线搜索** — 豆瓣 / TMDB / 1905 / 猫眼，一键获取电影信息
 - **封面下载** — 自动下载高清海报
 - **信息补全** — 标题/导演/演员/年份/国家/简介等一键填充
+- **智能搜索** — 自动清理文件名中的编码标记，多关键词多源尝试
+- **数据清洗** — 自动过滤 JS 模板变量和无效人名标签
 
 ### ⌨️ 键盘快捷键
 - **可配置** — 设置页自定义快捷键，点击录制，冲突检测
@@ -53,6 +73,7 @@
 ### 🎨 界面与体验
 - **主题切换** — 浅色/深色/随系统自动切换
 - **国际化** — 中文/英文界面切换
+- **自定义对话框** — Material Design 风格对话框，替代系统 MessageBox
 - **性能优化** — 页面预加载 + 批量数据库操作 + 虚拟化列表
 
 ## 🛠️ 技术栈
@@ -61,7 +82,6 @@
 |---|---|
 | UI | WPF + MaterialDesignInXamlToolkit 5.x |
 | MVVM | CommunityToolkit.Mvvm |
-| 图表 | LiveCharts2 (SkiaSharp) |
 | 数据库 | SQLite + EF Core 9 |
 | CSV | CsvHelper |
 | 日志 | Serilog |
@@ -72,12 +92,12 @@
 ```
 EasyMovie/
 ├── EasyMovie.Client/     # WPF 桌面客户端
-│   ├── Views/            # 视图（电影库/分类标签/统计/设置/合集/快捷键等）
+│   ├── Views/            # 视图（电影库/分类标签/统计/设置/合集/观影日记等）
 │   ├── Strings/          # 多语言资源（中/英）
 │   ├── Converters/       # 值转换器
 │   └── App.xaml          # 主题 & 全局配置
 ├── EasyMovie.Core/       # 核心业务层
-│   ├── Models/           # Movie, Category, Tag, MovieCollection
+│   ├── Models/           # Movie, Category, Tag, MovieCollection, WatchLog
 │   ├── Interfaces/       # 服务接口
 │   └── Services/         # 业务逻辑
 ├── EasyMovie.Data/       # 数据访问层
@@ -125,7 +145,8 @@ dotnet run --project EasyMovie.Client/EasyMovie.Client.csproj
 | 11 | 批量编辑 + 重复检测 | ✅ |
 | 12 | 可配置键盘快捷键 | ✅ |
 | 13 | 电影合集管理 | ✅ |
-| 14 | 观影日记 / 愿望单 | 🔜 |
+| 14 | 观影日记 + 收藏视图 | ✅ |
+| 15 | 统计增强 + 数据自动备份 | ✅ |
 
 ## 📄 License
 
@@ -150,6 +171,7 @@ A Windows desktop movie collection manager built with WPF + Material Design + SQ
 - **Pinyin Search** — Quick search by Chinese pinyin full spelling or initials
 - **Batch Edit** — Multi-select + batch modify category/status/rating/favorite
 - **Sort & Paginate** — Multi-field sorting + paginated browsing
+- **Missing File Alert** — Play button disabled with tooltip when local file is missing
 
 ### 📁 Categories & Tags
 - **Categories** — Multi-level category tree, unlimited nesting, auto-categorize by country
@@ -165,18 +187,37 @@ A Windows desktop movie collection manager built with WPF + Material Design + SQ
 - **Rating System** — 1-10 rating + watch status + notes + favorites
 - **Duplicate Detection** — Auto-detect duplicate movies, one-click cleanup
 
-### 📊 Statistics
-- **Multiple Charts** — Pie/Bar/Line charts and more
-- **Data Overview** — Total count/Rating distribution/Year distribution/Category breakdown
+### 📖 Watch Diary
+- **Watch Logs** — Add multiple watch records per movie with date, notes, and rating
+- **Diary View** — Dedicated watch diary page with pagination, edit and delete support
+- **Movie Detail Integration** — View and add watch logs directly from movie detail panel
 
-### 📦 Import & Export
-- **Multi-Format** — CSV/JSON import/export + full backup & restore
+### ⭐ My Favorites
+- **Favorites View** — Dedicated page showing only favorited movies
+- **Quick Favorite** — One-click favorite/unfavorite from movie list
+
+### 📊 Statistics
+- **Overview Cards** — Total/Watched/WantToWatch/Rating/Favorites/Total Runtime
+- **Rating Distribution** — Horizontal bar chart, 10 to 1
+- **Yearly Trend** — Dual-color bar chart (Total + Watched), descending order
+- **Monthly Watch** — Watch count per month this year
+- **Director/Cast Ranking** — Top 10 by appearance count
+- **Country Distribution** — Movie origin distribution
+- **Runtime Distribution** — Short/Standard/Long film range distribution
+
+### 📦 Data Management
+- **Multi-Format Import/Export** — CSV/JSON import/export + full backup & restore
 - **Folder Import** — Auto-scan local movie files and match info
+- **Auto Backup** — Configurable daily/weekly/monthly automatic database backup
+- **Backup History** — View backup list, one-click restore or delete
+- **Manual Backup** — Create backup anytime, open backup folder
 
 ### 🌐 Multi-Source Search
 - **Online Search** — Douban / TMDB / 1905 / Maoyan, one-click movie info
 - **Cover Download** — Auto-download HD posters
 - **Info Completion** — Title/Director/Actors/Year/Country/Synopsis auto-fill
+- **Smart Search** — Auto-clean encoding tags from filenames, multi-keyword multi-source search
+- **Data Cleaning** — Auto-filter JS template variables and invalid person name labels
 
 ### ⌨️ Keyboard Shortcuts
 - **Configurable** — Customize shortcuts in Settings, click-to-record, conflict detection
@@ -186,6 +227,7 @@ A Windows desktop movie collection manager built with WPF + Material Design + SQ
 ### 🎨 UI & Experience
 - **Theme** — Light/Dark/Follow system
 - **i18n** — Chinese/English interface switching
+- **Custom Dialogs** — Material Design styled dialogs replacing system MessageBox
 - **Performance** — Page pre-loading + batch DB operations + virtualized lists
 
 ## 🛠️ Tech Stack
@@ -194,7 +236,6 @@ A Windows desktop movie collection manager built with WPF + Material Design + SQ
 |---|---|
 | UI | WPF + MaterialDesignInXamlToolkit 5.x |
 | MVVM | CommunityToolkit.Mvvm |
-| Charts | LiveCharts2 (SkiaSharp) |
 | Database | SQLite + EF Core 9 |
 | CSV | CsvHelper |
 | Logging | Serilog |
@@ -205,12 +246,12 @@ A Windows desktop movie collection manager built with WPF + Material Design + SQ
 ```
 EasyMovie/
 ├── EasyMovie.Client/     # WPF desktop client
-│   ├── Views/            # Views (Library/Categories/Stats/Settings/Collections/Shortcuts)
+│   ├── Views/            # Views (Library/Categories/Stats/Settings/Collections/WatchDiary)
 │   ├── Strings/          # i18n resources (zh-CN/en-US)
 │   ├── Converters/       # Value converters
 │   └── App.xaml          # Theme & global config
 ├── EasyMovie.Core/       # Core business layer
-│   ├── Models/           # Movie, Category, Tag, MovieCollection
+│   ├── Models/           # Movie, Category, Tag, MovieCollection, WatchLog
 │   ├── Interfaces/       # Service interfaces
 │   └── Services/         # Business logic
 ├── EasyMovie.Data/       # Data access layer
@@ -258,7 +299,8 @@ dotnet run --project EasyMovie.Client/EasyMovie.Client.csproj
 | 11 | Batch edit + Duplicate detection | ✅ |
 | 12 | Configurable keyboard shortcuts | ✅ |
 | 13 | Movie collection management | ✅ |
-| 14 | Watch diary / Wishlist | 🔜 |
+| 14 | Watch diary + Favorites view | ✅ |
+| 15 | Enhanced statistics + Auto backup | ✅ |
 
 ## 📄 License
 

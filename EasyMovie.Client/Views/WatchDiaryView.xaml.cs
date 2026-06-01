@@ -101,7 +101,9 @@ public partial class WatchDiaryView : UserControl
                 var isFirst = logs.IndexOf(log) == 0 && isFirstPage;
                 var dateHeader = new TextBlock
                 {
-                    Text = log.WatchDate.ToString("yyyy年MM月dd日 dddd"),
+                    Text = LanguageManager.CurrentLanguage == "zh-CN"
+                        ? log.WatchDate.ToString("yyyy年MM月dd日 dddd", System.Globalization.CultureInfo.GetCultureInfo("zh-CN"))
+                        : log.WatchDate.ToString("dddd, MMMM d, yyyy", System.Globalization.CultureInfo.GetCultureInfo("en-US")),
                     FontSize = 14,
                     FontWeight = FontWeights.Bold,
                     Foreground = SafeFindBrush("MaterialDesignBody", Colors.White),

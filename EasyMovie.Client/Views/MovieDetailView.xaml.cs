@@ -1,4 +1,4 @@
-﻿using System;
+﻿﻿﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -42,9 +42,9 @@ public partial class MovieDetailView : UserControl
         foreach (var c in cats) CategoryCombo.Items.Add(new ComboBoxItem { Content = c.Name, Tag = c.Id });
         _allTags = await _tagService.GetAllAsync(); BuildTags();
         RatingCombo.Items.Clear(); RatingCombo.Items.Add(new ComboBoxItem { Content = LanguageManager.GetString("MovieDetail_Unrated") });
-        for (var i = 1; i <= 10; i++) RatingCombo.Items.Add(new ComboBoxItem { Content = string.Format(LanguageManager.GetString("MovieDetail_RatingPoint"), i), Tag = i });
-        if (_movieId > 0) { _movie = await _movieService.GetByIdAsync(_movieId); if (_movie != null) await PopulateAsync(); }
-        StatusCombo.SelectedIndex = 0; RatingCombo.SelectedIndex = 0;
+        for (var i = 10; i >= 1; i--) RatingCombo.Items.Add(new ComboBoxItem { Content = string.Format(LanguageManager.GetString("MovieDetail_RatingPoint"), i), Tag = i });
+        if (_movieId > 0) { _movie = await _movieService.GetByIdAsync(_movieId); if (_movie != null) await PopulateAsync(); else { StatusCombo.SelectedIndex = 0; RatingCombo.SelectedIndex = 0; } }
+        else { StatusCombo.SelectedIndex = 0; RatingCombo.SelectedIndex = 0; }
     }
 
     private void BuildTags()

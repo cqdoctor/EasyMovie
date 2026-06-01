@@ -137,6 +137,29 @@
     <sys:String x:Key="Stats_MonthlyTrend">Monthly Viewing Trend</sys:String>
     <sys:String x:Key="Stats_Total">Total</sys:String>
     <sys:String x:Key="Stats_LoadFailed">Failed to load statistics</sys:String>
+    <sys:String x:Key="Stats_TotalRuntime">Total Runtime</sys:String>
+    <sys:String x:Key="Stats_DirectorRank">Director Top 10</sys:String>
+    <sys:String x:Key="Stats_CastRank">Cast Top 10</sys:String>
+    <sys:String x:Key="Stats_CountryDist">Country Distribution</sys:String>
+    <sys:String x:Key="Stats_RuntimeDist">Runtime Distribution</sys:String>
+    <sys:String x:Key="Stats_MinutesUnit">min</sys:String>
+    <sys:String x:Key="Stats_HourFormat">{0}h {1}min</sys:String>
+    <sys:String x:Key="Stats_MoviesUnit">movies</sys:String>
+    <sys:String x:Key="Backup_Title">💾 Data Backup</sys:String>
+    <sys:String x:Key="Backup_Interval">Auto-backup interval</sys:String>
+    <sys:String x:Key="Backup_Daily">Daily</sys:String>
+    <sys:String x:Key="Backup_Weekly">Weekly</sys:String>
+    <sys:String x:Key="Backup_Monthly">Monthly</sys:String>
+    <sys:String x:Key="Backup_Disabled">Disabled</sys:String>
+    <sys:String x:Key="Backup_MaxCount">Max backups</sys:String>
+    <sys:String x:Key="Backup_ManualBackup">Backup Now</sys:String>
+    <sys:String x:Key="Backup_OpenFolder">Open Folder</sys:String>
+    <sys:String x:Key="Backup_History">Backup History</sys:String>
+    <sys:String x:Key="Backup_Restore">Restore</sys:String>
+    <sys:String x:Key="Backup_Delete">Delete</sys:String>
+    <sys:String x:Key="Backup_Success">Backup completed</sys:String>
+    <sys:String x:Key="Backup_ConfirmRestore">Are you sure you want to restore this backup? Current data will be replaced. Restart required after restore.</sys:String>
+    <sys:String x:Key="Backup_RestoreSuccess">Restore successful. Please restart the app to load the restored data.</sys:String>
 
     <!-- SettingsView -->
     <sys:String x:Key="Settings_Title">⚙️ Settings</sys:String>
@@ -152,6 +175,7 @@
     <sys:String x:Key="Settings_CookieHint">Douban Cookie (copy from F12 after login)</sys:String>
     <sys:String x:Key="Settings_Save">Save</sys:String>
     <sys:String x:Key="Settings_ImportExport">📦 Import / Export</sys:String>
+    <sys:String x:Key="Settings_DataManagement">📦 Data Management</sys:String>
     <sys:String x:Key="Settings_FolderPath">Folder Path</sys:String>
     <sys:String x:Key="Settings_ImportFolderBtn">Import Folder</sys:String>
     <sys:String x:Key="Settings_IncludeSubfolders">Include subfolders</sys:String>
@@ -189,6 +213,7 @@
     <sys:String x:Key="Msg_SelectFolder">Select folder containing video files</sys:String>
     <sys:String x:Key="Msg_InvalidFolder">Please select or enter a valid folder path.</sys:String>
     <sys:String x:Key="Msg_MoviesUnit">movies</sys:String>
+    <sys:String x:Key="Stats_RatingUnit">pts</sys:String>
     <sys:String x:Key="Msg_PageInfo">{0} movies · Page {1}/{2}</sys:String>
     <sys:String x:Key="Msg_SaveFilterTitle">Save Filter</sys:String>
     <sys:String x:Key="Msg_FilterName">Filter Name</sys:String>
@@ -208,6 +233,7 @@
 
     <!-- Duplicate Detection -->
     <sys:String x:Key="Settings_DetectDuplicates">Detect Duplicates</sys:String>
+    <sys:String x:Key="Settings_Tools">🔧 Tools</sys:String>
     <sys:String x:Key="Dup_DialogTitle">🔍 Duplicate Detection</sys:String>
     <sys:String x:Key="Dup_Detecting">Detecting duplicate movies...</sys:String>
     <sys:String x:Key="Dup_ScanProgress">Scanned {0}/{1} movies</sys:String>

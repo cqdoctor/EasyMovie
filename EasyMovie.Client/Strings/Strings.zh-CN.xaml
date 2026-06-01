@@ -137,6 +137,29 @@
     <sys:String x:Key="Stats_MonthlyTrend">今年月度观影趋势</sys:String>
     <sys:String x:Key="Stats_Total">总数</sys:String>
     <sys:String x:Key="Stats_LoadFailed">统计加载失败</sys:String>
+    <sys:String x:Key="Stats_TotalRuntime">总观影时长</sys:String>
+    <sys:String x:Key="Stats_DirectorRank">导演排行 Top 10</sys:String>
+    <sys:String x:Key="Stats_CastRank">演员排行 Top 10</sys:String>
+    <sys:String x:Key="Stats_CountryDist">国家/地区分布</sys:String>
+    <sys:String x:Key="Stats_RuntimeDist">片长分布</sys:String>
+    <sys:String x:Key="Stats_MinutesUnit">分钟</sys:String>
+    <sys:String x:Key="Stats_HourFormat">{0}小时{1}分钟</sys:String>
+    <sys:String x:Key="Stats_MoviesUnit">部</sys:String>
+    <sys:String x:Key="Backup_Title">💾 数据备份</sys:String>
+    <sys:String x:Key="Backup_Interval">自动备份间隔</sys:String>
+    <sys:String x:Key="Backup_Daily">每天</sys:String>
+    <sys:String x:Key="Backup_Weekly">每周</sys:String>
+    <sys:String x:Key="Backup_Monthly">每月</sys:String>
+    <sys:String x:Key="Backup_Disabled">禁用</sys:String>
+    <sys:String x:Key="Backup_MaxCount">最大备份数</sys:String>
+    <sys:String x:Key="Backup_ManualBackup">立即备份</sys:String>
+    <sys:String x:Key="Backup_OpenFolder">打开备份目录</sys:String>
+    <sys:String x:Key="Backup_History">备份历史</sys:String>
+    <sys:String x:Key="Backup_Restore">恢复</sys:String>
+    <sys:String x:Key="Backup_Delete">删除</sys:String>
+    <sys:String x:Key="Backup_Success">备份完成</sys:String>
+    <sys:String x:Key="Backup_ConfirmRestore">确定要恢复此备份吗？当前数据将被替换，恢复后需要重启应用。</sys:String>
+    <sys:String x:Key="Backup_RestoreSuccess">恢复成功，请重启应用以加载恢复的数据。</sys:String>
 
     <!-- SettingsView -->
     <sys:String x:Key="Settings_Title">⚙️ 系统设置</sys:String>
@@ -152,6 +175,7 @@
     <sys:String x:Key="Settings_CookieHint">豆瓣 Cookie (登录后从F12复制)</sys:String>
     <sys:String x:Key="Settings_Save">保存</sys:String>
     <sys:String x:Key="Settings_ImportExport">📦 导入导出</sys:String>
+    <sys:String x:Key="Settings_DataManagement">📦 数据管理</sys:String>
     <sys:String x:Key="Settings_FolderPath">文件夹路径</sys:String>
     <sys:String x:Key="Settings_ImportFolderBtn">选择文件夹导入</sys:String>
     <sys:String x:Key="Settings_IncludeSubfolders">包含子文件夹</sys:String>
@@ -189,6 +213,7 @@
     <sys:String x:Key="Msg_SelectFolder">选择包含视频文件的文件夹</sys:String>
     <sys:String x:Key="Msg_InvalidFolder">请先选择或输入有效的文件夹路径。</sys:String>
     <sys:String x:Key="Msg_MoviesUnit">部</sys:String>
+    <sys:String x:Key="Stats_RatingUnit">分</sys:String>
     <sys:String x:Key="Msg_PageInfo">共 {0} 部 · 第 {1}/{2} 页</sys:String>
     <sys:String x:Key="Msg_SaveFilterTitle">保存筛选条件</sys:String>
     <sys:String x:Key="Msg_FilterName">筛选名称</sys:String>
@@ -208,6 +233,7 @@
 
     <!-- Duplicate Detection -->
     <sys:String x:Key="Settings_DetectDuplicates">检测重复电影</sys:String>
+    <sys:String x:Key="Settings_Tools">🔧 工具</sys:String>
     <sys:String x:Key="Dup_DialogTitle">🔍 重复电影检测</sys:String>
     <sys:String x:Key="Dup_Detecting">正在检测重复电影...</sys:String>
     <sys:String x:Key="Dup_ScanProgress">已扫描 {0}/{1} 部电影</sys:String>

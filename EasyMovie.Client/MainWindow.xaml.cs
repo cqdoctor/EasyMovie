@@ -117,6 +117,7 @@ public partial class MainWindow : Window
         NavListBox.SelectedIndex = 0;
         NavigateTo("Movies");
         Loaded += OnLoaded;
+        BackupService.EnsureAutoBackup();
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)

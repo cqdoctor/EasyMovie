@@ -1,4 +1,4 @@
-﻿namespace EasyMovie.Core.Interfaces;
+namespace EasyMovie.Core.Interfaces;
 
 /// <summary>
 /// 统计数据 DTO
@@ -12,10 +12,15 @@ public class StatisticsData
     public int Favorites { get; set; }
     public double AverageRating { get; set; }
     public int RatedCount { get; set; }
+    public int TotalRuntimeMinutes { get; set; }
     public List<CategoryStat> CategoryStats { get; set; } = new();
     public List<RatingStat> RatingStats { get; set; } = new();
     public List<YearlyStat> YearlyStats { get; set; } = new();
     public List<MonthlyStat> MonthlyStats { get; set; } = new();
+    public List<PersonStat> DirectorStats { get; set; } = new();
+    public List<PersonStat> CastStats { get; set; } = new();
+    public List<CountryStat> CountryStats { get; set; } = new();
+    public List<RuntimeRangeStat> RuntimeStats { get; set; } = new();
 }
 
 public class CategoryStat
@@ -43,6 +48,27 @@ public class MonthlyStat
     public int Month { get; set; }
     public int WatchedCount { get; set; }
     public string Label => $"{Year}-{Month:D2}";
+}
+
+public class PersonStat
+{
+    public string Name { get; set; } = string.Empty;
+    public int Count { get; set; }
+    public double AvgRating { get; set; }
+}
+
+public class CountryStat
+{
+    public string Name { get; set; } = string.Empty;
+    public int Count { get; set; }
+}
+
+public class RuntimeRangeStat
+{
+    public string Label { get; set; } = string.Empty;
+    public int MinMinutes { get; set; }
+    public int MaxMinutes { get; set; }
+    public int Count { get; set; }
 }
 
 /// <summary>
