@@ -37,7 +37,7 @@ public class MovieRepository : IMovieRepository
         string? keyword, int? categoryId, List<int>? tagIds,
         int? yearFrom, int? yearTo, int? ratingMin, int? ratingMax, WatchStatus? status,
         List<string>? countries, List<string>? languages, int? runtimeMin, int? runtimeMax, List<string>? directors,
-        string? sortBy, bool sortDesc, int skip, int take)
+        string? sortBy, bool sortDesc, int skip, int take, bool? isFavorite = null)
     {
         var query = _context.Movies
             .Include(m => m.Category)
@@ -106,6 +106,9 @@ public class MovieRepository : IMovieRepository
         if (directors is { Count: > 0 })
             query = query.Where(m => m.Director != null && directors.Any(d => m.Director.Contains(d)));
 
+        if (isFavorite.HasValue)
+            query = query.Where(m => m.IsFavorite == isFavorite.Value);
+
         // 排序
         query = sortBy?.ToLowerInvariant() switch
         {
@@ -132,7 +135,8 @@ public class MovieRepository : IMovieRepository
     public async Task<int> CountAsync(
         string? keyword, int? categoryId, List<int>? tagIds,
         int? yearFrom, int? yearTo, int? ratingMin, int? ratingMax, WatchStatus? status,
-        List<string>? countries, List<string>? languages, int? runtimeMin, int? runtimeMax, List<string>? directors)
+        List<string>? countries, List<string>? languages, int? runtimeMin, int? runtimeMax, List<string>? directors,
+        bool? isFavorite = null)
     {
         var query = _context.Movies.AsQueryable();
 
@@ -184,6 +188,9 @@ public class MovieRepository : IMovieRepository
 
         if (directors is { Count: > 0 })
             query = query.Where(m => m.Director != null && directors.Any(d => m.Director.Contains(d)));
+
+        if (isFavorite.HasValue)
+            query = query.Where(m => m.IsFavorite == isFavorite.Value);
 
         return await query.CountAsync();
     }

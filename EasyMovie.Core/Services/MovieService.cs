@@ -32,15 +32,16 @@ public class MovieService : IMovieService
         string? keyword, int? categoryId, List<int>? tagIds,
         int? yearFrom, int? yearTo, int? ratingMin, int? ratingMax, WatchStatus? status,
         List<string>? countries, List<string>? languages, int? runtimeMin, int? runtimeMax, List<string>? directors,
-        string? sortBy, bool sortDesc, int page, int pageSize)
+        string? sortBy, bool sortDesc, int page, int pageSize, bool? isFavorite = null)
     {
         var totalCount = await _movieRepo.CountAsync(keyword, categoryId, tagIds,
-            yearFrom, yearTo, ratingMin, ratingMax, status, countries, languages, runtimeMin, runtimeMax, directors);
+            yearFrom, yearTo, ratingMin, ratingMax, status, countries, languages, runtimeMin, runtimeMax, directors,
+            isFavorite);
 
         var skip = (page - 1) * pageSize;
         var movies = await _movieRepo.SearchAsync(keyword, categoryId, tagIds,
             yearFrom, yearTo, ratingMin, ratingMax, status, countries, languages, runtimeMin, runtimeMax, directors,
-            sortBy, sortDesc, skip, pageSize);
+            sortBy, sortDesc, skip, pageSize, isFavorite);
 
         return (movies, totalCount);
     }

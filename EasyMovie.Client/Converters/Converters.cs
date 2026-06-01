@@ -21,6 +21,35 @@ public class NullToVisibilityConverter : IValueConverter
         => throw new NotSupportedException();
 }
 
+public class InverseBoolConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        => value is bool b ? !b : value;
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
+public class PlayButtonToolTipConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        => value is true
+            ? EasyMovie.Client.LanguageManager.GetString("Tip_FileMissing")
+            : EasyMovie.Client.LanguageManager.GetString("Tip_Play");
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
+public class BoolToVisibilityConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        => value is true ? Visibility.Visible : Visibility.Collapsed;
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
 /// <summary>
 /// 非 Null → Visible，Null → Collapsed（反向）
 /// </summary>
@@ -80,7 +109,9 @@ public class FilePathIconConverter : IValueConverter
 {
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
     {
-        return value is string path && !string.IsNullOrEmpty(path) ? "🎬" : "-";
+        if (value is string path && !string.IsNullOrEmpty(path))
+            return System.IO.File.Exists(path) ? "🎬" : "⚠️";
+        return "-";
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)

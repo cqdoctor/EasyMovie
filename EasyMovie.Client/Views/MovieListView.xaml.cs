@@ -40,11 +40,13 @@ public partial class MovieListView : UserControl
     private bool _isCollectionView;
 
     private bool _isFirstLoad = true;
+    private readonly bool _filterFavorites;
 
-    public MovieListView(MainWindow? mainWindow = null)
+    public MovieListView(MainWindow? mainWindow = null, bool filterFavorites = false)
     {
         InitializeComponent();
         _mainWindow = mainWindow;
+        _filterFavorites = filterFavorites;
         _context = DbHelper.CreateContext();
         var movieRepo = new MovieRepository(_context);
         var categoryRepo = new CategoryRepository(_context);
@@ -100,7 +102,7 @@ public partial class MovieListView : UserControl
             PopulateAdvancedFilterOptions(allMovies);
             await LoadMoviesAsync();
         }
-        catch (Exception ex) { MessageBox.Show(LanguageManager.GetString("Msg_LoadFailed") + ex.Message); }
+        catch (Exception ex) { AppMessageBox.ShowError(LanguageManager.GetString("Msg_LoadFailed") + ex.Message); }
     }
 
     /// <summary>批量重建搜索索引（一次 SaveChanges）</summary>
@@ -196,7 +198,8 @@ public partial class MovieListView : UserControl
             adv.yearFrom ?? year, adv.yearTo ?? year,
             adv.ratingMin, adv.ratingMax, status,
             adv.countries, adv.languages, adv.runtimeMin, adv.runtimeMax, adv.directors,
-            sortInfo.sortBy, sortInfo.sortDesc, _currentPage, PageSize);
+            sortInfo.sortBy, sortInfo.sortDesc, _currentPage, PageSize,
+            _filterFavorites ? true : null);
         _totalCount = total;
         if (_isCardView) RenderCardView(movies); else if (_isPosterView) PosterWall.ItemsSource = movies; else MovieDataGrid.ItemsSource = movies;
         var totalPages = (int)Math.Ceiling((double)total / PageSize);
@@ -424,7 +427,7 @@ public partial class MovieListView : UserControl
         saveBtn.Click += (s, ev) =>
         {
             var name = nameBox.Text?.Trim();
-            if (string.IsNullOrEmpty(name)) { MessageBox.Show(LanguageManager.GetString("Msg_EnterName")); return; }
+            if (string.IsNullOrEmpty(name)) { AppMessageBox.ShowInfo(LanguageManager.GetString("Msg_EnterName")); return; }
             var filter = new SavedFilter
             {
                 Name = name,
@@ -448,7 +451,7 @@ public partial class MovieListView : UserControl
             SavedFilter.SaveAll(filters);
             dlg.Close();
             LoadSavedFilterList();
-            MessageBox.Show(LanguageManager.GetString("Msg_FilterSaved"));
+            AppMessageBox.ShowInfo(LanguageManager.GetString("Msg_FilterSaved"));
         };
         btnPanel.Children.Add(cancelBtn);
         btnPanel.Children.Add(saveBtn);
@@ -559,8 +562,8 @@ public partial class MovieListView : UserControl
     private void DeleteFilter_Click(object sender, RoutedEventArgs e)
     {
         if (SavedFilterCombo.SelectedItem is not ComboBoxItem ci || ci.Tag is not string name || name == "_placeholder") return;
-        if (MessageBox.Show(string.Format(LanguageManager.GetString("Msg_ConfirmDeleteFilter") ?? "Delete filter '{0}'?", name),
-            LanguageManager.GetString("Msg_Confirm"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+        if (!AppMessageBox.Confirm(string.Format(LanguageManager.GetString("Msg_ConfirmDeleteFilter") ?? "Delete filter '{0}'?", name),
+            LanguageManager.GetString("Msg_Confirm"))) return;
         var filters = SavedFilter.LoadAll();
         filters.RemoveAll(f => f.Name == name);
         SavedFilter.SaveAll(filters);
@@ -579,7 +582,7 @@ public partial class MovieListView : UserControl
             var recommendations = await _recommendationService.GetRecommendationsAsync(20);
             if (recommendations.Count == 0)
             {
-                MessageBox.Show(LanguageManager.GetString("Msg_NoRecommendData"), LanguageManager.GetString("Msg_Hint"), MessageBoxButton.OK, MessageBoxImage.Information);
+                AppMessageBox.ShowInfo(LanguageManager.GetString("Msg_NoRecommendData"), LanguageManager.GetString("Msg_Hint"));
                 return;
             }
 
@@ -753,10 +756,10 @@ public partial class MovieListView : UserControl
             {
                 e.Handled = true;
                 if (!File.Exists(movie.FilePath))
-                    MessageBox.Show(string.Format(LanguageManager.GetString("Msg_FileNotFound"), movie.FilePath), LanguageManager.GetString("Msg_Hint"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                    AppMessageBox.ShowWarning(string.Format(LanguageManager.GetString("Msg_FileNotFound"), movie.FilePath), LanguageManager.GetString("Msg_Hint"));
                 else
                     try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(movie.FilePath) { UseShellExecute = true }); }
-                    catch (Exception ex) { MessageBox.Show(LanguageManager.GetString("Msg_PlayFailed") + ex.Message); }
+                    catch (Exception ex) { AppMessageBox.ShowError(LanguageManager.GetString("Msg_PlayFailed") + ex.Message); }
             };
             posterGrid.Children.Add(playOverlay);
         }
@@ -1024,11 +1027,128 @@ public partial class MovieListView : UserControl
     {
         var detailView = new MovieDetailView(movieId, _movieService, _categoryService, _tagService);
         detailView.MovieSaved += async (s, e) => await LoadMoviesAsync();
+        detailView.MovieAdded += async (s, id) => await FetchMovieInfoAsync(id);
         detailView.MovieDeleted += async (s, e) => await LoadMoviesAsync();
         var w = CreateThemedWindow("电影详情", 700, 780);
         w.Content = detailView;
         w.ResizeMode = ResizeMode.CanResize;
         w.ShowDialog();
+    }
+
+    private async Task FetchMovieInfoAsync(int movieId)
+    {
+        var m = await _movieService.GetByIdAsync(movieId);
+        if (m == null || string.IsNullOrWhiteSpace(m.Title)) return;
+
+        _mainWindow?.SetStatus($"🔍 {LanguageManager.GetString("Msg_FetchingInfo")}: {m.Title}", true);
+        try
+        {
+            var douban = new DoubanApiClient();
+            var maoyan = new MaoyanApiClient();
+            var tmdb = new TmdbApiClient();
+
+            var chineseKw = DoubanApiClient.ExtractChineseKeyword(m.Title);
+            var engHint = DoubanApiClient.ExtractEnglishHint(m.Title);
+
+            var searchKeywords = new List<string>();
+            if (!string.IsNullOrWhiteSpace(chineseKw)) searchKeywords.Add(chineseKw);
+            if (!string.IsNullOrWhiteSpace(engHint) && engHint != chineseKw) searchKeywords.Add(engHint);
+            if (!searchKeywords.Contains(m.Title)) searchKeywords.Add(m.Title);
+
+            MovieSearchResult? info = null;
+
+            foreach (var kw in searchKeywords)
+            {
+                if (info != null) break;
+
+                var sr = await douban.SearchAsync(new MovieSearchRequest { Keyword = kw, Page = 1, PageSize = 5 });
+                if (sr.Results.Count > 0)
+                {
+                    MovieSearchResult? best = null;
+                    if (!string.IsNullOrEmpty(engHint))
+                        foreach (var r in sr.Results)
+                            if (!string.IsNullOrEmpty(r.OriginalTitle) && r.OriginalTitle.Contains(engHint, StringComparison.OrdinalIgnoreCase)) { best = r; break; }
+                    if (best == null && m.Year > 0)
+                        best = sr.Results.FirstOrDefault(r => r.Year == m.Year);
+                    if (best == null) best = sr.Results[0];
+                    info = await douban.GetDetailAsync(best.ExternalId ?? "") ?? best;
+                }
+            }
+
+            if (info == null)
+            {
+                foreach (var kw in searchKeywords)
+                {
+                    if (info != null) break;
+                    var sr2 = await maoyan.SearchAsync(new MovieSearchRequest { Keyword = kw, Page = 1, PageSize = 3 });
+                    if (sr2.Results.Count > 0)
+                    {
+                        var detail = await maoyan.GetDetailAsync(sr2.Results[0].ExternalId ?? "");
+                        info = detail ?? sr2.Results[0];
+                    }
+                }
+            }
+
+            if (info == null)
+            {
+                var tmdbKw = !string.IsNullOrWhiteSpace(engHint) ? engHint : searchKeywords.FirstOrDefault() ?? m.Title;
+                var sr3 = await tmdb.SearchAsync(new MovieSearchRequest { Keyword = tmdbKw, Page = 1, PageSize = 5 });
+                if (sr3.Results.Count > 0)
+                {
+                    MovieSearchResult? best = null;
+                    if (m.Year > 0)
+                        best = sr3.Results.FirstOrDefault(r => r.Year == m.Year);
+                    if (best == null) best = sr3.Results[0];
+                    info = await tmdb.GetDetailAsync(best.ExternalId ?? "") ?? best;
+                }
+            }
+
+            if (info != null)
+            {
+                if (!string.IsNullOrEmpty(info.Director) && string.IsNullOrEmpty(m.Director)) m.Director = info.Director;
+                if (!string.IsNullOrEmpty(info.Cast) && string.IsNullOrEmpty(m.Cast)) m.Cast = info.Cast;
+                if (!string.IsNullOrEmpty(info.Country) && string.IsNullOrEmpty(m.Country)) m.Country = info.Country;
+                if (!string.IsNullOrEmpty(info.Synopsis) && string.IsNullOrEmpty(m.Synopsis)) m.Synopsis = info.Synopsis;
+                if (!string.IsNullOrEmpty(info.PosterUrl) && string.IsNullOrEmpty(m.PosterUrl))
+                {
+                    m.PosterUrl = info.PosterUrl;
+                    try
+                    {
+                        var imgClient = new HttpClient(new HttpClientHandler { AutomaticDecompression = System.Net.DecompressionMethods.All }) { Timeout = TimeSpan.FromSeconds(10) };
+                        imgClient.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36");
+                        if (info.PosterUrl.Contains("themoviedb.org") || info.PosterUrl.Contains("tmdb.org"))
+                            imgClient.DefaultRequestHeaders.Add("Referer", "https://www.themoviedb.org/");
+                        else if (info.PosterUrl.Contains("douban"))
+                            imgClient.DefaultRequestHeaders.Add("Referer", "https://movie.douban.com/");
+                        m.PosterData = await imgClient.GetByteArrayAsync(info.PosterUrl);
+                    }
+                    catch { }
+                }
+                if (info.Runtime.HasValue && !m.Runtime.HasValue) m.Runtime = info.Runtime;
+                if (info.Year > 0 && m.Year == 0) m.Year = info.Year;
+                if (!string.IsNullOrEmpty(info.OriginalTitle) && string.IsNullOrEmpty(m.OriginalTitle)) m.OriginalTitle = info.OriginalTitle;
+                if (info.Source == "douban") m.DoubanId = info.ExternalId;
+                else if (info.Source == "tmdb") m.TmdbId = info.ExternalId;
+
+                if (!string.IsNullOrEmpty(info.Country) && !m.CategoryId.HasValue)
+                {
+                    var firstCountry = info.Country.Split('/', ' ', '·').FirstOrDefault(c => IsValidCategoryName(c.Trim()))?.Trim();
+                    if (!string.IsNullOrEmpty(firstCountry) && IsValidCategoryName(firstCountry))
+                    {
+                        try { var category = await _categoryService.GetOrCreateByNameAsync(firstCountry); m.CategoryId = category.Id; } catch { }
+                    }
+                }
+
+                await _movieService.UpdateAsync(m);
+                _mainWindow?.ShowMovieDetail(m);
+            }
+        }
+        catch { }
+        finally
+        {
+            await LoadMoviesAsync();
+            _mainWindow?.SetStatus($"✅ {m.Title}");
+        }
     }
 
     private async void SearchBox_TextChanged(object sender, TextChangedEventArgs e) { _currentPage = 1; await LoadMoviesAsync(); }
@@ -1086,8 +1206,8 @@ public partial class MovieListView : UserControl
             _mainWindow?.ShowMovieDetail(movie);
     }
     private void EditMovie_Click(object sender, RoutedEventArgs e) { if (sender is Button b && b.Tag is int id) OpenDetailView(id); }
-    private async void DeleteMovie_Click(object sender, RoutedEventArgs e) { if (sender is Button b && b.Tag is int id && MessageBox.Show("确定删除？", "确认", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes) { await _movieService.DeleteAsync(id); await LoadMoviesAsync(); } }
-    private async void PlayMovie_Click(object sender, RoutedEventArgs e) { if (sender is Button b && b.Tag is int id) { var m = await _movieService.GetByIdAsync(id); if (m == null) return; if (string.IsNullOrEmpty(m.FilePath)) MessageBox.Show(LanguageManager.GetString("Msg_NoFilePath"), LanguageManager.GetString("Msg_Hint"), MessageBoxButton.OK, MessageBoxImage.Information); else if (!File.Exists(m.FilePath)) MessageBox.Show(string.Format(LanguageManager.GetString("Msg_FileNotFound"), m.FilePath), LanguageManager.GetString("Msg_Hint"), MessageBoxButton.OK, MessageBoxImage.Warning); else System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = m.FilePath, UseShellExecute = true }); } }
+    private async void DeleteMovie_Click(object sender, RoutedEventArgs e) { if (sender is Button b && b.Tag is int id && AppMessageBox.Confirm("确定删除？", "确认")) { await _movieService.DeleteAsync(id); await LoadMoviesAsync(); } }
+    private async void PlayMovie_Click(object sender, RoutedEventArgs e) { if (sender is Button b && b.Tag is int id) { var m = await _movieService.GetByIdAsync(id); if (m == null) return; if (string.IsNullOrEmpty(m.FilePath)) AppMessageBox.ShowInfo(LanguageManager.GetString("Msg_NoFilePath"), LanguageManager.GetString("Msg_Hint")); else if (!File.Exists(m.FilePath)) AppMessageBox.ShowWarning(string.Format(LanguageManager.GetString("Msg_FileNotFound"), m.FilePath), LanguageManager.GetString("Msg_Hint")); else System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = m.FilePath, UseShellExecute = true }); } }
 
     private async void FetchInfo_Click(object sender, RoutedEventArgs e)
     {
@@ -1283,7 +1403,7 @@ public partial class MovieListView : UserControl
         var year = GetYearFilter();
         var (all, _) = await _movieService.SearchAsync(keyword, categoryId, null, year, year, null, null, status, null, null, null, null, null, sortInfo.sortBy, sortInfo.sortDesc, 1, 1000);
         var needFetch = all.Where(m => string.IsNullOrEmpty(m.Director) || !m.CategoryId.HasValue || string.IsNullOrEmpty(m.Country) || string.IsNullOrEmpty(m.PosterUrl)).ToList();
-        if (needFetch.Count == 0) { MessageBox.Show("所有电影已有信息"); return; }
+        if (needFetch.Count == 0) { AppMessageBox.ShowInfo("所有电影已有信息"); return; }
 
         _mainWindow?.SetStatus("批量获取中...", true);
         var douban = !string.IsNullOrEmpty(cookie) ? new EasyMovie.Tools.MovieApi.DoubanApiClient() : null;
@@ -1436,7 +1556,7 @@ public partial class MovieListView : UserControl
             var dlg = new Microsoft.Win32.OpenFolderDialog { Title = "选择包含视频文件的文件夹" };
             string? path = null;
             try { if (dlg.ShowDialog() == true) path = dlg.FolderName; } catch { }
-            if (string.IsNullOrEmpty(path) || !Directory.Exists(path)) { MessageBox.Show("请选择有效文件夹"); return; }
+            if (string.IsNullOrEmpty(path) || !Directory.Exists(path)) { AppMessageBox.ShowInfo("请选择有效文件夹"); return; }
 
             _mainWindow?.SetStatus("批量获取中...", true);
             var files = Directory.GetFiles(path, "*.*", SearchOption.AllDirectories).Where(f => VideoExts.Contains(Path.GetExtension(f))).ToList();
@@ -1524,7 +1644,7 @@ public partial class MovieListView : UserControl
 
             _mainWindow?.ClearStatus();
         }
-        catch (Exception ex) { _mainWindow?.ClearStatus(); MessageBox.Show("导入失败: " + ex.Message); }
+        catch (Exception ex) { _mainWindow?.ClearStatus(); AppMessageBox.ShowError("导入失败: " + ex.Message); }
     }
 
     private List<Movie> GetSelectedMovies()
@@ -1578,7 +1698,7 @@ public partial class MovieListView : UserControl
         var selected = GetSelectedMovies();
         if (selected.Count == 0)
         {
-            MessageBox.Show(LanguageManager.GetString("MovieLib_BatchNoSelection"));
+            AppMessageBox.ShowInfo(LanguageManager.GetString("MovieLib_BatchNoSelection"));
             return;
         }
 
@@ -1607,7 +1727,7 @@ public partial class MovieListView : UserControl
         }
 
         await _context.SaveChangesAsync();
-        MessageBox.Show(string.Format(LanguageManager.GetString("MovieLib_BatchApplied"), selected.Count));
+        AppMessageBox.ShowInfo(string.Format(LanguageManager.GetString("MovieLib_BatchApplied"), selected.Count));
 
         BatchCategoryCombo.SelectedIndex = 0;
         BatchStatusCombo.SelectedIndex = 0;
@@ -1623,18 +1743,17 @@ public partial class MovieListView : UserControl
         var selected = GetSelectedMovies();
         if (selected.Count == 0)
         {
-            MessageBox.Show(LanguageManager.GetString("MovieLib_BatchNoSelection"));
+            AppMessageBox.ShowInfo(LanguageManager.GetString("MovieLib_BatchNoSelection"));
             return;
         }
 
-        var confirm = MessageBox.Show(
+        if (!AppMessageBox.Confirm(
             string.Format(LanguageManager.GetString("MovieLib_BatchConfirmDelete"), selected.Count),
-            "", MessageBoxButton.YesNo, MessageBoxImage.Warning);
-        if (confirm != MessageBoxResult.Yes) return;
+            "")) return;
 
         _context.Movies.RemoveRange(selected);
         await _context.SaveChangesAsync();
-        MessageBox.Show(string.Format(LanguageManager.GetString("MovieLib_BatchDeleted"), selected.Count));
+        AppMessageBox.ShowInfo(string.Format(LanguageManager.GetString("MovieLib_BatchDeleted"), selected.Count));
         BatchEditPanel.Visibility = Visibility.Collapsed;
         await LoadMoviesAsync();
     }
@@ -1674,7 +1793,7 @@ public partial class MovieListView : UserControl
         if (selected.Count == 0) return;
         if (selected.Count == 1)
         {
-            if (MessageBox.Show(LanguageManager.GetString("Msg_ConfirmDelete"), LanguageManager.GetString("Msg_Confirm"), MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
+            if (AppMessageBox.Confirm(LanguageManager.GetString("Msg_ConfirmDelete"), LanguageManager.GetString("Msg_Confirm")))
             {
                 await _movieService.DeleteAsync(selected[0].Id);
                 await LoadMoviesAsync();
@@ -1925,7 +2044,7 @@ public partial class MovieListView : UserControl
             {
                 e.Handled = true;
                 if (!File.Exists(movie.FilePath))
-                    MessageBox.Show(string.Format(LanguageManager.GetString("Msg_FileNotFound"), movie.FilePath), LanguageManager.GetString("Msg_Hint"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                    AppMessageBox.ShowWarning(string.Format(LanguageManager.GetString("Msg_FileNotFound"), movie.FilePath), LanguageManager.GetString("Msg_Hint"));
                 else
                     try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(movie.FilePath) { UseShellExecute = true }); }
                     catch { }
@@ -2012,7 +2131,7 @@ public partial class MovieListView : UserControl
     private async void DeleteCollection_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button btn || btn.Tag is not int id) return;
-        if (MessageBox.Show(LanguageManager.GetString("Collection_ConfirmDelete"), LanguageManager.GetString("Msg_Confirm"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+        if (!AppMessageBox.Confirm(LanguageManager.GetString("Collection_ConfirmDelete"), LanguageManager.GetString("Msg_Confirm"))) return;
         await _collectionService.DeleteAsync(id);
         await LoadCollectionViewAsync();
     }

@@ -21,6 +21,16 @@ public class TmdbApiClient : IMovieApiClient
         _http.DefaultRequestHeaders.Add("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8");
     }
 
+    private static readonly string[] InvalidLabels = { "人员", "人物", "演员", "主演", "导演", "暂无", "未知", "暂未录入", "更多" };
+
+    private static bool IsTemplateOrLabel(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return true;
+        if (Regex.IsMatch(value, @"\$\{.*?\}|\$\(data\.\w+\)|\{\{.*?\}\}|<%.*?%>")) return true;
+        if (InvalidLabels.Contains(value)) return true;
+        return false;
+    }
+
     public string SourceName => "tmdb";
 
     public async Task<MovieSearchResponse> SearchAsync(MovieSearchRequest request, CancellationToken ct = default)
@@ -171,19 +181,21 @@ public class TmdbApiClient : IMovieApiClient
             if (year == 0) { var ym = Regex.Match(html, @"\((\d{4})\)"); if (ym.Success) year = int.Parse(ym.Groups[1].Value); }
 
             var director = "";
-            // 匹配 TMDB 页面中 Director 行：<p><a>人名</a></p> 后跟 <p class="character">Director</p>
             var dirM = Regex.Match(html, @"<p><a[^>]*href=""[^""]*person[^""]*""[^>]*>(.*?)</a></p>\s*<p[^>]*class=""character""[^>]*>\s*Director\s*</p>", RegexOptions.Singleline);
-            if (dirM.Success) director = WebUtility.HtmlDecode(dirM.Groups[1].Value.Trim());
+            if (dirM.Success) { var dir = WebUtility.HtmlDecode(dirM.Groups[1].Value.Trim()); if (!IsTemplateOrLabel(dir)) director = dir; }
             if (string.IsNullOrEmpty(director))
             {
                 var dirM2 = Regex.Match(html, @"<li[^>]*>\s*<a[^>]*href=""[^""]*person[^""]*""[^>]*>(.*?)</a>\s*.*?Director", RegexOptions.Singleline);
-                if (dirM2.Success) director = WebUtility.HtmlDecode(dirM2.Groups[1].Value.Trim());
+                if (dirM2.Success) { var dir = WebUtility.HtmlDecode(dirM2.Groups[1].Value.Trim()); if (!IsTemplateOrLabel(dir)) director = dir; }
             }
 
             var castList = new List<string>();
             var castMatches = Regex.Matches(html, @"class=""name""[^>]*>\s*<a[^>]*>(.*?)</a>");
             foreach (Match cm in castMatches.Take(5))
-                castList.Add(WebUtility.HtmlDecode(cm.Groups[1].Value.Trim()));
+            {
+                var name = WebUtility.HtmlDecode(cm.Groups[1].Value.Trim());
+                if (!IsTemplateOrLabel(name)) castList.Add(name);
+            }
 
             var country = "";
             // 优先从 JSON-LD 提取国家（TMDB 新版页面格式）

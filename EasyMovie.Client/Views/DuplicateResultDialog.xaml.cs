@@ -68,8 +68,7 @@ public partial class DuplicateResultDialog : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show(ex.Message, LanguageManager.GetString("Msg_Hint"),
-                MessageBoxButton.OK, MessageBoxImage.Error);
+            AppMessageBox.ShowError(ex.Message, LanguageManager.GetString("Msg_Hint"));
             Close();
         }
     }
@@ -79,8 +78,7 @@ public partial class DuplicateResultDialog : Window
         if (sender is not FrameworkElement fe || fe.Tag is not DuplicateGroupViewModel vm) return;
 
         var confirm = LanguageManager.GetString("Dup_MergeConfirm");
-        if (MessageBox.Show(confirm, LanguageManager.GetString("Msg_Confirm"),
-            MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+        if (!AppMessageBox.Confirm(confirm, LanguageManager.GetString("Msg_Confirm"))) return;
 
         try
         {
@@ -90,8 +88,7 @@ public partial class DuplicateResultDialog : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show(ex.Message, LanguageManager.GetString("Msg_Hint"),
-                MessageBoxButton.OK, MessageBoxImage.Error);
+            AppMessageBox.ShowError(ex.Message, LanguageManager.GetString("Msg_Hint"));
         }
     }
 
@@ -105,8 +102,7 @@ public partial class DuplicateResultDialog : Window
     private async void MergeAll_Click(object sender, RoutedEventArgs e)
     {
         var confirm = LanguageManager.GetString("Dup_MergeAllConfirm");
-        if (MessageBox.Show(confirm, LanguageManager.GetString("Msg_Confirm"),
-            MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+        if (!AppMessageBox.Confirm(confirm, LanguageManager.GetString("Msg_Confirm"))) return;
 
         var toMerge = _groups.ToList();
         try
@@ -120,8 +116,7 @@ public partial class DuplicateResultDialog : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show(ex.Message, LanguageManager.GetString("Msg_Hint"),
-                MessageBoxButton.OK, MessageBoxImage.Error);
+            AppMessageBox.ShowError(ex.Message, LanguageManager.GetString("Msg_Hint"));
         }
     }
 

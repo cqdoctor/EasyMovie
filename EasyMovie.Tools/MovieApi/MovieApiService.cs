@@ -1,4 +1,6 @@
-﻿using EasyMovie.Core.Interfaces;
+﻿using System.Net;
+using System.Text.RegularExpressions;
+using EasyMovie.Core.Interfaces;
 using EasyMovie.Core.Models;
 
 namespace EasyMovie.Tools.MovieApi;
@@ -55,14 +57,14 @@ public class MovieApiService
     {
         var movie = new Movie
         {
-            Title = result.Title,
-            OriginalTitle = result.OriginalTitle,
+            Title = StripHtml(result.Title),
+            OriginalTitle = StripHtml(result.OriginalTitle),
             Year = result.Year,
-            Director = result.Director,
-            Cast = result.Cast,
-            Country = result.Country,
-            Language = result.Language,
-            Synopsis = result.Synopsis,
+            Director = SanitizePersonName(result.Director),
+            Cast = SanitizePersonName(result.Cast),
+            Country = StripHtml(result.Country),
+            Language = StripHtml(result.Language),
+            Synopsis = StripHtml(result.Synopsis),
             Runtime = result.Runtime,
             PosterUrl = result.PosterUrl,
             CreatedAt = DateTime.UtcNow,
@@ -96,5 +98,34 @@ public class MovieApiService
         }
 
         return movie;
+    }
+
+    private static string? StripHtml(string? input)
+    {
+        if (string.IsNullOrEmpty(input)) return input;
+        var result = Regex.Replace(input, @"<[^>]+>", "");
+        result = WebUtility.HtmlDecode(result);
+        result = Regex.Replace(result, @"\s+", " ").Trim();
+        result = StripTemplateVariables(result);
+        return string.IsNullOrEmpty(result) ? null : result;
+    }
+
+    private static readonly string[] InvalidPersonLabels = { "人员", "人物", "演员", "主演", "导演", "暂无", "未知", "暂未录入", "更多" };
+
+    internal static string? StripTemplateVariables(string? input)
+    {
+        if (string.IsNullOrEmpty(input)) return input;
+        if (Regex.IsMatch(input, @"\$\{.*?\}|\$\(data\.\w+\)|\{\{.*?\}\}|<%.*?%>"))
+            return null;
+        return input;
+    }
+
+    internal static string? SanitizePersonName(string? input)
+    {
+        if (string.IsNullOrEmpty(input)) return input;
+        var cleaned = StripHtml(input);
+        if (cleaned == null) return null;
+        if (InvalidPersonLabels.Contains(cleaned)) return null;
+        return cleaned;
     }
 }

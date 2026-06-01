@@ -21,8 +21,9 @@ public partial class MovieDetailView : UserControl
     private Movie? _movie;
     private List<Tag> _allTags = new();
     private readonly HashSet<int> _selectedTagIds = new();
-    public string TitleText => _movieId == 0 ? "添加电影" : "编辑电影";
+    public string TitleText => _movieId == 0 ? LanguageManager.GetString("MovieDetail_AddTitle") : LanguageManager.GetString("MovieDetail_EditTitle");
     public event EventHandler? MovieSaved;
+    public event EventHandler<int>? MovieAdded;
     public event EventHandler? MovieDeleted;
 
     public MovieDetailView(int movieId, IMovieService movieService, ICategoryService categoryService, ITagService tagService)
@@ -37,11 +38,11 @@ public partial class MovieDetailView : UserControl
     private async Task InitAsync()
     {
         var cats = await _categoryService.GetAllAsync();
-        CategoryCombo.Items.Clear(); CategoryCombo.Items.Add(new ComboBoxItem { Content = "无分类" });
+        CategoryCombo.Items.Clear(); CategoryCombo.Items.Add(new ComboBoxItem { Content = LanguageManager.GetString("MovieDetail_NoCategory") });
         foreach (var c in cats) CategoryCombo.Items.Add(new ComboBoxItem { Content = c.Name, Tag = c.Id });
         _allTags = await _tagService.GetAllAsync(); BuildTags();
-        RatingCombo.Items.Clear(); RatingCombo.Items.Add(new ComboBoxItem { Content = "未评分" });
-        for (var i = 1; i <= 10; i++) RatingCombo.Items.Add(new ComboBoxItem { Content = i + " 分", Tag = i });
+        RatingCombo.Items.Clear(); RatingCombo.Items.Add(new ComboBoxItem { Content = LanguageManager.GetString("MovieDetail_Unrated") });
+        for (var i = 1; i <= 10; i++) RatingCombo.Items.Add(new ComboBoxItem { Content = string.Format(LanguageManager.GetString("MovieDetail_RatingPoint"), i), Tag = i });
         if (_movieId > 0) { _movie = await _movieService.GetByIdAsync(_movieId); if (_movie != null) await PopulateAsync(); }
         StatusCombo.SelectedIndex = 0; RatingCombo.SelectedIndex = 0;
     }
@@ -82,7 +83,7 @@ public partial class MovieDetailView : UserControl
         try
         {
             var m = _movie ?? new Movie();
-            if (string.IsNullOrWhiteSpace(TitleBox.Text)) { MessageBox.Show("请输入片名"); return; }
+            if (string.IsNullOrWhiteSpace(TitleBox.Text)) { AppMessageBox.ShowInfo(LanguageManager.GetString("MovieDetail_EnterTitle")); return; }
             m.Title = TitleBox.Text.Trim(); m.OriginalTitle = NullIfEmpty(OriginalTitleBox.Text);
             m.Year = int.TryParse(YearBox.Text, out var y) ? y : 0;
             m.Runtime = int.TryParse(RuntimeBox.Text, out var rt) ? rt : null;
@@ -95,18 +96,19 @@ public partial class MovieDetailView : UserControl
             m.IsFavorite = FavoriteCheck.IsChecked == true;
             m.FilePath = NullIfEmpty(FilePathBox.Text);
             m.Notes = NullIfEmpty(NotesBox.Text);
-            if (_movieId == 0) m = await _movieService.AddAsync(m); else await _movieService.UpdateAsync(m);
+            if (_movieId == 0) { m = await _movieService.AddAsync(m); MovieAdded?.Invoke(this, m.Id); }
+            else await _movieService.UpdateAsync(m);
             await _movieService.SetTagsAsync(m.Id, _selectedTagIds.ToList());
             MovieSaved?.Invoke(this, EventArgs.Empty); CloseWin();
         }
-        catch (Exception ex) { MessageBox.Show(ex.Message); }
+        catch (Exception ex) { AppMessageBox.ShowError(ex.Message); }
     }
 
     private string? NullIfEmpty(string s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
 
     private async void DeleteBtn_Click(object sender, RoutedEventArgs e)
     {
-        if (_movieId > 0 && MessageBox.Show("确定删除？", "确认", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
+        if (_movieId > 0 && AppMessageBox.Confirm(LanguageManager.GetString("Msg_ConfirmDelete"), LanguageManager.GetString("Msg_Confirm")))
         { await _movieService.DeleteAsync(_movieId); MovieDeleted?.Invoke(this, EventArgs.Empty); CloseWin(); }
     }
 
@@ -116,7 +118,7 @@ public partial class MovieDetailView : UserControl
 
     private void BrowseFile_Click(object sender, RoutedEventArgs e)
     {
-        var dlg = new Microsoft.Win32.OpenFileDialog { Filter = "视频文件|*.mp4;*.mkv;*.avi;*.mov;*.wmv;*.flv|所有文件|*.*" };
+        var dlg = new Microsoft.Win32.OpenFileDialog { Filter = LanguageManager.GetString("MovieDetail_VideoFiles") + "|*.mp4;*.mkv;*.avi;*.mov;*.wmv;*.flv|" + LanguageManager.GetString("MovieDetail_AllFiles") + "|*.*" };
         if (dlg.ShowDialog() == true) FilePathBox.Text = dlg.FileName;
     }
 
@@ -124,6 +126,6 @@ public partial class MovieDetailView : UserControl
     {
         var p = FilePathBox.Text?.Trim();
         if (!string.IsNullOrEmpty(p) && File.Exists(p)) System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = p, UseShellExecute = true });
-        else MessageBox.Show("文件不存在。");
+        else AppMessageBox.ShowInfo(LanguageManager.GetString("MovieDetail_FileNotExist"));
     }
 }

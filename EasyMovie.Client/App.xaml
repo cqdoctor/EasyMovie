@@ -28,6 +28,9 @@
             <converters:BoolToStarConverter x:Key="BoolToStarConverter" />
             <converters:FilePathIconConverter x:Key="FilePathIconConverter" />
             <converters:PosterImageConverter x:Key="PosterImageConverter" />
+            <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
+            <converters:InverseBoolConverter x:Key="InverseBoolConverter" />
+            <converters:PlayButtonToolTipConverter x:Key="PlayButtonToolTipConverter" />
 
             <!-- 全局 TextBlock 跟随主题颜色 -->
             <Style TargetType="TextBlock">

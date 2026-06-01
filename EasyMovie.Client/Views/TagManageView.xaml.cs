@@ -39,7 +39,7 @@ public partial class TagManageView : UserControl
 
     private void UpdatePreview() { try { ColorPreview.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(_selectedColor)); } catch { ColorPreview.Background = Brushes.Gray; } }
 
-    private async Task LoadTagsAsync() { try { TagListBox.ItemsSource = await _tagService.GetAllAsync(); } catch (Exception ex) { MessageBox.Show(ex.Message); } }
+    private async Task LoadTagsAsync() { try { TagListBox.ItemsSource = await _tagService.GetAllAsync(); } catch (Exception ex) { AppMessageBox.ShowError(ex.Message); } }
 
     private void TagListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
@@ -52,17 +52,17 @@ public partial class TagManageView : UserControl
     {
         try
         {
-            var name = TagNameBox.Text.Trim(); if (string.IsNullOrWhiteSpace(name)) { MessageBox.Show("请输入名称"); return; }
+            var name = TagNameBox.Text.Trim(); if (string.IsNullOrWhiteSpace(name)) { AppMessageBox.ShowInfo("请输入名称"); return; }
             if (_selectedTag!=null) { _selectedTag.Name=name; _selectedTag.Color=_selectedColor; await _tagService.UpdateAsync(_selectedTag); }
             else await _tagService.AddAsync(new Tag{Name=name,Color=_selectedColor});
             await LoadTagsAsync(); _selectedTag=null; FormTitle.Text="保存成功！"; DeleteBtn.Visibility=Visibility.Collapsed;
         }
-        catch (Exception ex) { MessageBox.Show(ex.Message); }
+        catch (Exception ex) { AppMessageBox.ShowError(ex.Message); }
     }
 
     private async void DeleteTag_Click(object sender, RoutedEventArgs e)
     {
-        if (_selectedTag==null || MessageBox.Show("确定删除？","确认",MessageBoxButton.YesNo)!=MessageBoxResult.Yes) return;
+        if (_selectedTag==null || !AppMessageBox.Confirm("确定删除？","确认")) return;
         await _tagService.DeleteAsync(_selectedTag.Id); await LoadTagsAsync(); _selectedTag=null; FormTitle.Text="选择标签"; TagNameBox.Text=""; DeleteBtn.Visibility=Visibility.Collapsed;
     }
 }

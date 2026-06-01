@@ -15,7 +15,7 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <TextBlock Grid.Row="0" Text="🌐 在线搜索添加电影" FontSize="22"
+        <TextBlock Grid.Row="0" Text="{DynamicResource OnlineSearch_Title}" FontSize="22"
                    FontWeight="Bold" Margin="0,0,0,16" />
 
         <Grid Grid.Row="1" Margin="0,0,0,16">
@@ -25,16 +25,16 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <TextBox x:Name="SearchBox" Grid.Column="0"
-                     materialDesign:HintAssist.Hint="输入片名搜索..."
+                     materialDesign:HintAssist.Hint="{DynamicResource OnlineSearch_SearchHint}"
                      Style="{StaticResource MaterialDesignFloatingHintTextBox}"
                      KeyDown="SearchBox_KeyDown" Margin="0,0,12,0" />
-            <Button Grid.Column="1" Content="搜索" Style="{StaticResource MaterialDesignRaisedButton}"
+            <Button Grid.Column="1" Content="{DynamicResource OnlineSearch_SearchBtn}" Style="{StaticResource MaterialDesignRaisedButton}"
                     Click="Search_Click" Margin="0,0,8,0">
                 <Button.ContentTemplate>
                     <DataTemplate>
                         <StackPanel Orientation="Horizontal">
                             <materialDesign:PackIcon Kind="Magnify" Margin="0,0,6,0" />
-                            <TextBlock Text="搜索" />
+                            <TextBlock Text="{DynamicResource OnlineSearch_SearchBtn}" />
                         </StackPanel>
                     </DataTemplate>
                 </Button.ContentTemplate>
@@ -63,7 +63,7 @@
                                             CornerRadius="4" ClipToBounds="True"
                                             Background="{DynamicResource MaterialDesignDarkBackground}">
                                         <Image Source="{Binding PosterUrl}" Stretch="UniformToFill"
-                                               RenderOptions.BitmapScalingMode="Fant" />
+                                               RenderOptions.BitmapScalingMode="HighQuality" />
                                     </Border>
                                     <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center">
                                         <TextBlock Text="{Binding Title}" FontSize="15"
@@ -84,12 +84,13 @@
                                                 <Run Text="⭐" />
                                                 <Run Text="{Binding Rating, StringFormat='{}{0:F1}'}" />
                                                 <Run Text=" · " />
-                                                <Run Text="{Binding Source, StringFormat='来源: {0}'}" />
+                                                <Run Text="{DynamicResource OnlineSearch_SourcePrefix}" />
+                                                <Run Text="{Binding Source}" />
                                             </TextBlock>
                                         </StackPanel>
                                     </StackPanel>
                                     <Button Grid.Column="2" Style="{StaticResource MaterialDesignIconForegroundButton}"
-                                            Click="AddResult_Click" Tag="{Binding}" ToolTip="添加到电影库"
+                                            Click="AddResult_Click" Tag="{Binding}" ToolTip="{DynamicResource OnlineSearch_AddToLib}"
                                             VerticalAlignment="Center">
                                         <materialDesign:PackIcon Kind="PlusCircleOutline" Width="28" Height="28" />
                                     </Button>
@@ -103,7 +104,7 @@
                             HorizontalAlignment="Center" Visibility="Collapsed">
                     <materialDesign:PackIcon Kind="MovieSearchOutline" Width="48" Height="48"
                                              Foreground="{DynamicResource MaterialDesignHintForeground}" />
-                    <TextBlock x:Name="EmptyText" Text="搜索豆瓣或 TMDB 添加电影 🎬"
+                    <TextBlock x:Name="EmptyText" Text="{DynamicResource OnlineSearch_EmptyHint}"
                                FontSize="14" HorizontalAlignment="Center"
                                Foreground="{DynamicResource MaterialDesignHintForeground}" Margin="0,8,0,0" />
                 </StackPanel>
@@ -116,16 +117,16 @@
                             <RotateTransform />
                         </materialDesign:PackIcon.RenderTransform>
                     </materialDesign:PackIcon>
-                    <TextBlock Text="搜索中..." FontSize="14" HorizontalAlignment="Center" Margin="0,8,0,0" />
+                    <TextBlock Text="{DynamicResource OnlineSearch_Searching}" FontSize="14" HorizontalAlignment="Center" Margin="0,8,0,0" />
                 </StackPanel>
             </Grid>
         </Border>
 
         <StackPanel Grid.Row="3" HorizontalAlignment="Right" Orientation="Horizontal" Margin="0,12,0,0">
-            <TextBlock Text="豆瓣/TMDB" FontSize="12"
+            <TextBlock Text="{DynamicResource OnlineSearch_SourceLabel}" FontSize="12"
                        Foreground="{DynamicResource MaterialDesignHintForeground}"
                        VerticalAlignment="Center" Margin="0,0,12,0" />
-            <Button Content="关闭" Style="{StaticResource MaterialDesignFlatButton}" Click="Close_Click" />
+            <Button Content="{DynamicResource OnlineSearch_Close}" Style="{StaticResource MaterialDesignFlatButton}" Click="Close_Click" />
         </StackPanel>
     </Grid>
 </UserControl>

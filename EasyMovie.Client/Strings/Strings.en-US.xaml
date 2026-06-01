@@ -3,6 +3,7 @@
                     xmlns:sys="clr-namespace:System;assembly=mscorlib">
     <!-- MainWindow -->
     <sys:String x:Key="Nav_Movies">Movie Library</sys:String>
+    <sys:String x:Key="Nav_Favorites">My Favorites</sys:String>
     <sys:String x:Key="Nav_Categories">Categories &amp; Tags</sys:String>
     <sys:String x:Key="Nav_Statistics">Statistics</sys:String>
     <sys:String x:Key="Nav_Settings">Settings</sys:String>
@@ -92,6 +93,7 @@
     <sys:String x:Key="Tip_Play">Play</sys:String>
     <sys:String x:Key="Tip_FetchInfo">Fetch movie info</sys:String>
     <sys:String x:Key="Tip_Edit">Edit</sys:String>
+    <sys:String x:Key="Tip_FileMissing">Local file not found</sys:String>
     <sys:String x:Key="Tip_Delete">Delete</sys:String>
     <sys:String x:Key="Tip_SaveFilter">Save current filter conditions</sys:String>
 
@@ -134,6 +136,7 @@
     <sys:String x:Key="Stats_YearlyTrend">Yearly Trend</sys:String>
     <sys:String x:Key="Stats_MonthlyTrend">Monthly Viewing Trend</sys:String>
     <sys:String x:Key="Stats_Total">Total</sys:String>
+    <sys:String x:Key="Stats_LoadFailed">Failed to load statistics</sys:String>
 
     <!-- SettingsView -->
     <sys:String x:Key="Settings_Title">⚙️ Settings</sys:String>
@@ -169,6 +172,7 @@
     <sys:String x:Key="Msg_PlayFailed">Playback failed: </sys:String>
     <sys:String x:Key="Msg_YearSuffix"> </sys:String>
     <sys:String x:Key="Msg_MinuteSuffix">min</sys:String>
+    <sys:String x:Key="Msg_FetchingInfo">Fetching info</sys:String>
     <sys:String x:Key="Msg_RecommendTitle">For You</sys:String>
     <sys:String x:Key="Msg_RecommendHint">Based on your watched/rated/favorited movies</sys:String>
     <sys:String x:Key="Msg_LoadFailed">Load failed: </sys:String>
@@ -194,6 +198,8 @@
     <sys:String x:Key="Msg_CannotDelete">Cannot delete</sys:String>
     <sys:String x:Key="Msg_ConfirmDelete">Are you sure you want to delete?</sys:String>
     <sys:String x:Key="Msg_Cancel">Cancel</sys:String>
+    <sys:String x:Key="Msg_Ok">OK</sys:String>
+    <sys:String x:Key="Msg_Yes">Yes</sys:String>
 
     <!-- Watch status display -->
     <sys:String x:Key="WatchStatus_WantToWatch">📋 Want to Watch</sys:String>
@@ -270,4 +276,69 @@
 
     <sys:String x:Key="Msg_NoFilePath">No video file associated with this movie.</sys:String>
     <sys:String x:Key="Msg_FileNotFound">Video file not found: {0}&#x0a;The file may have been moved, renamed, or the storage device is not connected.</sys:String>
+
+    <!-- Watch Log / Diary -->
+    <sys:String x:Key="Nav_Diary">Watch Diary</sys:String>
+    <sys:String x:Key="WatchLog_Title">Watch Logs</sys:String>
+    <sys:String x:Key="WatchLog_AddTitle">Log Watching</sys:String>
+    <sys:String x:Key="WatchLog_EditTitle">Edit Watch Log</sys:String>
+    <sys:String x:Key="WatchLog_AddShort">+ Log</sys:String>
+    <sys:String x:Key="WatchLog_Date">Watch Date</sys:String>
+    <sys:String x:Key="WatchLog_DateRequired">Please select a watch date</sys:String>
+    <sys:String x:Key="WatchLog_Rating">Rating</sys:String>
+    <sys:String x:Key="WatchLog_Location">Location</sys:String>
+    <sys:String x:Key="WatchLog_Companion">Companion</sys:String>
+    <sys:String x:Key="WatchLog_Notes">Notes</sys:String>
+    <sys:String x:Key="WatchLog_Edit">Edit</sys:String>
+    <sys:String x:Key="WatchLog_Delete">Delete</sys:String>
+    <sys:String x:Key="WatchLog_ConfirmDelete">Delete this watch log?</sys:String>
+    <sys:String x:Key="WatchLog_Empty">No watch logs yet</sys:String>
+    <sys:String x:Key="WatchLog_DiaryTitle">📖 Watch Diary</sys:String>
+    <sys:String x:Key="WatchLog_DiaryEmpty">No watch logs yet. Click "Log" in movie details to start.</sys:String>
+    <sys:String x:Key="WatchLog_FilterDate">Filter by date</sys:String>
+    <sys:String x:Key="WatchLog_ClearFilter">Clear Filter</sys:String>
+    <sys:String x:Key="WatchLog_LoadMore">Load More</sys:String>
+
+    <!-- OnlineSearchView -->
+    <sys:String x:Key="OnlineSearch_Title">🌐 Online Search</sys:String>
+    <sys:String x:Key="OnlineSearch_SearchHint">Search by title...</sys:String>
+    <sys:String x:Key="OnlineSearch_SearchBtn">Search</sys:String>
+    <sys:String x:Key="OnlineSearch_SourcePrefix">Source: </sys:String>
+    <sys:String x:Key="OnlineSearch_AddToLib">Add to Library</sys:String>
+    <sys:String x:Key="OnlineSearch_EmptyHint">Search Douban or TMDB to add movies 🎬</sys:String>
+    <sys:String x:Key="OnlineSearch_Searching">Searching...</sys:String>
+    <sys:String x:Key="OnlineSearch_SourceLabel">Douban/TMDB</sys:String>
+    <sys:String x:Key="OnlineSearch_Close">Close</sys:String>
+    <sys:String x:Key="OnlineSearch_NoResult">No results found</sys:String>
+    <sys:String x:Key="OnlineSearch_Added">Added: </sys:String>
+    <sys:String x:Key="OnlineSearch_AllAdded">All added</sys:String>
+
+    <!-- MovieDetailView -->
+    <sys:String x:Key="MovieDetail_TitleHint">Title *</sys:String>
+    <sys:String x:Key="MovieDetail_OriginalTitle">Original Title</sys:String>
+    <sys:String x:Key="MovieDetail_Year">Year</sys:String>
+    <sys:String x:Key="MovieDetail_Runtime">Runtime (min)</sys:String>
+    <sys:String x:Key="MovieDetail_Director">Director</sys:String>
+    <sys:String x:Key="MovieDetail_Country">Country/Region</sys:String>
+    <sys:String x:Key="MovieDetail_Cast">Cast (comma separated)</sys:String>
+    <sys:String x:Key="MovieDetail_Synopsis">Synopsis</sys:String>
+    <sys:String x:Key="MovieDetail_Category">Category</sys:String>
+    <sys:String x:Key="MovieDetail_Tags">🏷️ Tags</sys:String>
+    <sys:String x:Key="MovieDetail_Rating">My Rating</sys:String>
+    <sys:String x:Key="MovieDetail_WatchStatus">Watch Status</sys:String>
+    <sys:String x:Key="MovieDetail_WatchDate">Watch Date</sys:String>
+    <sys:String x:Key="MovieDetail_Favorite">⭐ Favorite</sys:String>
+    <sys:String x:Key="MovieDetail_FilePath">Local Video File Path</sys:String>
+    <sys:String x:Key="MovieDetail_Browse">Browse...</sys:String>
+    <sys:String x:Key="MovieDetail_Play">▶ Play</sys:String>
+    <sys:String x:Key="MovieDetail_Notes">Notes</sys:String>
+    <sys:String x:Key="MovieDetail_AddTitle">Add Movie</sys:String>
+    <sys:String x:Key="MovieDetail_EditTitle">Edit Movie</sys:String>
+    <sys:String x:Key="MovieDetail_NoCategory">No Category</sys:String>
+    <sys:String x:Key="MovieDetail_Unrated">Unrated</sys:String>
+    <sys:String x:Key="MovieDetail_RatingPoint">{0}</sys:String>
+    <sys:String x:Key="MovieDetail_EnterTitle">Please enter the title</sys:String>
+    <sys:String x:Key="MovieDetail_VideoFiles">Video Files</sys:String>
+    <sys:String x:Key="MovieDetail_AllFiles">All Files</sys:String>
+    <sys:String x:Key="MovieDetail_FileNotExist">File does not exist.</sys:String>
 </ResourceDictionary>
