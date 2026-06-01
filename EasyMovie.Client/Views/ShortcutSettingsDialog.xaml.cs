@@ -145,9 +145,9 @@ public partial class ShortcutSettingsDialog : Window
             if (conflict != null)
             {
                 var conflictDesc = ShortcutConfig.Defaults.FirstOrDefault(d => d.Action == conflict.Action).DescriptionKey;
-                MessageBox.Show(
+                AppMessageBox.ShowWarning(
                     string.Format(LanguageManager.GetString("Shortcuts_Conflict"), LanguageManager.GetString(conflictDesc)),
-                    LanguageManager.GetString("Msg_Hint"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                    LanguageManager.GetString("Msg_Hint"));
                 StopRecording();
                 return;
             }

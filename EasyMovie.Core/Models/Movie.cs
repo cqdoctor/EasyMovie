@@ -1,4 +1,4 @@
-﻿using EasyMovie.Core.Enums;
+﻿﻿using EasyMovie.Core.Enums;
 
 namespace EasyMovie.Core.Models;
 
@@ -46,6 +46,9 @@ public class Movie
     public MovieCollection? Collection { get; set; }
     public int? CollectionOrder { get; set; }
 
+    // ── 观影日记 ──
+    public ICollection<WatchLog> WatchLogs { get; set; } = new List<WatchLog>();
+
     // ── 评分 & 状态 ──
     /// <summary>个人评分 1-10，null 表示未评分</summary>
     public int? Rating { get; set; }
@@ -84,6 +87,9 @@ public class Movie
 
     /// <summary>本地视频文件路径</summary>
     public string? FilePath { get; set; }
+
+    /// <summary>本地文件是否存在（非数据库字段，运行时计算）</summary>
+    public bool IsFileMissing => !string.IsNullOrEmpty(FilePath) && !System.IO.File.Exists(FilePath);
 
     // ── 时间戳 ──
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

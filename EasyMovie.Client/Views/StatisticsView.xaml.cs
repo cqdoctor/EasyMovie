@@ -35,6 +35,11 @@ public partial class StatisticsView : UserControl
         _context = DbHelper.CreateContext();
         _statsService = new StatisticsService(_context);
         Loaded += async (s, e) => await InitializeAsync();
+        IsVisibleChanged += async (_, e) =>
+        {
+            if (e.NewValue is true && _isInitialized)
+                await LoadAsync();
+        };
     }
 
     public async Task InitializeAsync()
@@ -106,7 +111,7 @@ public partial class StatisticsView : UserControl
         }
         catch (Exception ex)
         {
-            System.Windows.MessageBox.Show($"统计加载失败: {ex.Message}\n{ex.StackTrace}", "错误");
+            AppMessageBox.ShowError($"{LanguageManager.GetString("Stats_LoadFailed")}: {ex.Message}");
         }
     }
 }

@@ -12,6 +12,7 @@ using System.Windows.Media.Imaging;
 using EasyMovie.Client.Views;
 using EasyMovie.Core.Enums;
 using EasyMovie.Core.Models;
+using EasyMovie.Data;
 
 namespace EasyMovie.Client;
 
@@ -184,8 +185,10 @@ public partial class MainWindow : Window
             view = page switch
             {
                 "Movies" => new MovieListView(this),
+                "Favorites" => new MovieListView(this, true),
                 "Categories" => new CategoryTagManageView(),
                 "Statistics" => new StatisticsView(),
+                "Diary" => new WatchDiaryView(),
                 "Settings" => new SettingsView(),
                 _ => new MovieListView(this)
             };
@@ -200,7 +203,7 @@ public partial class MainWindow : Window
         _currentPage = page;
 
         // 非电影页面时隐藏电影详情面板
-        MovieDetailPanel.Visibility = page == "Movies" && _lastSelectedMovie != null
+        MovieDetailPanel.Visibility = (page == "Movies" || page == "Favorites") && _lastSelectedMovie != null
             ? Visibility.Visible
             : Visibility.Collapsed;
     }
@@ -239,7 +242,7 @@ public partial class MainWindow : Window
 
         DetailPoster.Source = null;
 
-        // 优先从数据库加载海报
+        var posterLoaded = false;
         if (movie.PosterData != null && movie.PosterData.Length > 0)
         {
             try
@@ -251,13 +254,12 @@ public partial class MainWindow : Window
                 bmp.EndInit();
                 bmp.Freeze();
                 DetailPoster.Source = bmp;
-                return;
+                posterLoaded = true;
             }
             catch { }
         }
 
-        // 数据库无海报，从远程下载
-        if (!string.IsNullOrEmpty(movie.PosterUrl))
+        if (!posterLoaded && !string.IsNullOrEmpty(movie.PosterUrl))
         {
             try
             {
@@ -270,12 +272,11 @@ public partial class MainWindow : Window
                 bmp.Freeze();
                 DetailPoster.Source = bmp;
 
-                // 保存到数据库
                 _ = SavePosterToDb(movie, bytes);
             }
             catch { }
         }
-        else if (!string.IsNullOrEmpty(movie.CoverImagePath) && File.Exists(movie.CoverImagePath))
+        else if (!posterLoaded && !string.IsNullOrEmpty(movie.CoverImagePath) && File.Exists(movie.CoverImagePath))
         {
             try
             {
@@ -285,6 +286,140 @@ public partial class MainWindow : Window
             }
             catch { }
         }
+
+        await LoadWatchLogsAsync(movie.Id);
+    }
+
+    private async Task LoadWatchLogsAsync(int movieId)
+    {
+        WatchLogList.Children.Clear();
+        try
+        {
+            using var ctx = DbHelper.CreateContext();
+            var svc = new WatchLogService(ctx);
+            var logs = await svc.GetByMovieIdAsync(movieId);
+
+            if (logs.Count == 0)
+            {
+                WatchLogList.Children.Add(new TextBlock
+                {
+                    Text = LanguageManager.GetString("WatchLog_Empty"),
+                    FontSize = 11,
+                    Foreground = SafeFindBrush("MaterialDesignHintForeground", Color.FromRgb(117, 117, 117)),
+                    Margin = new Thickness(0, 2, 0, 0)
+                });
+                return;
+            }
+
+            foreach (var log in logs)
+            {
+                var border = new Border
+                {
+                    Background = SafeFindBrush("MaterialDesignCardBackground", Color.FromRgb(45, 45, 45)),
+                    CornerRadius = new CornerRadius(4),
+                    Padding = new Thickness(8, 6, 8, 6),
+                    Margin = new Thickness(0, 0, 0, 4)
+                };
+                var stack = new StackPanel();
+
+                var header = new Grid();
+                header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+                var dateRating = new StackPanel { Orientation = Orientation.Horizontal };
+                dateRating.Children.Add(new TextBlock { Text = log.WatchDate.ToString("yyyy-MM-dd"), FontSize = 12, FontWeight = FontWeights.SemiBold, Foreground = SafeFindBrush("MaterialDesignBody", Colors.White) });
+                if (log.Rating.HasValue) dateRating.Children.Add(new TextBlock { Text = $"  ⭐{log.Rating}", FontSize = 12, Foreground = new SolidColorBrush(Color.FromRgb(255, 215, 0)) });
+                Grid.SetColumn(dateRating, 0);
+                header.Children.Add(dateRating);
+
+                var btnPanel = new StackPanel { Orientation = Orientation.Horizontal };
+                var editBtn = new Button { Style = (Style)FindResource("MaterialDesignIconForegroundButton"), Width = 22, Height = 22, Tag = log.Id, ToolTip = LanguageManager.GetString("WatchLog_Edit") };
+                editBtn.Content = new MaterialDesignThemes.Wpf.PackIcon { Kind = MaterialDesignThemes.Wpf.PackIconKind.Pencil, Width = 12, Height = 12 };
+                editBtn.Click += EditWatchLog_Click;
+                btnPanel.Children.Add(editBtn);
+
+                var delBtn = new Button { Style = (Style)FindResource("MaterialDesignIconForegroundButton"), Width = 22, Height = 22, Tag = log.Id, ToolTip = LanguageManager.GetString("WatchLog_Delete"), Margin = new Thickness(2, 0, 0, 0) };
+                delBtn.Content = new MaterialDesignThemes.Wpf.PackIcon { Kind = MaterialDesignThemes.Wpf.PackIconKind.Delete, Width = 12, Height = 12 };
+                delBtn.Click += DeleteWatchLog_Click;
+                btnPanel.Children.Add(delBtn);
+
+                Grid.SetColumn(btnPanel, 1);
+                header.Children.Add(btnPanel);
+
+                stack.Children.Add(header);
+
+                if (!string.IsNullOrEmpty(log.Location))
+                    stack.Children.Add(new TextBlock { Text = "📍 " + log.Location, FontSize = 11, Foreground = SafeFindBrush("MaterialDesignBody", Colors.White), Margin = new Thickness(0, 2, 0, 0) });
+                if (!string.IsNullOrEmpty(log.Companion))
+                    stack.Children.Add(new TextBlock { Text = "👥 " + log.Companion, FontSize = 11, Foreground = SafeFindBrush("MaterialDesignBody", Colors.White), Margin = new Thickness(0, 2, 0, 0) });
+                if (!string.IsNullOrEmpty(log.Notes))
+                    stack.Children.Add(new TextBlock { Text = log.Notes, FontSize = 11, Foreground = SafeFindBrush("MaterialDesignBodyLight", Color.FromRgb(180, 180, 180)), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0) });
+
+                border.Child = stack;
+                WatchLogList.Children.Add(border);
+            }
+        }
+        catch { }
+    }
+
+    private async void AddWatchLog_Click(object sender, RoutedEventArgs e)
+    {
+        if (_lastSelectedMovie == null) return;
+        var dlg = new WatchLogDialog(_lastSelectedMovie.Id, _lastSelectedMovie.Title) { Owner = this };
+        if (dlg.ShowDialog() == true)
+        {
+            using var ctx = DbHelper.CreateContext();
+            var svc = new WatchLogService(ctx);
+            await svc.AddAsync(new WatchLog
+            {
+                MovieId = dlg.MovieId,
+                WatchDate = dlg.WatchDate,
+                Rating = dlg.Rating,
+                Location = dlg.LogLocation,
+                Companion = dlg.LogCompanion,
+                Notes = dlg.LogNotes
+            });
+            await LoadWatchLogsAsync(_lastSelectedMovie.Id);
+        }
+    }
+
+    private async void EditWatchLog_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn || btn.Tag is not int logId || _lastSelectedMovie == null) return;
+        using var ctx = DbHelper.CreateContext();
+        var svc = new WatchLogService(ctx);
+        var log = await svc.GetByIdAsync(logId);
+        if (log == null) return;
+        var dlg = new WatchLogDialog(log.MovieId, _lastSelectedMovie.Title, log) { Owner = this };
+        if (dlg.ShowDialog() == true)
+        {
+            log.WatchDate = dlg.WatchDate;
+            log.Rating = dlg.Rating;
+            log.Location = dlg.LogLocation;
+            log.Companion = dlg.LogCompanion;
+            log.Notes = dlg.LogNotes;
+            await svc.UpdateAsync(log);
+            await LoadWatchLogsAsync(_lastSelectedMovie.Id);
+        }
+    }
+
+    private async void DeleteWatchLog_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn || btn.Tag is not int logId || _lastSelectedMovie == null) return;
+        if (!AppMessageBox.Confirm(LanguageManager.GetString("WatchLog_ConfirmDelete"), LanguageManager.GetString("Msg_Confirm"))) return;
+        using var ctx = DbHelper.CreateContext();
+        var svc = new WatchLogService(ctx);
+        await svc.DeleteAsync(logId);
+        await LoadWatchLogsAsync(_lastSelectedMovie.Id);
+    }
+
+    private static Brush SafeFindBrush(string resourceKey, Color fallback)
+    {
+        var brush = Application.Current.TryFindResource(resourceKey) as Brush;
+        if (brush != null) return brush;
+        var solid = new SolidColorBrush(fallback);
+        solid.Freeze();
+        return solid;
     }
 
     private MovieListView? GetCurrentMovieView()

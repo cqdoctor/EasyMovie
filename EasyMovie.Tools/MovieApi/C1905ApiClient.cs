@@ -43,6 +43,16 @@ public class C1905ApiClient : IMovieApiClient
         catch { return null; }
     }
 
+    private static readonly string[] InvalidLabels = { "人员", "人物", "演员", "主演", "导演", "暂无", "未知", "暂未录入", "更多" };
+
+    private static bool IsTemplateOrLabel(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return true;
+        if (System.Text.RegularExpressions.Regex.IsMatch(value, @"\$\{.*?\}|\$\(data\.\w+\)|\{\{.*?\}\}|<%.*?%>")) return true;
+        if (InvalidLabels.Contains(value)) return true;
+        return false;
+    }
+
     private static List<MovieSearchResult> ParseSearch(string html)
     {
         var results = new List<MovieSearchResult>();
@@ -71,12 +81,19 @@ public class C1905ApiClient : IMovieApiClient
 
         // 导演
         var dm = Regex.Match(html, @"导演[：:]\s*<[^>]*>\s*([^<\n]+)");
-        if (dm.Success) r.Director = dm.Groups[1].Value.Trim();
+        if (dm.Success)
+        {
+            var dir = dm.Groups[1].Value.Trim();
+            if (!IsTemplateOrLabel(dir)) r.Director = dir;
+        }
 
-        // 主演
         var actors = Regex.Matches(html, @"主演[：:][^<]*(?:<[^>]*>([^<]*)</a>\s*)+");
         var castMatch = Regex.Match(html, @"主演[：:]\s*([^<\n]+)");
-        if (castMatch.Success) r.Cast = castMatch.Groups[1].Value.Trim().Replace("&nbsp;", " ");
+        if (castMatch.Success)
+        {
+            var cast = castMatch.Groups[1].Value.Trim().Replace("&nbsp;", " ");
+            if (!IsTemplateOrLabel(cast)) r.Cast = cast;
+        }
 
         // 年份
         var ym = Regex.Match(html, @"上映[：:]\s*(\d{4})");

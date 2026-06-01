@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿﻿using Microsoft.EntityFrameworkCore;
 using EasyMovie.Core.Models;
 using EasyMovie.Data.Configurations;
 
@@ -11,6 +11,7 @@ public class MovieDbContext : DbContext
     public DbSet<Tag> Tags => Set<Tag>();
     public DbSet<MovieTag> MovieTags => Set<MovieTag>();
     public DbSet<MovieCollection> Collections => Set<MovieCollection>();
+    public DbSet<WatchLog> WatchLogs => Set<WatchLog>();
 
     public MovieDbContext(DbContextOptions<MovieDbContext> options) : base(options)
     {
@@ -25,5 +26,6 @@ public class MovieDbContext : DbContext
         modelBuilder.ApplyConfiguration(new TagConfiguration());
         modelBuilder.ApplyConfiguration(new MovieTagConfiguration());
         modelBuilder.ApplyConfiguration(new MovieCollectionConfiguration());
+        modelBuilder.ApplyConfiguration(new WatchLogConfiguration());
     }
 }

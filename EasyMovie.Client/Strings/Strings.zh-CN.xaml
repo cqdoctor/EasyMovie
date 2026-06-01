@@ -3,6 +3,7 @@
                     xmlns:sys="clr-namespace:System;assembly=mscorlib">
     <!-- MainWindow -->
     <sys:String x:Key="Nav_Movies">电影库</sys:String>
+    <sys:String x:Key="Nav_Favorites">我的收藏</sys:String>
     <sys:String x:Key="Nav_Categories">分类与标签</sys:String>
     <sys:String x:Key="Nav_Statistics">统计面板</sys:String>
     <sys:String x:Key="Nav_Settings">设置</sys:String>
@@ -92,6 +93,7 @@
     <sys:String x:Key="Tip_Play">播放</sys:String>
     <sys:String x:Key="Tip_FetchInfo">获取电影信息</sys:String>
     <sys:String x:Key="Tip_Edit">编辑</sys:String>
+    <sys:String x:Key="Tip_FileMissing">本地文件不存在</sys:String>
     <sys:String x:Key="Tip_Delete">删除</sys:String>
     <sys:String x:Key="Tip_SaveFilter">保存当前筛选条件</sys:String>
 
@@ -134,6 +136,7 @@
     <sys:String x:Key="Stats_YearlyTrend">年度趋势</sys:String>
     <sys:String x:Key="Stats_MonthlyTrend">今年月度观影趋势</sys:String>
     <sys:String x:Key="Stats_Total">总数</sys:String>
+    <sys:String x:Key="Stats_LoadFailed">统计加载失败</sys:String>
 
     <!-- SettingsView -->
     <sys:String x:Key="Settings_Title">⚙️ 系统设置</sys:String>
@@ -169,6 +172,7 @@
     <sys:String x:Key="Msg_PlayFailed">播放失败: </sys:String>
     <sys:String x:Key="Msg_YearSuffix">年</sys:String>
     <sys:String x:Key="Msg_MinuteSuffix">分钟</sys:String>
+    <sys:String x:Key="Msg_FetchingInfo">正在获取信息</sys:String>
     <sys:String x:Key="Msg_RecommendTitle">为你推荐</sys:String>
     <sys:String x:Key="Msg_RecommendHint">基于你的已看/评分/收藏电影推荐</sys:String>
     <sys:String x:Key="Msg_LoadFailed">加载失败: </sys:String>
@@ -194,6 +198,8 @@
     <sys:String x:Key="Msg_CannotDelete">无法删除</sys:String>
     <sys:String x:Key="Msg_ConfirmDelete">确定删除？</sys:String>
     <sys:String x:Key="Msg_Cancel">取消</sys:String>
+    <sys:String x:Key="Msg_Ok">确定</sys:String>
+    <sys:String x:Key="Msg_Yes">确定</sys:String>
 
     <!-- Watch status display -->
     <sys:String x:Key="WatchStatus_WantToWatch">📋 想看</sys:String>
@@ -270,4 +276,86 @@
 
     <sys:String x:Key="Msg_NoFilePath">该电影尚未关联视频文件。</sys:String>
     <sys:String x:Key="Msg_FileNotFound">找不到视频文件：{0}&#x0a;文件可能已被移动、重命名或存储设备未连接。</sys:String>
+
+    <!-- Watch Log / Diary -->
+    <sys:String x:Key="Nav_Diary">观影日记</sys:String>
+    <sys:String x:Key="WatchLog_Title">观影记录</sys:String>
+    <sys:String x:Key="WatchLog_AddTitle">记录观影</sys:String>
+    <sys:String x:Key="WatchLog_EditTitle">编辑观影记录</sys:String>
+    <sys:String x:Key="WatchLog_AddShort">+ 记录</sys:String>
+    <sys:String x:Key="WatchLog_Date">观影日期</sys:String>
+    <sys:String x:Key="WatchLog_DateRequired">请选择观影日期</sys:String>
+    <sys:String x:Key="WatchLog_Rating">评分</sys:String>
+    <sys:String x:Key="WatchLog_Location">观影地点</sys:String>
+    <sys:String x:Key="WatchLog_Companion">同行人</sys:String>
+    <sys:String x:Key="WatchLog_Notes">观影感受</sys:String>
+    <sys:String x:Key="WatchLog_Edit">编辑</sys:String>
+    <sys:String x:Key="WatchLog_Delete">删除</sys:String>
+    <sys:String x:Key="WatchLog_ConfirmDelete">确认删除此观影记录？</sys:String>
+    <sys:String x:Key="WatchLog_Empty">暂无观影记录</sys:String>
+    <sys:String x:Key="WatchLog_DiaryTitle">📖 观影日记</sys:String>
+    <sys:String x:Key="WatchLog_DiaryEmpty">还没有观影记录，在电影详情中点击"记录"开始吧</sys:String>
+    <sys:String x:Key="WatchLog_FilterDate">按日期筛选</sys:String>
+    <sys:String x:Key="WatchLog_ClearFilter">清除筛选</sys:String>
+    <sys:String x:Key="WatchLog_LoadMore">加载更多</sys:String>
+
+    <!-- OnlineSearchView -->
+    <sys:String x:Key="OnlineSearch_Title">🌐 在线搜索添加电影</sys:String>
+    <sys:String x:Key="OnlineSearch_SearchHint">输入片名搜索...</sys:String>
+    <sys:String x:Key="OnlineSearch_SearchBtn">搜索</sys:String>
+    <sys:String x:Key="OnlineSearch_SourcePrefix">来源: </sys:String>
+    <sys:String x:Key="OnlineSearch_AddToLib">添加到电影库</sys:String>
+    <sys:String x:Key="OnlineSearch_EmptyHint">搜索豆瓣或 TMDB 添加电影 🎬</sys:String>
+    <sys:String x:Key="OnlineSearch_Searching">搜索中...</sys:String>
+    <sys:String x:Key="OnlineSearch_SourceLabel">豆瓣/TMDB</sys:String>
+    <sys:String x:Key="OnlineSearch_Close">关闭</sys:String>
+    <sys:String x:Key="OnlineSearch_NoResult">未找到结果</sys:String>
+    <sys:String x:Key="OnlineSearch_Added">已添加: </sys:String>
+    <sys:String x:Key="OnlineSearch_AllAdded">全部已添加</sys:String>
+
+    <!-- MovieDetailView -->
+    <sys:String x:Key="MovieDetail_TitleHint">片名 *</sys:String>
+    <sys:String x:Key="MovieDetail_OriginalTitle">原始片名</sys:String>
+    <sys:String x:Key="MovieDetail_Year">年份</sys:String>
+    <sys:String x:Key="MovieDetail_Runtime">片长（分钟）</sys:String>
+    <sys:String x:Key="MovieDetail_Director">导演</sys:String>
+    <sys:String x:Key="MovieDetail_Country">国家/地区</sys:String>
+    <sys:String x:Key="MovieDetail_Cast">主演（逗号分隔）</sys:String>
+    <sys:String x:Key="MovieDetail_Synopsis">剧情简介</sys:String>
+    <sys:String x:Key="MovieDetail_Category">分类</sys:String>
+    <sys:String x:Key="MovieDetail_Tags">🏷️ 标签</sys:String>
+    <sys:String x:Key="MovieDetail_Rating">个人评分</sys:String>
+    <sys:String x:Key="MovieDetail_WatchStatus">观看状态</sys:String>
+    <sys:String x:Key="MovieDetail_WatchDate">观看日期</sys:String>
+    <sys:String x:Key="MovieDetail_Favorite">⭐ 收藏</sys:String>
+    <sys:String x:Key="MovieDetail_FilePath">本地视频文件路径</sys:String>
+    <sys:String x:Key="MovieDetail_Browse">浏览...</sys:String>
+    <sys:String x:Key="MovieDetail_Play">▶ 播放</sys:String>
+    <sys:String x:Key="MovieDetail_Notes">笔记</sys:String>
+    <sys:String x:Key="MovieDetail_AddTitle">添加电影</sys:String>
+    <sys:String x:Key="MovieDetail_EditTitle">编辑电影</sys:String>
+    <sys:String x:Key="MovieDetail_NoCategory">无分类</sys:String>
+    <sys:String x:Key="MovieDetail_Unrated">未评分</sys:String>
+    <sys:String x:Key="MovieDetail_RatingPoint">{0} 分</sys:String>
+    <sys:String x:Key="MovieDetail_EnterTitle">请输入片名</sys:String>
+    <sys:String x:Key="MovieDetail_VideoFiles">视频文件</sys:String>
+    <sys:String x:Key="MovieDetail_AllFiles">所有文件</sys:String>
+    <sys:String x:Key="MovieDetail_FileNotExist">文件不存在。</sys:String>
+
+    <!-- ImportExportView -->
+    <sys:String x:Key="ImportExport_Title">📦 导入导出</sys:String>
+    <sys:String x:Key="ImportExport_ImportFolder">📁 导入文件夹</sys:String>
+    <sys:String x:Key="ImportExport_ImportFolderDesc">扫描文件夹中的视频文件，自动解析片名和年份创建电影条目</sys:String>
+    <sys:String x:Key="ImportExport_FolderPathHint">或手动输入文件夹路径</sys:String>
+    <sys:String x:Key="ImportExport_ExportData">📤 导出数据</sys:String>
+    <sys:String x:Key="ImportExport_ExportCsv">导出 CSV</sys:String>
+    <sys:String x:Key="ImportExport_ExportJson">导出 JSON</sys:String>
+    <sys:String x:Key="ImportExport_ImportData">📥 导入数据</sys:String>
+    <sys:String x:Key="ImportExport_ImportCsv">导入 CSV</sys:String>
+    <sys:String x:Key="ImportExport_ImportJson">导入 JSON</sys:String>
+    <sys:String x:Key="ImportExport_DbFile">💾 数据库文件</sys:String>
+    <sys:String x:Key="ImportExport_OperationLog">📋 操作日志</sys:String>
+    <sys:String x:Key="ImportExport_Clear">清除</sys:String>
+    <sys:String x:Key="ImportExport_Scanning">扫描: {0}...</sys:String>
+    <sys:String x:Key="ImportExport_Failed">失败: {0}</sys:String>
 </ResourceDictionary>

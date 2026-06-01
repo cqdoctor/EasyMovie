@@ -26,7 +26,7 @@ public partial class CollectionEditDialog : Window
     {
         if (string.IsNullOrWhiteSpace(NameBox.Text))
         {
-            MessageBox.Show(LanguageManager.GetString("Collection_NameRequired"), LanguageManager.GetString("Msg_Hint"), MessageBoxButton.OK, MessageBoxImage.Warning);
+            AppMessageBox.ShowWarning(LanguageManager.GetString("Collection_NameRequired"), LanguageManager.GetString("Msg_Hint"));
             return;
         }
         DialogResult = true;

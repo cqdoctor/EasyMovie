@@ -51,13 +51,13 @@ public partial class App : Application
         {
             var ex = args.ExceptionObject as Exception;
             Log.Fatal(ex, "未处理的异常");
-            MessageBox.Show($"严重错误: {ex?.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            AppMessageBox.ShowError($"严重错误: {ex?.Message}", "错误");
         };
 
         DispatcherUnhandledException += (s, args) =>
         {
             Log.Error(args.Exception, "UI线程异常");
-            MessageBox.Show(args.Exception.Message, "错误", MessageBoxButton.OK, MessageBoxImage.Warning);
+            AppMessageBox.ShowWarning(args.Exception.Message, "错误");
             args.Handled = true;
         };
 

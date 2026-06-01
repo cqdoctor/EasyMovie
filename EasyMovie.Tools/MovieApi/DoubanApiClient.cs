@@ -75,11 +75,22 @@ public class DoubanApiClient : IMovieApiClient
         if (string.IsNullOrWhiteSpace(title)) return null;
         var cleaned = Regex.Replace(title, @"[\u4e00-\u9fff]+\d*", " ");
         cleaned = Regex.Replace(cleaned, @"\d*[\u4e00-\u9fff]+", " ");
-        cleaned = Regex.Replace(cleaned, @"\b(?:4K|1080[pi]|720p|2160p|BluRay|WEB-DL|WEBRip|HDRip|BDRip|BRRip|x26[45]|AAC|DTS|DD5\.1|E?AC3|DDP?5\.1|HEVC|10bit|HDR|SDR|Remux|HC|H264|H265|PROPER|REPACK|EXTENDED|UNCUT|NF|AMZN|DSNP|HMAX|ATVP)\b", " ", RegexOptions.IgnoreCase);
-        cleaned = Regex.Replace(cleaned, @"\b\d{4}\b", " ");
+        cleaned = Regex.Replace(cleaned, @"\b(?:4K|1080[pi]|720p|2160p|BluRay|WEB-?DL|WEBRip|HDRip|BDRip|BRRip|x26[45]|AAC|DTS|DD5\.1|E?AC3|DDP?5\.1|HEVC|10bit|HDR|SDR|Remux|HC|H264|H265|PROPER|REPACK|EXTENDED|UNCUT|NF|AMZN|DSNP|HMAX|ATVP|WEB|Audio|Multi|Dual|Dubbed|Subbed|Complete|REMUX|DV|Hybrid|REPACK)\b", " ", RegexOptions.IgnoreCase);
+        cleaned = Regex.Replace(cleaned, @"\b\d{4,}\b", " ");
         cleaned = Regex.Replace(cleaned, @"[.\-_]", " ");
+        cleaned = Regex.Replace(cleaned, @"[^\w\s]", " ");
         cleaned = Regex.Replace(cleaned, @"\s+", " ").Trim();
         return string.IsNullOrWhiteSpace(cleaned) ? null : cleaned;
+    }
+
+    private static readonly string[] InvalidLabels = { "人员", "人物", "演员", "主演", "导演", "暂无", "未知", "暂未录入", "更多" };
+
+    private static bool IsTemplateOrLabel(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return true;
+        if (Regex.IsMatch(value, @"\$\{.*?\}|\$\(data\.\w+\)|\{\{.*?\}\}|<%.*?%>")) return true;
+        if (InvalidLabels.Contains(value)) return true;
+        return false;
     }
 
     public async Task<MovieSearchResponse> SearchAsync(MovieSearchRequest req, CancellationToken ct = default)
@@ -140,7 +151,7 @@ public class DoubanApiClient : IMovieApiClient
                         else if (!genres.Contains(part) && !part.EndsWith("分钟") && !int.TryParse(part, out _) && part.Any(c => c >= 0x4e00 && c <= 0x9fff) && !part.Contains("导演") && part.Length <= 10 && country == "" && !junkSuffixes.Any(j => part.EndsWith(j) || part.Contains(j))) country = part;
                     }
                     var director = ""; var cast = "";
-                    if (!string.IsNullOrEmpty(abs2)) { var people = abs2.Split(" / ").Select(p => p.Trim()).ToList(); if (people.Count > 0) director = people[0]; if (people.Count > 1) cast = string.Join(", ", people.Skip(1).Take(8)); }
+                    if (!string.IsNullOrEmpty(abs2)) { var people = abs2.Split(" / ").Select(p => p.Trim()).Where(p => !IsTemplateOrLabel(p)).ToList(); if (people.Count > 0) director = people[0]; if (people.Count > 1) cast = string.Join(", ", people.Skip(1).Take(8)); }
                     // 从abstract中提取英文名 (非类型/国家/片长的部分)
                     var engTitle = "";
                     foreach (var part in abs.Split(" / ").Select(p => p.Trim()))
@@ -169,8 +180,8 @@ public class DoubanApiClient : IMovieApiClient
         var r = new MovieSearchResult { ExternalId = id, Source = "douban" };
         var tm = Regex.Match(html, @"<span property=""v:itemreviewed"">([^<]+)</span>"); if (tm.Success) r.Title = WebUtility.HtmlDecode(tm.Groups[1].Value).Trim();
         var ym = Regex.Match(html, @"<span class=""year"">\((\d{4})\)</span>"); if (ym.Success) r.Year = int.Parse(ym.Groups[1].Value);
-        var dm = Regex.Match(html, @"rel=""v:directedBy""[^>]*>([^<]+)</a>"); if (dm.Success) r.Director = dm.Groups[1].Value.Trim();
-        var cl = Regex.Matches(html, @"rel=""v:starring""[^>]*>([^<]+)</a>").Select(c => c.Groups[1].Value.Trim()).Take(8).ToList(); if (cl.Any()) r.Cast = string.Join(", ", cl);
+        var dm = Regex.Match(html, @"rel=""v:directedBy""[^>]*>([^<]+)</a>"); if (dm.Success) { var dir = dm.Groups[1].Value.Trim(); if (!IsTemplateOrLabel(dir)) r.Director = dir; }
+        var cl = Regex.Matches(html, @"rel=""v:starring""[^>]*>([^<]+)</a>").Select(c => c.Groups[1].Value.Trim()).Where(c => !IsTemplateOrLabel(c)).Take(8).ToList(); if (cl.Any()) r.Cast = string.Join(", ", cl);
         var sm = Regex.Match(html, @"<span property=""v:summary""[^>]*>\s*([\s\S]*?)\s*</span>"); if (sm.Success) r.Synopsis = WebUtility.HtmlDecode(Regex.Replace(sm.Groups[1].Value, @"<[^>]+>", "").Trim());
         var rm = Regex.Match(html, @"<strong class=""ll rating_num""[^>]*>([\d.]+)</strong>"); if (rm.Success) r.Rating = double.Parse(rm.Groups[1].Value);
         var rt = Regex.Match(html, @"<span property=""v:runtime""[^>]*>(\d+)"); if (rt.Success) r.Runtime = int.Parse(rt.Groups[1].Value);

@@ -72,6 +72,16 @@ public class MaoyanApiClient : IMovieApiClient
         return results;
     }
 
+    private static readonly string[] InvalidLabels = { "人员", "人物", "演员", "主演", "导演", "暂无", "未知", "暂未录入", "更多" };
+
+    private static bool IsTemplateOrLabel(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return true;
+        if (System.Text.RegularExpressions.Regex.IsMatch(value, @"\$\{.*?\}|\$\(data\.\w+\)|\{\{.*?\}\}|<%.*?%>")) return true;
+        if (InvalidLabels.Contains(value)) return true;
+        return false;
+    }
+
     private static MovieSearchResult ParseDetail(string html, string id)
     {
         var r = new MovieSearchResult { ExternalId = id, Source = "maoyan" };
@@ -101,10 +111,14 @@ public class MaoyanApiClient : IMovieApiClient
         if (rateM2.Success && double.TryParse(rateM2.Groups[1].Value, out var rate2)) r.Rating = rate2;
 
         var dirM = Regex.Match(html, @"导演[^<]*</span>\s*<[^>]*>\s*([^<]+)\s*<");
-        if (dirM.Success) r.Director = dirM.Groups[1].Value.Trim();
+        if (dirM.Success)
+        {
+            var dir = dirM.Groups[1].Value.Trim();
+            if (!IsTemplateOrLabel(dir)) r.Director = dir;
+        }
 
         var actorsM = Regex.Matches(html, @"<a[^>]*href=""/films/celebrity/\d+""[^>]*>([^<]+)</a>");
-        var actors = actorsM.Take(5).Select(a => a.Groups[1].Value.Trim()).ToList();
+        var actors = actorsM.Take(5).Select(a => a.Groups[1].Value.Trim()).Where(a => !IsTemplateOrLabel(a)).ToList();
         if (actors.Any()) r.Cast = string.Join(", ", actors);
 
         // 时长

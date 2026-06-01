@@ -30,7 +30,7 @@ public partial class OnlineSearchView : UserControl
         var douban = new DoubanApiClient();
         var tmdb = new TmdbApiClient();
         _apiService = new MovieApiService(douban, tmdb);
-        SourceLabel.Text = "豆瓣/TMDB";
+        SourceLabel.Text = LanguageManager.GetString("OnlineSearch_SourceLabel");
         Unloaded += (s, e) => _context.Dispose();
     }
 
@@ -41,7 +41,7 @@ public partial class OnlineSearchView : UserControl
         try
         {
             var r = await _apiService.SearchAsync(kw, 1, 20);
-            if (r.Results.Count == 0) ShowEmpty("未找到结果");
+            if (r.Results.Count == 0) ShowEmpty(LanguageManager.GetString("OnlineSearch_NoResult"));
             else { ResultListBox.ItemsSource = r.Results; ResultListBox.Visibility = Visibility.Visible; EmptyPanel.Visibility = Visibility.Collapsed; }
         }
         catch (Exception ex) { ShowEmpty(ex.Message); }
@@ -57,11 +57,11 @@ public partial class OnlineSearchView : UserControl
                 if (string.IsNullOrEmpty(r.Synopsis)) { b.IsEnabled = false; r = await _apiService.GetDetailAsync(r.ExternalId??"", r.Source) ?? r; b.IsEnabled = true; }
                 var movie = await MovieApiService.MapToMovieAsync(r, _categoryService);
                 await _movieService.AddAsync(movie);
-                MessageBox.Show("已添加: " + r.Title); MovieAdded?.Invoke(this, EventArgs.Empty);
+                AppMessageBox.ShowInfo(LanguageManager.GetString("OnlineSearch_Added") + r.Title); MovieAdded?.Invoke(this, EventArgs.Empty);
                 var lst = ResultListBox.ItemsSource?.Cast<MovieSearchResult>().ToList();
-                if (lst != null) { lst.Remove(r); ResultListBox.ItemsSource = lst; if (!lst.Any()) ShowEmpty("全部已添加"); }
+                if (lst != null) { lst.Remove(r); ResultListBox.ItemsSource = lst; if (!lst.Any()) ShowEmpty(LanguageManager.GetString("OnlineSearch_AllAdded")); }
             }
-            catch (Exception ex) { MessageBox.Show(ex.Message); }
+            catch (Exception ex) { AppMessageBox.ShowError(ex.Message); }
         }
     }
 

@@ -32,7 +32,7 @@ public partial class CategoryManageView : UserControl
     private async Task LoadTreeAsync()
     {
         try { CategoryTree.ItemsSource = await _categoryService.GetCategoryTreeAsync(); }
-        catch (Exception ex) { MessageBox.Show($"加载分类树失败: {ex.Message}"); }
+        catch (Exception ex) { AppMessageBox.ShowError($"加载分类树失败: {ex.Message}"); }
     }
 
     private async void CategoryTree_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
@@ -70,20 +70,20 @@ public partial class CategoryManageView : UserControl
         try
         {
             var name = CategoryNameBox.Text.Trim();
-            if (string.IsNullOrWhiteSpace(name)) { MessageBox.Show("请输入分类名称"); return; }
+            if (string.IsNullOrWhiteSpace(name)) { AppMessageBox.ShowInfo("请输入分类名称"); return; }
             var desc = string.IsNullOrWhiteSpace(CategoryDescBox.Text) ? null : CategoryDescBox.Text.Trim();
             if (_isAddingChild) await _categoryService.AddAsync(new Category { Name = name, Description = desc, ParentId = _addChildParentId });
             else if (_selectedCategory != null) { _selectedCategory.Name = name; _selectedCategory.Description = desc; await _categoryService.UpdateAsync(_selectedCategory); }
             else await _categoryService.AddAsync(new Category { Name = name, Description = desc });
             await LoadTreeAsync(); ClearForm("保存成功！", "");
         }
-        catch (Exception ex) { MessageBox.Show(ex.Message); }
+        catch (Exception ex) { AppMessageBox.ShowError(ex.Message); }
     }
 
     private async void DeleteBtn_Click(object sender, RoutedEventArgs e)
     {
-        if (_selectedCategory == null || !await _categoryService.CanDeleteAsync(_selectedCategory.Id)) { MessageBox.Show("无法删除"); return; }
-        if (MessageBox.Show("确定删除？", "确认", MessageBoxButton.YesNo) == MessageBoxResult.Yes)
+        if (_selectedCategory == null || !await _categoryService.CanDeleteAsync(_selectedCategory.Id)) { AppMessageBox.ShowInfo("无法删除"); return; }
+        if (AppMessageBox.Confirm("确定删除？", "确认"))
         { await _categoryService.DeleteAsync(_selectedCategory.Id); await LoadTreeAsync(); ClearForm("选择分类", ""); }
     }
 

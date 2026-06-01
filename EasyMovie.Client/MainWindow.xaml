@@ -68,6 +68,12 @@
                             <TextBlock Text="{DynamicResource Nav_Movies}" />
                         </StackPanel>
                     </ListBoxItem>
+                    <ListBoxItem Tag="Favorites">
+                        <StackPanel Orientation="Horizontal">
+                            <materialDesign:PackIcon Kind="Star" Margin="0,0,12,0" />
+                            <TextBlock Text="{DynamicResource Nav_Favorites}" />
+                        </StackPanel>
+                    </ListBoxItem>
                     <ListBoxItem Tag="Categories">
                         <StackPanel Orientation="Horizontal">
                             <materialDesign:PackIcon Kind="Shape" Margin="0,0,12,0" />
@@ -78,6 +84,12 @@
                         <StackPanel Orientation="Horizontal">
                             <materialDesign:PackIcon Kind="ChartBar" Margin="0,0,12,0" />
                             <TextBlock Text="{DynamicResource Nav_Statistics}" />
+                        </StackPanel>
+                    </ListBoxItem>
+                    <ListBoxItem Tag="Diary">
+                        <StackPanel Orientation="Horizontal">
+                            <materialDesign:PackIcon Kind="BookOpenPageVariant" Margin="0,0,12,0" />
+                            <TextBlock Text="{DynamicResource Nav_Diary}" />
                         </StackPanel>
                     </ListBoxItem>
                     <ListBoxItem Tag="Settings">
@@ -115,6 +127,17 @@
                             <TextBlock x:Name="DetailSynopsis" FontSize="11" Foreground="{DynamicResource MaterialDesignBodyLight}"
                                        TextWrapping="Wrap" MaxHeight="120" TextTrimming="CharacterEllipsis" Margin="0,0,0,4" />
                             <TextBlock x:Name="DetailStatus" FontSize="12" Foreground="#FFD700" Margin="0,0,0,4" />
+
+                            <!-- 观影记录 -->
+                            <Separator Margin="0,4" Background="{DynamicResource MaterialDesignDivider}" />
+                            <Grid Margin="0,4,0,0">
+                                <TextBlock Text="{DynamicResource WatchLog_Title}" FontSize="13" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource MaterialDesignBody}" VerticalAlignment="Center" />
+                                <Button x:Name="AddWatchLogBtn" Content="{DynamicResource WatchLog_AddShort}"
+                                        Style="{StaticResource MaterialDesignFlatButton}" FontSize="11" Padding="6,2"
+                                        HorizontalAlignment="Right" VerticalAlignment="Center" Click="AddWatchLog_Click" />
+                            </Grid>
+                            <StackPanel x:Name="WatchLogList" Margin="0,4,0,0" />
                         </StackPanel>
                     </Border>
                 </ScrollViewer>

@@ -9,7 +9,7 @@
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <Grid Margin="0,0,0,24">
             <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-            <TextBlock Grid.Row="0" Text="📦 导入导出" FontSize="28" FontWeight="Bold" Margin="0,0,0,24" />
+            <TextBlock Grid.Row="0" Text="{DynamicResource ImportExport_Title}" FontSize="28" FontWeight="Bold" Margin="0,0,0,24" />
 
             <StackPanel Grid.Row="1">
                 <!-- 文件夹导入 -->
@@ -17,18 +17,18 @@
                     <Grid>
                         <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                         <StackPanel Grid.Row="0" Margin="0,0,0,12">
-                            <TextBlock Text="📁 导入文件夹" FontSize="18" FontWeight="Bold" />
-                            <TextBlock Text="扫描文件夹中的视频文件，自动解析片名和年份创建电影条目" FontSize="12"
+                            <TextBlock Text="{DynamicResource ImportExport_ImportFolder}" FontSize="18" FontWeight="Bold" />
+                            <TextBlock Text="{DynamicResource ImportExport_ImportFolderDesc}" FontSize="12"
                                        Foreground="{DynamicResource MaterialDesignHintForeground}" />
                         </StackPanel>
                         <StackPanel Grid.Row="1" Orientation="Horizontal">
                             <TextBox x:Name="FolderPathBox" Width="350"
-                                     materialDesign:HintAssist.Hint="或手动输入文件夹路径"
+                                     materialDesign:HintAssist.Hint="{DynamicResource ImportExport_FolderPathHint}"
                                      Style="{StaticResource MaterialDesignFloatingHintTextBox}"
                                      Margin="0,0,12,0" />
                             <Button Content="选择文件夹导入" Style="{StaticResource MaterialDesignRaisedButton}"
                                     Click="ImportFolder_Click" Margin="0,0,12,0" />
-                            <CheckBox x:Name="RecursiveCheck" Content="包含子文件夹" VerticalAlignment="Center" />
+                            <CheckBox x:Name="RecursiveCheck" Content="{DynamicResource Settings_IncludeSubfolders}" VerticalAlignment="Center" />
                         </StackPanel>
                     </Grid>
                 </Border>
@@ -36,11 +36,11 @@
                 <!-- 导出 -->
                 <Border Background="{DynamicResource MaterialDesignCardBackground}" CornerRadius="8" Padding="24" Margin="0,0,0,16">
                     <Grid><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                        <TextBlock Grid.Row="0" Text="📤 导出数据" FontSize="18" FontWeight="Bold" Margin="0,0,0,16" />
+                        <TextBlock Grid.Row="0" Text="{DynamicResource ImportExport_ExportData}" FontSize="18" FontWeight="Bold" Margin="0,0,0,16" />
                         <StackPanel Grid.Row="1" Orientation="Horizontal">
-                            <Button Content="导出 CSV" Style="{StaticResource MaterialDesignRaisedButton}" Click="ExportCsv_Click" Margin="0,0,12,0" />
-                            <Button Content="导出 JSON" Style="{StaticResource MaterialDesignRaisedButton}" Click="ExportJson_Click" Margin="0,0,12,0" />
-                            <Button Content="全量备份" Style="{StaticResource MaterialDesignRaisedButton}" Click="ExportFullBackup_Click" />
+                            <Button Content="{DynamicResource ImportExport_ExportCsv}" Style="{StaticResource MaterialDesignRaisedButton}" Click="ExportCsv_Click" Margin="0,0,12,0" />
+                            <Button Content="{DynamicResource ImportExport_ExportJson}" Style="{StaticResource MaterialDesignRaisedButton}" Click="ExportJson_Click" Margin="0,0,12,0" />
+                            <Button Content="{DynamicResource Settings_FullBackup}" Style="{StaticResource MaterialDesignRaisedButton}" Click="ExportFullBackup_Click" />
                         </StackPanel>
                     </Grid>
                 </Border>
@@ -48,11 +48,11 @@
                 <!-- 导入 -->
                 <Border Background="{DynamicResource MaterialDesignCardBackground}" CornerRadius="8" Padding="24" Margin="0,0,0,16">
                     <Grid><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                        <TextBlock Grid.Row="0" Text="📥 导入数据" FontSize="18" FontWeight="Bold" Margin="0,0,0,16" />
+                        <TextBlock Grid.Row="0" Text="{DynamicResource ImportExport_ImportData}" FontSize="18" FontWeight="Bold" Margin="0,0,0,16" />
                         <StackPanel Grid.Row="1" Orientation="Horizontal">
-                            <Button Content="导入 CSV" Style="{StaticResource MaterialDesignRaisedButton}" Click="ImportCsv_Click" Margin="0,0,12,0" />
-                            <Button Content="导入 JSON" Style="{StaticResource MaterialDesignRaisedButton}" Click="ImportJson_Click" Margin="0,0,12,0" />
-                            <Button Content="数据还原" Style="{StaticResource MaterialDesignRaisedButton}" Click="RestoreBackup_Click" />
+                            <Button Content="{DynamicResource ImportExport_ImportCsv}" Style="{StaticResource MaterialDesignRaisedButton}" Click="ImportCsv_Click" Margin="0,0,12,0" />
+                            <Button Content="{DynamicResource ImportExport_ImportJson}" Style="{StaticResource MaterialDesignRaisedButton}" Click="ImportJson_Click" Margin="0,0,12,0" />
+                            <Button Content="{DynamicResource Settings_RestoreData}" Style="{StaticResource MaterialDesignRaisedButton}" Click="RestoreBackup_Click" />
                         </StackPanel>
                     </Grid>
                 </Border>
@@ -62,8 +62,8 @@
                     <Grid><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                         <TextBlock Grid.Row="0" Text="💾 数据库文件" FontSize="18" FontWeight="Bold" Margin="0,0,0,16" />
                         <StackPanel Grid.Row="1" Orientation="Horizontal">
-                            <Button Content="备份数据库" Style="{StaticResource MaterialDesignRaisedButton}" Click="BackupDbFile_Click" Margin="0,0,12,0" />
-                            <Button Content="还原数据库" Style="{StaticResource MaterialDesignRaisedButton}" Click="RestoreDbFile_Click" />
+                            <Button Content="{DynamicResource Settings_BackupDb}" Style="{StaticResource MaterialDesignRaisedButton}" Click="BackupDbFile_Click" Margin="0,0,12,0" />
+                            <Button Content="{DynamicResource Settings_RestoreDb}" Style="{StaticResource MaterialDesignRaisedButton}" Click="RestoreDbFile_Click" />
                         </StackPanel>
                     </Grid>
                 </Border>
@@ -73,8 +73,8 @@
             <Border Grid.Row="2" Background="{DynamicResource MaterialDesignCardBackground}" CornerRadius="8" Padding="16" Margin="0,16,0,0">
                 <Grid><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
                     <Grid Grid.Row="0" Margin="0,0,0,8">
-                        <TextBlock Text="📋 操作日志" FontSize="14" FontWeight="Bold" VerticalAlignment="Center" />
-                        <Button Content="清除" Style="{StaticResource MaterialDesignFlatButton}" HorizontalAlignment="Right" Click="ClearLog_Click" />
+                        <TextBlock Text="{DynamicResource ImportExport_OperationLog}" FontSize="14" FontWeight="Bold" VerticalAlignment="Center" />
+                        <Button Content="{DynamicResource ImportExport_Clear}" Style="{StaticResource MaterialDesignFlatButton}" HorizontalAlignment="Right" Click="ClearLog_Click" />
                     </Grid>
                     <TextBox x:Name="LogBox" Grid.Row="1" IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True"
                              VerticalScrollBarVisibility="Auto" Background="{DynamicResource MaterialDesignDarkBackground}"

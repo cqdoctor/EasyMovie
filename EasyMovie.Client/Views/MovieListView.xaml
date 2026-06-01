@@ -379,21 +379,43 @@
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
-                    <DataGridTemplateColumn Header="{DynamicResource MovieLib_ColFile}" Width="40">
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate>
-                                <TextBlock Text="{Binding FilePath, Converter={StaticResource FilePathIconConverter}}"
-                                           FontSize="14" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
                     <DataGridTemplateColumn Header="{DynamicResource MovieLib_ColAction}" Width="*">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <Button Style="{StaticResource MaterialDesignIconForegroundButton}"
+                                    <Button x:Name="PlayBtn"
+                                            Style="{StaticResource MaterialDesignIconForegroundButton}"
                                             Click="PlayMovie_Click" Tag="{Binding Id}"
-                                            ToolTip="{DynamicResource Tip_Play}">
+                                            IsEnabled="{Binding IsFileMissing, Converter={StaticResource InverseBoolConverter}}"
+                                            ToolTipService.ShowOnDisabled="True"
+                                            ToolTipService.InitialShowDelay="100"
+                                            ToolTipService.ShowDuration="15000">
+                                        <Button.ToolTip>
+                                            <ToolTip Content="{Binding IsFileMissing, Converter={StaticResource PlayButtonToolTipConverter}}"
+                                                     Placement="Mouse"
+                                                     IsHitTestVisible="False"
+                                                     HasDropShadow="False">
+                                                <ToolTip.Style>
+                                                    <Style TargetType="ToolTip">
+                                                        <Setter Property="Template">
+                                                            <Setter.Value>
+                                                                <ControlTemplate TargetType="ToolTip">
+                                                                    <Border Background="#B0303030"
+                                                                            CornerRadius="4"
+                                                                            Padding="8,4"
+                                                                            IsHitTestVisible="False">
+                                                                        <TextBlock Text="{TemplateBinding Content}"
+                                                                                   Foreground="#DDFFFFFF"
+                                                                                   FontSize="12"
+                                                                                   IsHitTestVisible="False" />
+                                                                    </Border>
+                                                                </ControlTemplate>
+                                                            </Setter.Value>
+                                                        </Setter>
+                                                    </Style>
+                                                </ToolTip.Style>
+                                            </ToolTip>
+                                        </Button.ToolTip>
                                         <materialDesign:PackIcon Kind="Play" Width="18" Height="18" />
                                     </Button>
                                     <Button Style="{StaticResource MaterialDesignIconForegroundButton}"

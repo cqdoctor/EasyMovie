@@ -1,0 +1,34 @@
+<UserControl x:Class="EasyMovie.Client.Views.WatchDiaryView"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <DockPanel Grid.Row="0" Margin="0,0,0,12">
+            <TextBlock Text="{DynamicResource WatchLog_DiaryTitle}" FontSize="20" FontWeight="Bold"
+                       Foreground="{DynamicResource MaterialDesignBody}" VerticalAlignment="Center" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <DatePicker x:Name="FilterDatePicker" Width="140" Style="{StaticResource MaterialDesignOutlinedDatePicker}"
+                            materialDesign:HintAssist.Hint="{DynamicResource WatchLog_FilterDate}"
+                            SelectedDateChanged="FilterDatePicker_SelectedDateChanged" Margin="0,0,8,0" />
+                <Button x:Name="ClearFilterBtn" Content="{DynamicResource WatchLog_ClearFilter}"
+                        Style="{StaticResource MaterialDesignFlatButton}" Click="ClearFilter_Click" />
+            </StackPanel>
+        </DockPanel>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <StackPanel x:Name="DiaryPanel" />
+                <Button x:Name="LoadMoreBtn" Content="{DynamicResource WatchLog_LoadMore}"
+                        Style="{StaticResource MaterialDesignOutlinedButton}"
+                        HorizontalAlignment="Center" Margin="0,12,0,12"
+                        Click="LoadMore_Click" Visibility="Collapsed" />
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

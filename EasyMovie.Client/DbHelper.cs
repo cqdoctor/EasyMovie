@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using EasyMovie.Data;
 
@@ -109,7 +110,40 @@ public static class DbHelper
                     cmd.ExecuteNonQuery();
                 }
 
+                var hasWatchLogsTable = false;
+                cmd.CommandText = "SELECT name FROM sqlite_master WHERE type='table' AND name='WatchLogs'";
+                using (var tableReader2 = cmd.ExecuteReader())
+                {
+                    if (tableReader2.Read()) hasWatchLogsTable = true;
+                }
+
+                if (!hasWatchLogsTable)
+                {
+                    cmd.CommandText = @"CREATE TABLE WatchLogs (
+                        Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        MovieId INTEGER NOT NULL REFERENCES Movies(Id) ON DELETE CASCADE,
+                        WatchDate TEXT NOT NULL,
+                        Rating INTEGER,
+                        Location TEXT,
+                        Companion TEXT,
+                        Notes TEXT,
+                        CreatedAt TEXT NOT NULL);";
+                    cmd.ExecuteNonQuery();
+                }
+
                 ctx.Database.CloseConnection();
+            }
+            catch { }
+
+            try
+            {
+                CleanHtmlInExistingData();
+            }
+            catch { }
+
+            try
+            {
+                CleanDirtyPersonData();
             }
             catch { }
 
@@ -133,5 +167,101 @@ public static class DbHelper
                 File.Copy(oldSettings, newSettings, overwrite: false);
         }
         catch { }
+    }
+
+    private static readonly string HtmlCleanFlagPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "EasyMovie", ".html_cleaned_v2");
+
+    private static readonly string DirtyDataFlagPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "EasyMovie", ".dirty_data_cleaned_v2");
+
+    private static void CleanHtmlInExistingData()
+    {
+        if (File.Exists(HtmlCleanFlagPath)) return;
+
+        var options = new DbContextOptionsBuilder<MovieDbContext>().UseSqlite(ConnectionString).Options;
+        using var ctx = new MovieDbContext(options);
+
+        var movies = ctx.Movies.ToList();
+        var changed = false;
+        foreach (var m in movies)
+        {
+            var cleanSynopsis = StripHtml(m.Synopsis);
+            var cleanDirector = StripHtml(m.Director);
+            var cleanCast = StripHtml(m.Cast);
+            var cleanCountry = StripHtml(m.Country);
+            var cleanNotes = StripHtml(m.Notes);
+
+            if (cleanSynopsis != m.Synopsis || cleanDirector != m.Director ||
+                cleanCast != m.Cast || cleanCountry != m.Country || cleanNotes != m.Notes)
+            {
+                m.Synopsis = cleanSynopsis;
+                m.Director = cleanDirector;
+                m.Cast = cleanCast;
+                m.Country = cleanCountry;
+                m.Notes = cleanNotes;
+                changed = true;
+            }
+        }
+        if (changed) ctx.SaveChanges();
+
+        File.WriteAllText(HtmlCleanFlagPath, DateTime.UtcNow.ToString("O"));
+    }
+
+    private static string? StripHtml(string? input)
+    {
+        if (string.IsNullOrEmpty(input)) return input;
+        var result = Regex.Replace(input, @"<[^>]+>", "");
+        result = System.Net.WebUtility.HtmlDecode(result);
+        result = Regex.Replace(result, @"\s+", " ").Trim();
+        return string.IsNullOrEmpty(result) ? null : result;
+    }
+
+    private static readonly string[] InvalidPersonLabels = { "人员", "人物", "演员", "主演", "导演", "暂无", "未知", "暂未录入", "更多" };
+
+    private static bool ContainsTemplateOrLabel(string? value)
+    {
+        if (string.IsNullOrEmpty(value)) return false;
+        if (Regex.IsMatch(value, @"\$\{.*?\}|\$\(data\.\w+\)|\{\{.*?\}\}|<%.*?%>")) return true;
+        if (InvalidPersonLabels.Contains(value.Trim())) return true;
+        return false;
+    }
+
+    private static string? CleanPersonField(string? value)
+    {
+        if (string.IsNullOrEmpty(value)) return value;
+        if (ContainsTemplateOrLabel(value)) return null;
+        var parts = value.Split(new[] { ", ", "、", " / ", "/" }, StringSplitOptions.None)
+            .Where(p => !ContainsTemplateOrLabel(p))
+            .Select(p => p.Trim())
+            .Where(p => !string.IsNullOrWhiteSpace(p));
+        var cleaned = string.Join(", ", parts);
+        return string.IsNullOrEmpty(cleaned) ? null : cleaned;
+    }
+
+    private static void CleanDirtyPersonData()
+    {
+        if (File.Exists(DirtyDataFlagPath)) return;
+
+        var options = new DbContextOptionsBuilder<MovieDbContext>().UseSqlite(ConnectionString).Options;
+        using var ctx = new MovieDbContext(options);
+
+        var movies = ctx.Movies.ToList();
+        var changed = false;
+        foreach (var m in movies)
+        {
+            var cleanDirector = CleanPersonField(m.Director);
+            var cleanCast = CleanPersonField(m.Cast);
+
+            if (cleanDirector != m.Director || cleanCast != m.Cast)
+            {
+                m.Director = cleanDirector;
+                m.Cast = cleanCast;
+                changed = true;
+            }
+        }
+        if (changed) ctx.SaveChanges();
+
+        File.WriteAllText(DirtyDataFlagPath, DateTime.UtcNow.ToString("O"));
     }
 }
