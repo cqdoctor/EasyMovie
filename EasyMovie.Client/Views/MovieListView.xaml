@@ -355,9 +355,9 @@
                             <DataTemplate>
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                     <TextBlock Text="{Binding Rating, StringFormat='⭐{0}'}"
-                                               Visibility="{Binding Rating, Converter={StaticResource NullToVisibilityConverter}}" />
+                                               Visibility="{Binding Rating, Converter={StaticResource NullToCollapsedConverter}}" />
                                     <TextBlock Text="-"
-                                               Visibility="{Binding Rating, Converter={StaticResource NullToCollapsedConverter}}"
+                                               Visibility="{Binding Rating, Converter={StaticResource NullToVisibilityConverter}}"
                                                Foreground="{DynamicResource MaterialDesignHintForeground}" />
                                 </StackPanel>
                             </DataTemplate>

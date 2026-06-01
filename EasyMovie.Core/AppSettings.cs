@@ -66,6 +66,18 @@ public static class AppSettings
         set { _current.Language = value; Save(); }
     }
 
+    public static int BackupIntervalDays
+    {
+        get => _current.BackupIntervalDays;
+        set { _current.BackupIntervalDays = value; Save(); }
+    }
+
+    public static int MaxBackupCount
+    {
+        get => _current.MaxBackupCount;
+        set { _current.MaxBackupCount = value; Save(); }
+    }
+
     static AppSettings() => Load();
 
     private static void Load()
@@ -117,6 +129,8 @@ public static class AppSettings
         public string? HttpProxy { get; set; }
         public string? DoubanCookie { get; set; }
         public string Language { get; set; } = "zh-CN";
+        public int BackupIntervalDays { get; set; } = 7;
+        public int MaxBackupCount { get; set; } = 10;
     }
 }
 

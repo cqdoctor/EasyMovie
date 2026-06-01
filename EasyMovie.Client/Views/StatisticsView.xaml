@@ -10,7 +10,6 @@
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="0,0,0,24">
 
-            <!-- 标题 -->
             <TextBlock Text="{DynamicResource Stats_Title}" FontSize="28" FontWeight="Bold"
                        Margin="0,0,0,20" />
 
@@ -53,7 +52,7 @@
                     </StackPanel>
                 </Border>
                 <Border Background="{DynamicResource MaterialDesignCardBackground}"
-                        CornerRadius="8" Width="150" Padding="16" Margin="0,0,0,12">
+                        CornerRadius="8" Width="150" Padding="16" Margin="0,0,12,12">
                     <StackPanel>
                         <TextBlock Text="{DynamicResource Stats_Favorites}" FontSize="12"
                                    Foreground="{DynamicResource MaterialDesignHintForeground}" />
@@ -61,131 +60,259 @@
                                    FontWeight="Bold" Foreground="#FFC107" />
                     </StackPanel>
                 </Border>
+                <Border Background="{DynamicResource MaterialDesignCardBackground}"
+                        CornerRadius="8" Width="180" Padding="16" Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Text="{DynamicResource Stats_TotalRuntime}" FontSize="12"
+                                   Foreground="{DynamicResource MaterialDesignHintForeground}" />
+                        <TextBlock x:Name="TotalRuntimeText" Text="0" FontSize="22"
+                                   FontWeight="Bold" Foreground="#00BCD4" />
+                    </StackPanel>
+                </Border>
             </WrapPanel>
 
-            <!-- 分类分布 -->
-            <Border Background="{DynamicResource MaterialDesignCardBackground}"
-                    CornerRadius="8" Padding="16" Margin="0,0,0,20">
-                <StackPanel>
-                    <TextBlock Text="{DynamicResource Stats_CategoryDist}" FontSize="16" FontWeight="Bold" Margin="0,0,0,12" />
-                    <ItemsControl x:Name="CategoryChart">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Grid Margin="0,3" Height="26">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="100" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="50" />
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Text="{Binding Name}" FontSize="12"
-                                               VerticalAlignment="Center"
-                                               TextTrimming="CharacterEllipsis"
-                                               ToolTip="{Binding Name}" />
-                                    <Border Grid.Column="1" Background="#E0E0E0" CornerRadius="4" Height="18" VerticalAlignment="Center">
-                                        <Border Background="{Binding Color}" CornerRadius="4"
-                                                HorizontalAlignment="Left"
-                                                Width="{Binding BarWidth}" />
-                                    </Border>
-                                    <TextBlock Grid.Column="2" Text="{Binding CountText}" FontSize="12"
-                                               VerticalAlignment="Center" HorizontalAlignment="Right"
-                                               Foreground="{DynamicResource MaterialDesignHintForeground}" />
-                                </Grid>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </StackPanel>
-            </Border>
-
-            <!-- 评分分布 -->
-            <Border Background="{DynamicResource MaterialDesignCardBackground}"
-                    CornerRadius="8" Padding="16" Margin="0,0,0,20">
-                <StackPanel>
-                    <TextBlock Text="{DynamicResource Stats_RatingDist}" FontSize="16" FontWeight="Bold" Margin="0,0,0,12" />
-                    <ItemsControl x:Name="RatingChart">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Grid Margin="0,3" Height="26">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="40" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="50" />
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Text="{Binding Label}" FontSize="12"
-                                               VerticalAlignment="Center" />
-                                    <Border Grid.Column="1" Background="#E0E0E0" CornerRadius="4" Height="18" VerticalAlignment="Center">
-                                        <Border Background="#7C4DFF" CornerRadius="4"
-                                                HorizontalAlignment="Left"
-                                                Width="{Binding BarWidth}" />
-                                    </Border>
-                                    <TextBlock Grid.Column="2" Text="{Binding CountText}" FontSize="12"
-                                               VerticalAlignment="Center" HorizontalAlignment="Right"
-                                               Foreground="{DynamicResource MaterialDesignHintForeground}" />
-                                </Grid>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </StackPanel>
-            </Border>
-
-            <!-- 年度趋势 -->
-            <Border Background="{DynamicResource MaterialDesignCardBackground}"
-                    CornerRadius="8" Padding="16" Margin="0,0,0,20">
-                <StackPanel>
-                    <TextBlock Text="{DynamicResource Stats_YearlyTrend}" FontSize="16" FontWeight="Bold" Margin="0,0,0,12" />
-                    <ItemsControl x:Name="YearlyChart">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Grid Margin="0,2" Height="22">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="50" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="40" />
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Text="{Binding YearText}" FontSize="11"
-                                               VerticalAlignment="Center" />
-                                    <Border Grid.Column="1" Background="#E0E0E0" CornerRadius="3" Height="14" VerticalAlignment="Center">
-                                        <StackPanel Orientation="Horizontal">
+            <!-- 评分分布 & 年度趋势 -->
+            <Grid Margin="0,0,0,12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="12" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Border Background="{DynamicResource MaterialDesignCardBackground}"
+                        CornerRadius="8" Padding="16">
+                    <StackPanel>
+                        <TextBlock Text="{DynamicResource Stats_RatingDist}" FontSize="16" FontWeight="Bold" Margin="0,0,0,12" />
+                        <ItemsControl x:Name="RatingChart">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,2" Height="22">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="36" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="36" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Label}" FontSize="11"
+                                                   VerticalAlignment="Center" />
+                                        <Border Grid.Column="1" Background="#E0E0E0" CornerRadius="3" Height="14" VerticalAlignment="Center">
                                             <Border Background="#7C4DFF" CornerRadius="3"
                                                     HorizontalAlignment="Left"
-                                                    Width="{Binding AddedWidth}" Height="14" />
+                                                    Width="{Binding BarWidth}" Height="14" />
+                                        </Border>
+                                        <TextBlock Grid.Column="2" Text="{Binding CountText}" FontSize="11"
+                                                   VerticalAlignment="Center" HorizontalAlignment="Right"
+                                                   Foreground="{DynamicResource MaterialDesignHintForeground}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="2" Background="{DynamicResource MaterialDesignCardBackground}"
+                        CornerRadius="8" Padding="16">
+                    <StackPanel>
+                        <TextBlock Text="{DynamicResource Stats_YearlyTrend}" FontSize="16" FontWeight="Bold" Margin="0,0,0,12" />
+                        <ItemsControl x:Name="YearlyChart">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,2" Height="22">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="40" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="44" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding YearText}" FontSize="11"
+                                                   VerticalAlignment="Center" />
+                                        <Border Grid.Column="1" Background="#E0E0E0" CornerRadius="3" Height="14" VerticalAlignment="Center">
+                                            <StackPanel Orientation="Horizontal">
+                                                <Border Background="#7C4DFF" CornerRadius="3"
+                                                        HorizontalAlignment="Left"
+                                                        Width="{Binding AddedWidth}" Height="14" />
+                                                <Border Background="#4CAF50" CornerRadius="3"
+                                                        HorizontalAlignment="Left"
+                                                        Width="{Binding WatchedWidth}" Height="14" />
+                                            </StackPanel>
+                                        </Border>
+                                        <TextBlock Grid.Column="2" Text="{Binding YearSummary}" FontSize="10"
+                                                   VerticalAlignment="Center" HorizontalAlignment="Right"
+                                                   Foreground="{DynamicResource MaterialDesignHintForeground}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                            <Border Width="12" Height="12" Background="#7C4DFF" CornerRadius="2" Margin="0,0,4,0" />
+                            <TextBlock Text="{DynamicResource Stats_Total}" FontSize="10" Margin="0,0,12,0" />
+                            <Border Width="12" Height="12" Background="#4CAF50" CornerRadius="2" Margin="0,0,4,0" />
+                            <TextBlock Text="{DynamicResource Stats_Watched}" FontSize="10" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- 月度观影 & 国家/地区分布 -->
+            <Grid Margin="0,0,0,12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="12" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Border Background="{DynamicResource MaterialDesignCardBackground}"
+                        CornerRadius="8" Padding="16">
+                    <StackPanel>
+                        <TextBlock Text="{DynamicResource Stats_MonthlyTrend}" FontSize="16" FontWeight="Bold" Margin="0,0,0,12" />
+                        <ItemsControl x:Name="MonthlyChart">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,2" Height="22">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="36" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="30" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding MonthText}" FontSize="11"
+                                                   VerticalAlignment="Center" />
+                                        <Border Grid.Column="1" Background="#E0E0E0" CornerRadius="3" Height="14" VerticalAlignment="Center">
                                             <Border Background="#4CAF50" CornerRadius="3"
                                                     HorizontalAlignment="Left"
-                                                    Width="{Binding WatchedWidth}" Height="14" />
-                                        </StackPanel>
-                                    </Border>
-                                    <TextBlock Grid.Column="2" Text="{Binding YearSummary}" FontSize="10"
-                                               VerticalAlignment="Center" HorizontalAlignment="Right" />
-                                </Grid>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                        <Border Width="14" Height="14" Background="#7C4DFF" CornerRadius="3" Margin="0,0,6,0" />
-                        <TextBlock Text="{DynamicResource Stats_Total}" FontSize="11" Margin="0,0,16,0" />
-                        <Border Width="14" Height="14" Background="#4CAF50" CornerRadius="3" Margin="0,0,6,0" />
-                        <TextBlock Text="{DynamicResource Stats_Watched}" FontSize="11" />
+                                                    Width="{Binding BarWidth}" Height="14" />
+                                        </Border>
+                                        <TextBlock Grid.Column="2" Text="{Binding CountText}" FontSize="11"
+                                                   VerticalAlignment="Center" HorizontalAlignment="Right"
+                                                   Foreground="{DynamicResource MaterialDesignHintForeground}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
                     </StackPanel>
-                </StackPanel>
-            </Border>
+                </Border>
+                <Border Grid.Column="2" Background="{DynamicResource MaterialDesignCardBackground}"
+                        CornerRadius="8" Padding="16">
+                    <StackPanel>
+                        <TextBlock Text="{DynamicResource Stats_CountryDist}" FontSize="16" FontWeight="Bold" Margin="0,0,0,12" />
+                        <ItemsControl x:Name="CountryChart">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,2" Height="22">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="80" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="36" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Name}" FontSize="11"
+                                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                                   ToolTip="{Binding Name}" />
+                                        <Border Grid.Column="1" Background="#E0E0E0" CornerRadius="3" Height="14" VerticalAlignment="Center">
+                                            <Border Background="#00BCD4" CornerRadius="3"
+                                                    HorizontalAlignment="Left"
+                                                    Width="{Binding BarWidth}" Height="14" />
+                                        </Border>
+                                        <TextBlock Grid.Column="2" Text="{Binding CountText}" FontSize="11"
+                                                   VerticalAlignment="Center" HorizontalAlignment="Right"
+                                                   Foreground="{DynamicResource MaterialDesignHintForeground}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+            </Grid>
 
-            <!-- 月度观影 -->
+            <!-- 导演排行 & 演员排行 -->
+            <Grid Margin="0,0,0,12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="12" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Border Background="{DynamicResource MaterialDesignCardBackground}"
+                        CornerRadius="8" Padding="16">
+                    <StackPanel>
+                        <TextBlock Text="{DynamicResource Stats_DirectorRank}" FontSize="16" FontWeight="Bold" Margin="0,0,0,12" />
+                        <ItemsControl x:Name="DirectorChart">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,2" Height="22">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="22" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="70" />
+                                            <ColumnDefinition Width="36" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Rank}" FontSize="11" FontWeight="Bold"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource MaterialDesignHintForeground}" />
+                                        <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="11"
+                                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                                   ToolTip="{Binding Name}" />
+                                        <Border Grid.Column="2" Background="#E0E0E0" CornerRadius="3" Height="14" VerticalAlignment="Center">
+                                            <Border Background="#9C27B0" CornerRadius="3"
+                                                    HorizontalAlignment="Left"
+                                                    Width="{Binding BarWidth}" Height="14" />
+                                        </Border>
+                                        <TextBlock Grid.Column="3" Text="{Binding CountText}" FontSize="11"
+                                                   VerticalAlignment="Center" HorizontalAlignment="Right"
+                                                   Foreground="{DynamicResource MaterialDesignHintForeground}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="2" Background="{DynamicResource MaterialDesignCardBackground}"
+                        CornerRadius="8" Padding="16">
+                    <StackPanel>
+                        <TextBlock Text="{DynamicResource Stats_CastRank}" FontSize="16" FontWeight="Bold" Margin="0,0,0,12" />
+                        <ItemsControl x:Name="CastChart">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,2" Height="22">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="22" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="70" />
+                                            <ColumnDefinition Width="36" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Rank}" FontSize="11" FontWeight="Bold"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource MaterialDesignHintForeground}" />
+                                        <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="11"
+                                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                                   ToolTip="{Binding Name}" />
+                                        <Border Grid.Column="2" Background="#E0E0E0" CornerRadius="3" Height="14" VerticalAlignment="Center">
+                                            <Border Background="#FF5722" CornerRadius="3"
+                                                    HorizontalAlignment="Left"
+                                                    Width="{Binding BarWidth}" Height="14" />
+                                        </Border>
+                                        <TextBlock Grid.Column="3" Text="{Binding CountText}" FontSize="11"
+                                                   VerticalAlignment="Center" HorizontalAlignment="Right"
+                                                   Foreground="{DynamicResource MaterialDesignHintForeground}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- 片长分布 -->
             <Border Background="{DynamicResource MaterialDesignCardBackground}"
-                    CornerRadius="8" Padding="16">
+                    CornerRadius="8" Padding="16" Margin="0,0,0,20"
+                    HorizontalAlignment="Left" MaxWidth="460">
                 <StackPanel>
-                    <TextBlock Text="{DynamicResource Stats_MonthlyTrend}" FontSize="16" FontWeight="Bold" Margin="0,0,0,12" />
-                    <ItemsControl x:Name="MonthlyChart">
+                    <TextBlock Text="{DynamicResource Stats_RuntimeDist}" FontSize="16" FontWeight="Bold" Margin="0,0,0,12" />
+                    <ItemsControl x:Name="RuntimeChart">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <Grid Margin="0,2" Height="22">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="36" />
+                                        <ColumnDefinition Width="70" />
                                         <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="30" />
+                                        <ColumnDefinition Width="36" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Text="{Binding MonthText}" FontSize="11"
+                                    <TextBlock Text="{Binding Label}" FontSize="11"
                                                VerticalAlignment="Center" />
-                                    <Border Grid.Column="1" Background="#E0E0E0" CornerRadius="3" Height="14" VerticalAlignment="Center">
-                                        <Border Background="#4CAF50" CornerRadius="3"
+                                    <Border Grid.Column="1" Background="#E0E0E0" CornerRadius="3" Height="14" VerticalAlignment="Center" MinWidth="120">
+                                        <Border Background="#FF9800" CornerRadius="3"
                                                 HorizontalAlignment="Left"
                                                 Width="{Binding BarWidth}" Height="14" />
                                     </Border>

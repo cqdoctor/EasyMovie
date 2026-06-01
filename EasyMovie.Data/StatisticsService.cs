@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using EasyMovie.Core.Enums;
 using EasyMovie.Core.Interfaces;
 using EasyMovie.Core.Models;
@@ -34,7 +34,8 @@ public class StatisticsService : IStatisticsService
             AverageRating = movies.Where(m => m.Rating.HasValue)
                 .Select(m => m.Rating!.Value)
                 .DefaultIfEmpty(0)
-                .Average()
+                .Average(),
+            TotalRuntimeMinutes = movies.Where(m => m.Runtime.HasValue).Sum(m => m.Runtime!.Value)
         };
 
         // 分类分布
@@ -83,6 +84,75 @@ public class StatisticsService : IStatisticsService
                 WatchedCount = thisYearMovies.Count(x => x.WatchDate!.Value.Month == m)
             })
             .ToList();
+
+        // 导演排行 Top 10
+        data.DirectorStats = movies
+            .Where(m => !string.IsNullOrEmpty(m.Director))
+            .SelectMany(m => m.Director!.Split(new[] { ", ", "、", " / ", "/" }, StringSplitOptions.RemoveEmptyEntries))
+            .Select(d => d.Trim())
+            .Where(d => !string.IsNullOrEmpty(d))
+            .GroupBy(d => d)
+            .Select(g => new PersonStat
+            {
+                Name = g.Key,
+                Count = g.Count(),
+                AvgRating = movies
+                    .Where(m => !string.IsNullOrEmpty(m.Director) && m.Director!.Contains(g.Key) && m.Rating.HasValue)
+                    .Select(m => m.Rating!.Value)
+                    .DefaultIfEmpty(0)
+                    .Average()
+            })
+            .OrderByDescending(p => p.Count)
+            .Take(10)
+            .ToList();
+
+        // 演员排行 Top 10
+        data.CastStats = movies
+            .Where(m => !string.IsNullOrEmpty(m.Cast))
+            .SelectMany(m => m.Cast!.Split(new[] { ", ", "、", " / ", "/" }, StringSplitOptions.RemoveEmptyEntries))
+            .Select(c => c.Trim())
+            .Where(c => !string.IsNullOrEmpty(c))
+            .GroupBy(c => c)
+            .Select(g => new PersonStat
+            {
+                Name = g.Key,
+                Count = g.Count(),
+                AvgRating = movies
+                    .Where(m => !string.IsNullOrEmpty(m.Cast) && m.Cast!.Contains(g.Key) && m.Rating.HasValue)
+                    .Select(m => m.Rating!.Value)
+                    .DefaultIfEmpty(0)
+                    .Average()
+            })
+            .OrderByDescending(p => p.Count)
+            .Take(10)
+            .ToList();
+
+        // 国家/地区分布
+        data.CountryStats = movies
+            .Where(m => !string.IsNullOrEmpty(m.Country))
+            .SelectMany(m => m.Country!.Split(new[] { "/", " ", "·", "," }, StringSplitOptions.RemoveEmptyEntries))
+            .Select(c => c.Trim())
+            .Where(c => !string.IsNullOrEmpty(c))
+            .GroupBy(c => c)
+            .Select(g => new CountryStat { Name = g.Key, Count = g.Count() })
+            .OrderByDescending(c => c.Count)
+            .Take(15)
+            .ToList();
+
+        // 片长分布
+        var runtimeRanges = new[]
+        {
+            new RuntimeRangeStat { Label = "< 60", MinMinutes = 0, MaxMinutes = 59 },
+            new RuntimeRangeStat { Label = "60-90", MinMinutes = 60, MaxMinutes = 90 },
+            new RuntimeRangeStat { Label = "90-120", MinMinutes = 91, MaxMinutes = 120 },
+            new RuntimeRangeStat { Label = "120-150", MinMinutes = 121, MaxMinutes = 150 },
+            new RuntimeRangeStat { Label = "> 150", MinMinutes = 151, MaxMinutes = 999 }
+        };
+        foreach (var range in runtimeRanges)
+        {
+            range.Count = movies.Count(m => m.Runtime.HasValue && m.Runtime!.Value >= range.MinMinutes && m.Runtime!.Value <= range.MaxMinutes);
+        }
+        data.RuntimeStats = runtimeRanges.Where(r => r.Count > 0).ToList();
 
         return data;
     }
