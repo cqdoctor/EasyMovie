@@ -1,4 +1,4 @@
-﻿﻿﻿using System;
+﻿﻿﻿﻿﻿﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -71,7 +71,7 @@ public partial class MovieDetailView : UserControl
         foreach (var t in await _tagService.GetTagsForMovieAsync(_movie.Id)) _selectedTagIds.Add(t.Id);
         BuildTags();
         if (_movie.Rating.HasValue) for (var i = 0; i < RatingCombo.Items.Count; i++) if (RatingCombo.Items[i] is ComboBoxItem ri && ri.Tag is int r && r == _movie.Rating) { RatingCombo.SelectedIndex = i; break; }
-        StatusCombo.SelectedIndex = (int)_movie.WatchStatus;
+        for (var i = 0; i < StatusCombo.Items.Count; i++) if (StatusCombo.Items[i] is ComboBoxItem si && si.Tag is string st && st == _movie.WatchStatus.ToString()) { StatusCombo.SelectedIndex = i; break; }
         if (_movie.WatchDate.HasValue) WatchDatePicker.SelectedDate = _movie.WatchDate.Value;
         FavoriteCheck.IsChecked = _movie.IsFavorite;
         FilePathBox.Text = _movie.FilePath ?? "";
@@ -91,8 +91,8 @@ public partial class MovieDetailView : UserControl
             m.Cast = NullIfEmpty(CastBox.Text); m.Synopsis = NullIfEmpty(SynopsisBox.Text);
             m.CategoryId = CategoryCombo.SelectedItem is ComboBoxItem ci && ci.Tag is int cid ? cid : null;
             m.Rating = RatingCombo.SelectedItem is ComboBoxItem ri && ri.Tag is int r ? r : null;
-            m.WatchStatus = (WatchStatus)StatusCombo.SelectedIndex;
-            m.WatchDate = StatusCombo.SelectedIndex == 2 ? WatchDatePicker.SelectedDate : null;
+            m.WatchStatus = StatusCombo.SelectedItem is ComboBoxItem si && si.Tag is string st && Enum.TryParse<WatchStatus>(st, out var ws) ? ws : WatchStatus.NotWatched;
+            m.WatchDate = m.WatchStatus == WatchStatus.Watched ? WatchDatePicker.SelectedDate : null;
             m.IsFavorite = FavoriteCheck.IsChecked == true;
             m.FilePath = NullIfEmpty(FilePathBox.Text);
             m.Notes = NullIfEmpty(NotesBox.Text);
@@ -113,7 +113,7 @@ public partial class MovieDetailView : UserControl
     }
 
     private void CancelBtn_Click(object sender, RoutedEventArgs e) => CloseWin();
-    private void StatusCombo_SelectionChanged(object sender, SelectionChangedEventArgs e) => WatchDatePicker.IsEnabled = StatusCombo.SelectedIndex == 2;
+    private void StatusCombo_SelectionChanged(object sender, SelectionChangedEventArgs e) => WatchDatePicker.IsEnabled = StatusCombo.SelectedItem is ComboBoxItem si && si.Tag is string st && st == "Watched";
     private void CloseWin() => Window.GetWindow(this)?.Close();
 
     private void BrowseFile_Click(object sender, RoutedEventArgs e)

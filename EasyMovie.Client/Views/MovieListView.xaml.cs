@@ -15,6 +15,7 @@ using EasyMovie.Core.Interfaces;
 using EasyMovie.Core.Models;
 using EasyMovie.Core.Services;
 using EasyMovie.Data;
+using Microsoft.EntityFrameworkCore;
 using System.Windows.Media.Imaging;
 using EasyMovie.Data.Repositories;
 using EasyMovie.Tools.ImportExport;
@@ -40,13 +41,13 @@ public partial class MovieListView : UserControl
     private bool _isCollectionView;
 
     private bool _isFirstLoad = true;
-    private readonly bool _filterFavorites;
+    private bool _quickFilterFavorites;
+    private bool _quickFilterWatchlist;
 
-    public MovieListView(MainWindow? mainWindow = null, bool filterFavorites = false)
+    public MovieListView(MainWindow? mainWindow = null)
     {
         InitializeComponent();
         _mainWindow = mainWindow;
-        _filterFavorites = filterFavorites;
         _context = DbHelper.CreateContext();
         var movieRepo = new MovieRepository(_context);
         var categoryRepo = new CategoryRepository(_context);
@@ -190,16 +191,17 @@ public partial class MovieListView : UserControl
     private async Task LoadMoviesAsync()
     {
         var (keyword, categoryId, status) = GetFilterValues();
+        var effectiveStatus = _quickFilterWatchlist ? WatchStatus.WantToWatch : status;
         var sortInfo = GetSortInfo();
         var year = GetYearFilter();
         var adv = GetAdvancedFilterValues();
         var (movies, total) = await _movieService.SearchAsync(
             keyword, categoryId, null,
             adv.yearFrom ?? year, adv.yearTo ?? year,
-            adv.ratingMin, adv.ratingMax, status,
+            adv.ratingMin, adv.ratingMax, effectiveStatus,
             adv.countries, adv.languages, adv.runtimeMin, adv.runtimeMax, adv.directors,
             sortInfo.sortBy, sortInfo.sortDesc, _currentPage, PageSize,
-            _filterFavorites ? true : null);
+            _quickFilterFavorites ? true : null);
         _totalCount = total;
         if (_isCardView) RenderCardView(movies); else if (_isPosterView) PosterWall.ItemsSource = movies; else MovieDataGrid.ItemsSource = movies;
         var totalPages = (int)Math.Ceiling((double)total / PageSize);
@@ -237,7 +239,7 @@ public partial class MovieListView : UserControl
         int? categoryId = null;
         if (CategoryFilter.SelectedItem is ComboBoxItem ci && ci.Tag is int cid) categoryId = cid;
         WatchStatus? status = null;
-        if (StatusFilter.SelectedItem is ComboBoxItem si && si.Tag is string st) status = st switch { "WantToWatch" => WatchStatus.WantToWatch, "Watching" => WatchStatus.Watching, "Watched" => WatchStatus.Watched, _ => null };
+        if (StatusFilter.SelectedItem is ComboBoxItem si && si.Tag is string st) status = st switch { "NotWatched" => WatchStatus.NotWatched, "WantToWatch" => WatchStatus.WantToWatch, "Watched" => WatchStatus.Watched, _ => null };
         return (keyword, categoryId, status);
     }
 
@@ -336,16 +338,10 @@ public partial class MovieListView : UserControl
             YearRangeSlider.UpperValue = maxY;
         }
 
-        var validRatings = allMovies.Where(m => m.Rating >= 0 && m.Rating <= 10).Select(m => (double)m.Rating).ToList();
-        if (validRatings.Count > 0)
-        {
-            var minR = Math.Floor(validRatings.Min());
-            var maxR = Math.Ceiling(validRatings.Max());
-            RatingRangeSlider.Minimum = minR;
-            RatingRangeSlider.Maximum = maxR;
-            RatingRangeSlider.LowerValue = minR;
-            RatingRangeSlider.UpperValue = maxR;
-        }
+        RatingRangeSlider.Minimum = 0;
+        RatingRangeSlider.Maximum = 10;
+        RatingRangeSlider.LowerValue = 0;
+        RatingRangeSlider.UpperValue = 10;
 
         var validRuntimes = allMovies.Where(m => m.Runtime > 0 && m.Runtime < 600).Select(m => (double)m.Runtime).ToList();
         if (validRuntimes.Count > 0)
@@ -813,7 +809,6 @@ public partial class MovieListView : UserControl
         var statusText = movie.WatchStatus switch
         {
             WatchStatus.WantToWatch => LanguageManager.GetString("WatchStatus_WantToWatch"),
-            WatchStatus.Watching => LanguageManager.GetString("WatchStatus_Watching"),
             WatchStatus.Watched => LanguageManager.GetString("WatchStatus_Watched"),
             _ => ""
         };
@@ -964,10 +959,10 @@ public partial class MovieListView : UserControl
                 catBadge.Child = new TextBlock { Text = movie.Category.Name, FontSize = 10, Foreground = System.Windows.Media.Brushes.White };
                 line3.Children.Add(catBadge);
             }
-            var st = movie.WatchStatus switch { WatchStatus.WantToWatch => "想看", WatchStatus.Watching => "在看", WatchStatus.Watched => "已看", _ => "" };
+            var st = movie.WatchStatus switch { WatchStatus.WantToWatch => "想看", WatchStatus.Watched => "已看", _ => "" };
             if (!string.IsNullOrEmpty(st))
             {
-                var statusColor = movie.WatchStatus switch { WatchStatus.Watched => System.Windows.Media.Colors.Green, WatchStatus.Watching => System.Windows.Media.Colors.DodgerBlue, _ => System.Windows.Media.Colors.Orange };
+                var statusColor = movie.WatchStatus switch { WatchStatus.Watched => System.Windows.Media.Colors.Green, _ => System.Windows.Media.Colors.Orange };
                 var statusBadge = new Border { CornerRadius = new CornerRadius(4), Padding = new Thickness(6, 2, 6, 2), Background = new System.Windows.Media.SolidColorBrush(statusColor) };
                 statusBadge.Child = new TextBlock { Text = st, FontSize = 10, Foreground = System.Windows.Media.Brushes.White };
                 line3.Children.Add(statusBadge);
@@ -1153,6 +1148,15 @@ public partial class MovieListView : UserControl
 
     private async void SearchBox_TextChanged(object sender, TextChangedEventArgs e) { _currentPage = 1; await LoadMoviesAsync(); }
     private async void Filter_Changed(object sender, SelectionChangedEventArgs e) { _currentPage = 1; await LoadMoviesAsync(); }
+
+    private async void QuickFilter_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_movieService == null) return;
+        _quickFilterFavorites = QuickFilterFavorites.IsChecked == true;
+        _quickFilterWatchlist = QuickFilterWatchlist.IsChecked == true;
+        _currentPage = 1;
+        await LoadMoviesAsync();
+    }
     private async void TableViewBtn_Click(object sender, RoutedEventArgs e) { _isCardView = false; _isPosterView = false; _isCollectionView = false; UpdateViewButtons(); await LoadMoviesAsync(); }
     private async void CardViewBtn_Click(object sender, RoutedEventArgs e) { _isCardView = true; _isPosterView = false; _isCollectionView = false; UpdateViewButtons(); await LoadMoviesAsync(); }
     private async void PosterViewBtn_Click(object sender, RoutedEventArgs e) { _isCardView = false; _isPosterView = true; _isCollectionView = false; UpdateViewButtons(); await LoadMoviesAsync(); }
@@ -1207,7 +1211,95 @@ public partial class MovieListView : UserControl
     }
     private void EditMovie_Click(object sender, RoutedEventArgs e) { if (sender is Button b && b.Tag is int id) OpenDetailView(id); }
     private async void DeleteMovie_Click(object sender, RoutedEventArgs e) { if (sender is Button b && b.Tag is int id && AppMessageBox.Confirm("确定删除？", "确认")) { await _movieService.DeleteAsync(id); await LoadMoviesAsync(); } }
-    private async void PlayMovie_Click(object sender, RoutedEventArgs e) { if (sender is Button b && b.Tag is int id) { var m = await _movieService.GetByIdAsync(id); if (m == null) return; if (string.IsNullOrEmpty(m.FilePath)) AppMessageBox.ShowInfo(LanguageManager.GetString("Msg_NoFilePath"), LanguageManager.GetString("Msg_Hint")); else if (!File.Exists(m.FilePath)) AppMessageBox.ShowWarning(string.Format(LanguageManager.GetString("Msg_FileNotFound"), m.FilePath), LanguageManager.GetString("Msg_Hint")); else System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = m.FilePath, UseShellExecute = true }); } }
+
+    private async void FavoriteToggle_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is TextBlock tb && tb.Tag is int id)
+        {
+            var movie = await _movieService.GetByIdAsync(id);
+            if (movie != null)
+            {
+                movie.IsFavorite = !movie.IsFavorite;
+                await _movieService.UpdateAsync(movie);
+                tb.Text = movie.IsFavorite ? "★" : "☆";
+                _mainWindow?.ShowMovieDetail(movie);
+            }
+        }
+    }
+
+    private async void WatchStatusToggle_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is TextBlock tb && tb.Tag is int id)
+        {
+            var movie = await _movieService.GetByIdAsync(id);
+            if (movie != null)
+            {
+                movie.WatchStatus = movie.WatchStatus switch
+                {
+                    WatchStatus.NotWatched => WatchStatus.WantToWatch,
+                    WatchStatus.WantToWatch => WatchStatus.Watched,
+                    WatchStatus.Watched => WatchStatus.NotWatched,
+                    _ => WatchStatus.NotWatched
+                };
+                if (movie.WatchStatus == WatchStatus.Watched) movie.WatchDate = DateTime.Today;
+                else movie.WatchDate = null;
+                await _movieService.UpdateAsync(movie);
+                // 切换到已看时自动添加观影记录
+                if (movie.WatchStatus == WatchStatus.Watched)
+                {
+                    var existingLog = await _context.WatchLogs
+                        .AnyAsync(w => w.MovieId == movie.Id && w.WatchDate.Date == DateTime.Today);
+                    if (!existingLog)
+                    {
+                        _context.WatchLogs.Add(new WatchLog { MovieId = movie.Id, WatchDate = DateTime.Today });
+                        await _context.SaveChangesAsync();
+                    }
+                }
+                tb.Text = movie.WatchStatus switch
+                {
+                    WatchStatus.NotWatched => "未看",
+                    WatchStatus.WantToWatch => "🕐 想看",
+                    WatchStatus.Watched => "✅ 已看",
+                    _ => ""
+                };
+                tb.Foreground = movie.WatchStatus switch
+                {
+                    WatchStatus.NotWatched => new SolidColorBrush(Color.FromRgb(0xAA, 0xAA, 0xAA)),
+                    WatchStatus.WantToWatch => new SolidColorBrush(Color.FromRgb(0x26, 0xA6, 0x9A)),
+                    WatchStatus.Watched => new SolidColorBrush(Color.FromRgb(0x66, 0xBB, 0x6A)),
+                    _ => Brushes.Gray
+                };
+                _mainWindow?.ShowMovieDetail(movie);
+            }
+        }
+    }
+
+    private async void PlayMovie_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button b || b.Tag is not int id) return;
+        var m = await _movieService.GetByIdAsync(id);
+        if (m == null) return;
+        if (string.IsNullOrEmpty(m.FilePath)) { AppMessageBox.ShowInfo(LanguageManager.GetString("Msg_NoFilePath"), LanguageManager.GetString("Msg_Hint")); return; }
+        if (!File.Exists(m.FilePath)) { AppMessageBox.ShowWarning(string.Format(LanguageManager.GetString("Msg_FileNotFound"), m.FilePath), LanguageManager.GetString("Msg_Hint")); return; }
+        if (m.WatchStatus != WatchStatus.Watched)
+        {
+            m.WatchStatus = WatchStatus.Watched;
+            m.WatchDate = DateTime.Today;
+            await _movieService.UpdateAsync(m);
+            // 自动添加观影记录，日历可显示
+            var existingLog = await _context.WatchLogs
+                .AnyAsync(w => w.MovieId == m.Id && w.WatchDate.Date == DateTime.Today);
+            if (!existingLog)
+            {
+                _context.WatchLogs.Add(new WatchLog { MovieId = m.Id, WatchDate = DateTime.Today });
+                await _context.SaveChangesAsync();
+            }
+            await LoadMoviesAsync();
+        }
+        _mainWindow?.ShowMovieDetail(m);
+        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = m.FilePath, UseShellExecute = true }); }
+        catch { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = m.FilePath, UseShellExecute = true }); }
+    }
 
     private async void FetchInfo_Click(object sender, RoutedEventArgs e)
     {
@@ -1708,7 +1800,7 @@ public partial class MovieListView : UserControl
 
         WatchStatus? status = null;
         if (BatchStatusCombo.SelectedItem is ComboBoxItem stItem && stItem.Tag is string st && !string.IsNullOrEmpty(st))
-            status = st switch { "WantToWatch" => WatchStatus.WantToWatch, "Watching" => WatchStatus.Watching, "Watched" => WatchStatus.Watched, _ => null };
+            status = st switch { "NotWatched" => WatchStatus.NotWatched, "WantToWatch" => WatchStatus.WantToWatch, "Watched" => WatchStatus.Watched, _ => null };
 
         int? rating = null;
         if (BatchRatingCombo.SelectedItem is ComboBoxItem rtItem && rtItem.Tag is string rt && int.TryParse(rt, out var rv))

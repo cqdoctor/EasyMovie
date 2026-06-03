@@ -4,6 +4,7 @@
     <!-- MainWindow -->
     <sys:String x:Key="Nav_Movies">Movie Library</sys:String>
     <sys:String x:Key="Nav_Favorites">My Favorites</sys:String>
+    <sys:String x:Key="Nav_Watchlist">Watchlist</sys:String>
     <sys:String x:Key="Nav_Categories">Categories &amp; Tags</sys:String>
     <sys:String x:Key="Nav_Statistics">Statistics</sys:String>
     <sys:String x:Key="Nav_Settings">Settings</sys:String>
@@ -21,6 +22,7 @@
     <sys:String x:Key="MovieLib_Year">Year</sys:String>
     <sys:String x:Key="MovieLib_Sort">Sort</sys:String>
     <sys:String x:Key="MovieLib_All">All</sys:String>
+    <sys:String x:Key="MovieLib_NotWatched">Unwatched</sys:String>
     <sys:String x:Key="MovieLib_WantToWatch">Want to Watch</sys:String>
     <sys:String x:Key="MovieLib_Watching">Watching</sys:String>
     <sys:String x:Key="MovieLib_Watched">Watched</sys:String>
@@ -80,6 +82,9 @@
     <sys:String x:Key="MovieLib_BatchNoSelection">Please select movies first</sys:String>
     <sys:String x:Key="MovieLib_PrevPage">Previous</sys:String>
     <sys:String x:Key="MovieLib_NextPage">Next</sys:String>
+    <sys:String x:Key="MovieLib_WatchingBar">Now Playing: {0}</sys:String>
+    <sys:String x:Key="MovieLib_MarkWatched">Mark as Watched</sys:String>
+    <sys:String x:Key="MovieLib_Close">Close</sys:String>
     <sys:String x:Key="MovieLib_AllCategories">All Categories</sys:String>
     <sys:String x:Key="MovieLib_Uncategorized">Uncategorized</sys:String>
     <sys:String x:Key="MovieLib_AllYears">All Years</sys:String>
@@ -227,8 +232,8 @@
     <sys:String x:Key="Msg_Yes">Yes</sys:String>
 
     <!-- Watch status display -->
+    <sys:String x:Key="WatchStatus_NotWatched">Not Watched</sys:String>
     <sys:String x:Key="WatchStatus_WantToWatch">📋 Want to Watch</sys:String>
-    <sys:String x:Key="WatchStatus_Watching">👀 Watching</sys:String>
     <sys:String x:Key="WatchStatus_Watched">✅ Watched</sys:String>
 
     <!-- Duplicate Detection -->
@@ -269,7 +274,7 @@
     <sys:String x:Key="Shortcuts_Nav1">Movie Library</sys:String>
     <sys:String x:Key="Shortcuts_Nav2">Categories &amp; Tags</sys:String>
     <sys:String x:Key="Shortcuts_Nav3">Statistics</sys:String>
-    <sys:String x:Key="Shortcuts_Nav4">Settings</sys:String>
+    <sys:String x:Key="Shortcuts_Nav4">Watch Calendar</sys:String>
     <sys:String x:Key="Shortcuts_Help">Show keyboard shortcuts</sys:String>
     <sys:String x:Key="Shortcuts_ClickToEdit">Click a shortcut to reassign. Press Esc to cancel recording.</sys:String>
     <sys:String x:Key="Shortcuts_PressKey">Press key...</sys:String>
@@ -281,6 +286,9 @@
 
     <!-- Collections -->
     <sys:String x:Key="MovieLib_Collections">Collections</sys:String>
+    <sys:String x:Key="MovieLib_QuickAll">All</sys:String>
+    <sys:String x:Key="MovieLib_QuickFavorites">Favorites</sys:String>
+    <sys:String x:Key="MovieLib_QuickWatchlist">Watchlist</sys:String>
     <sys:String x:Key="Tip_Collections">Movie Collections</sys:String>
     <sys:String x:Key="Collection_Empty">No collections yet. Click the button below to create one.</sys:String>
     <sys:String x:Key="Collection_AddNew">New Collection</sys:String>
@@ -304,7 +312,7 @@
     <sys:String x:Key="Msg_FileNotFound">Video file not found: {0}&#x0a;The file may have been moved, renamed, or the storage device is not connected.</sys:String>
 
     <!-- Watch Log / Diary -->
-    <sys:String x:Key="Nav_Diary">Watch Diary</sys:String>
+    <sys:String x:Key="Nav_Calendar">Watch Calendar</sys:String>
     <sys:String x:Key="WatchLog_Title">Watch Logs</sys:String>
     <sys:String x:Key="WatchLog_AddTitle">Log Watching</sys:String>
     <sys:String x:Key="WatchLog_EditTitle">Edit Watch Log</sys:String>
@@ -324,6 +332,18 @@
     <sys:String x:Key="WatchLog_FilterDate">Filter by date</sys:String>
     <sys:String x:Key="WatchLog_ClearFilter">Clear Filter</sys:String>
     <sys:String x:Key="WatchLog_LoadMore">Load More</sys:String>
+
+    <!-- Watch Calendar -->
+    <sys:String x:Key="Calendar_Title">📅 Watch Calendar</sys:String>
+    <sys:String x:Key="Calendar_Mon">Mon</sys:String>
+    <sys:String x:Key="Calendar_Tue">Tue</sys:String>
+    <sys:String x:Key="Calendar_Wed">Wed</sys:String>
+    <sys:String x:Key="Calendar_Thu">Thu</sys:String>
+    <sys:String x:Key="Calendar_Fri">Fri</sys:String>
+    <sys:String x:Key="Calendar_Sat">Sat</sys:String>
+    <sys:String x:Key="Calendar_Sun">Sun</sys:String>
+    <sys:String x:Key="Calendar_NoRecords">—</sys:String>
+    <sys:String x:Key="Calendar_MoviesWatched">more</sys:String>
 
     <!-- OnlineSearchView -->
     <sys:String x:Key="OnlineSearch_Title">🌐 Online Search</sys:String>

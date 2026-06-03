@@ -55,12 +55,49 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <!-- 标题栏 -->
         <Grid Grid.Row="0" Margin="0,0,0,16">
-            <TextBlock Text="{DynamicResource MovieLib_Title}" FontSize="28" FontWeight="Bold"
-                       VerticalAlignment="Center" />
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="{DynamicResource MovieLib_Title}" FontSize="28" FontWeight="Bold"
+                           VerticalAlignment="Center" />
+                <Border Background="{DynamicResource MaterialDesignDivider}" CornerRadius="14"
+                        Margin="20,0,0,0" Padding="2,2">
+                    <StackPanel Orientation="Horizontal">
+                        <RadioButton x:Name="QuickFilterAll"
+                                     GroupName="QuickFilter" IsChecked="True"
+                                     Checked="QuickFilter_Changed"
+                                     Margin="0" Padding="14,5"
+                                     FontWeight="Medium" FontSize="13"
+                                     Cursor="Hand"
+                                     Content="{DynamicResource MovieLib_QuickAll}" />
+                        <RadioButton x:Name="QuickFilterFavorites"
+                                     GroupName="QuickFilter"
+                                     Checked="QuickFilter_Changed"
+                                     Margin="0" Padding="14,5"
+                                     FontWeight="Medium" FontSize="13"
+                                     Cursor="Hand">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="Star" Width="14" Height="14" VerticalAlignment="Center" Margin="0,0,4,0" />
+                                <TextBlock Text="{DynamicResource MovieLib_QuickFavorites}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton x:Name="QuickFilterWatchlist"
+                                     GroupName="QuickFilter"
+                                     Checked="QuickFilter_Changed"
+                                     Margin="0" Padding="14,5"
+                                     FontWeight="Medium" FontSize="13"
+                                     Cursor="Hand">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="ClockOutline" Width="14" Height="14" VerticalAlignment="Center" Margin="0,0,4,0" />
+                                <TextBlock Text="{DynamicResource MovieLib_QuickWatchlist}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </RadioButton>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                 <Button x:Name="RecommendToggleBtn"
                         Style="{StaticResource MaterialDesignFlatButton}"
@@ -165,8 +202,8 @@
                               Width="100" Margin="0,0,8,0"
                               SelectionChanged="Filter_Changed">
                         <ComboBoxItem Content="{DynamicResource MovieLib_All}" />
+                        <ComboBoxItem Content="{DynamicResource MovieLib_NotWatched}" Tag="NotWatched" />
                         <ComboBoxItem Content="{DynamicResource MovieLib_WantToWatch}" Tag="WantToWatch" />
-                        <ComboBoxItem Content="{DynamicResource MovieLib_Watching}" Tag="Watching" />
                         <ComboBoxItem Content="{DynamicResource MovieLib_Watched}" Tag="Watched" />
                     </ComboBox>
 
@@ -353,7 +390,7 @@
                     <DataGridTemplateColumn Header="{DynamicResource MovieLib_ColRating}" Width="100">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
-                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                     <TextBlock Text="{Binding Rating, StringFormat='⭐{0}'}"
                                                Visibility="{Binding Rating, Converter={StaticResource NullToCollapsedConverter}}" />
                                     <TextBlock Text="-"
@@ -367,7 +404,9 @@
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <TextBlock Text="{Binding WatchStatus, Converter={StaticResource WatchStatusConverter}}"
-                                           Foreground="{DynamicResource MaterialDesignBody}" VerticalAlignment="Center" />
+                                           Foreground="{Binding WatchStatus, Converter={StaticResource WatchStatusColorConverter}}"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Cursor="Hand" MouseDown="WatchStatusToggle_Click" Tag="{Binding Id}" />
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
@@ -375,7 +414,9 @@
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <TextBlock Text="{Binding IsFavorite, Converter={StaticResource BoolToStarConverter}}"
-                                           FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                           Foreground="{Binding IsFavorite, Converter={StaticResource BoolToStarColorConverter}}"
+                                           FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Cursor="Hand" MouseDown="FavoriteToggle_Click" Tag="{Binding Id}" />
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
@@ -578,8 +619,8 @@
                         <TextBlock Text="{DynamicResource MovieLib_BatchStatus}" FontSize="11" Foreground="{DynamicResource MaterialDesignHintForeground}" Margin="0,0,0,2" />
                         <ComboBox x:Name="BatchStatusCombo" Style="{StaticResource MaterialDesignComboBox}" FontSize="12">
                             <ComboBoxItem Content="{DynamicResource MovieLib_BatchNoChange}" Tag="" />
+                            <ComboBoxItem Content="{DynamicResource MovieLib_NotWatched}" Tag="NotWatched" />
                             <ComboBoxItem Content="{DynamicResource MovieLib_WantToWatch}" Tag="WantToWatch" />
-                            <ComboBoxItem Content="{DynamicResource MovieLib_Watching}" Tag="Watching" />
                             <ComboBoxItem Content="{DynamicResource MovieLib_Watched}" Tag="Watched" />
                         </ComboBox>
                     </StackPanel>

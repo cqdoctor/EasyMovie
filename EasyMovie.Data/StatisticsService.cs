@@ -27,7 +27,7 @@ public class StatisticsService : IStatisticsService
         {
             TotalMovies = movies.Count,
             WantToWatch = movies.Count(m => m.WatchStatus == WatchStatus.WantToWatch),
-            Watching = movies.Count(m => m.WatchStatus == WatchStatus.Watching),
+            NotWatched = movies.Count(m => m.WatchStatus == WatchStatus.NotWatched),
             Watched = movies.Count(m => m.WatchStatus == WatchStatus.Watched),
             Favorites = movies.Count(m => m.IsFavorite),
             RatedCount = movies.Count(m => m.Rating.HasValue),

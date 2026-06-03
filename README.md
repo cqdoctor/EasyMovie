@@ -13,11 +13,13 @@
 
 ### 🎬 电影库管理
 - **多视图模式** — 表格 / 卡片 / 海报墙 / 合集，四种视图自由切换
+- **快速筛选** — 顶部标签一键切换"全部/收藏/想看"，无需展开高级筛选
 - **搜索筛选** — 全文搜索 + 高级筛选（分类/年份/评分/状态/收藏/标签 AND/OR 组合）
 - **拼音搜索** — 支持中文拼音全拼、首字母快速检索
 - **批量编辑** — 多选电影 + 批量修改分类/状态/评分/收藏
 - **排序分页** — 多字段排序 + 分页浏览
 - **文件缺失提示** — 本地文件不存在时播放按钮禁用，悬浮提示
+- **一键收藏** — 列表中直接点击 ★/☆ 切换收藏状态
 
 ### 📁 分类与标签
 - **分类管理** — 多级分类树，无限嵌套，按国家/地区自动归类
@@ -30,20 +32,19 @@
 - **灵活管理** — 添加/移除电影，搜索支持拼音首字母
 
 ### ⭐ 评分与记录
-- **评分系统** — 1-10 评分 + 观看状态 + 笔记 + 收藏
+- **评分系统** — 1-10 评分 + 观看状态（未看/想看/已看）+ 笔记 + 收藏
+- **状态切换** — 列表中点击状态文字即可循环切换：未看 → 想看 → 已看
+- **播放即标记** — 点击播放按钮自动标记为"已看"并记录观影日志
 - **重复检测** — 自动检测重复电影，一键清理
 
-### 📖 观影日记
-- **观影记录** — 为每部电影添加多条观影记录，含日期、笔记、评分
-- **日记视图** — 独立观影日记页面，分页浏览，支持编辑和删除
-- **电影详情集成** — 电影详情面板直接查看和添加观影记录
-
-### ⭐ 我的收藏
-- **收藏视图** — 独立收藏页面，只显示已收藏的电影
-- **快速收藏** — 电影列表一键收藏/取消收藏
+### 📅 观影日历
+- **日历视图** — 按月查看观影记录，直观展示每日观影情况
+- **自动记录** — 播放电影或标记已看时自动创建观影日志
+- **月份导航** — 前后月份切换，今日高亮显示
+- **电影详情** — 日历格子显示电影标题，悬浮显示评分
 
 ### 📊 统计面板
-- **概览卡片** — 总数/已看/想看/评分/收藏/总观影时长
+- **概览卡片** — 总数/已看/想看/未看/评分/收藏/总观影时长
 - **评分分布** — 水平条形图，10分到1分
 - **年度趋势** — 双色条形图（总数+已看），倒序排列
 - **月度观影** — 今年每月观影数量
@@ -92,7 +93,7 @@
 ```
 EasyMovie/
 ├── EasyMovie.Client/     # WPF 桌面客户端
-│   ├── Views/            # 视图（电影库/分类标签/统计/设置/合集/观影日记等）
+│   ├── Views/            # 视图（电影库/分类标签/统计/观影日历/设置等）
 │   ├── Strings/          # 多语言资源（中/英）
 │   ├── Converters/       # 值转换器
 │   └── App.xaml          # 主题 & 全局配置
@@ -145,8 +146,7 @@ dotnet run --project EasyMovie.Client/EasyMovie.Client.csproj
 | 11 | 批量编辑 + 重复检测 | ✅ |
 | 12 | 可配置键盘快捷键 | ✅ |
 | 13 | 电影合集管理 | ✅ |
-| 14 | 观影日记 + 收藏视图 | ✅ |
-| 15 | 统计增强 + 数据自动备份 | ✅ |
+| 14 | 观影日历 + 快速筛选 + 简化观看状态 | ✅ |
 
 ## 📄 License
 
@@ -167,11 +167,13 @@ A Windows desktop movie collection manager built with WPF + Material Design + SQ
 
 ### 🎬 Movie Library
 - **Multi-View** — Table / Card / Poster Wall / Collections, four view modes
+- **Quick Filters** — One-click tabs for All / Favorites / Watchlist at the top
 - **Search & Filter** — Full-text search + Advanced filter (Category/Year/Rating/Status/Favorite/Tags AND/OR)
 - **Pinyin Search** — Quick search by Chinese pinyin full spelling or initials
 - **Batch Edit** — Multi-select + batch modify category/status/rating/favorite
 - **Sort & Paginate** — Multi-field sorting + paginated browsing
 - **Missing File Alert** — Play button disabled with tooltip when local file is missing
+- **One-Click Favorite** — Toggle ★/☆ directly in the list
 
 ### 📁 Categories & Tags
 - **Categories** — Multi-level category tree, unlimited nesting, auto-categorize by country
@@ -184,20 +186,19 @@ A Windows desktop movie collection manager built with WPF + Material Design + SQ
 - **Flexible Management** — Add/Remove movies, search with pinyin support
 
 ### ⭐ Ratings & Records
-- **Rating System** — 1-10 rating + watch status + notes + favorites
+- **Rating System** — 1-10 rating + watch status (Not Watched / Want to Watch / Watched) + notes + favorites
+- **Status Toggle** — Click status text in list to cycle: Not Watched → Want to Watch → Watched
+- **Play to Mark** — Click play button auto-marks as "Watched" and creates watch log
 - **Duplicate Detection** — Auto-detect duplicate movies, one-click cleanup
 
-### 📖 Watch Diary
-- **Watch Logs** — Add multiple watch records per movie with date, notes, and rating
-- **Diary View** — Dedicated watch diary page with pagination, edit and delete support
-- **Movie Detail Integration** — View and add watch logs directly from movie detail panel
-
-### ⭐ My Favorites
-- **Favorites View** — Dedicated page showing only favorited movies
-- **Quick Favorite** — One-click favorite/unfavorite from movie list
+### 📅 Watch Calendar
+- **Calendar View** — Browse watch records by month, intuitive daily overview
+- **Auto Logging** — Watch logs created automatically when playing or marking as watched
+- **Month Navigation** — Navigate between months, today highlighted
+- **Movie Details** — Calendar cells show movie titles, hover for ratings
 
 ### 📊 Statistics
-- **Overview Cards** — Total/Watched/WantToWatch/Rating/Favorites/Total Runtime
+- **Overview Cards** — Total/Watched/WantToWatch/NotWatched/Rating/Favorites/Total Runtime
 - **Rating Distribution** — Horizontal bar chart, 10 to 1
 - **Yearly Trend** — Dual-color bar chart (Total + Watched), descending order
 - **Monthly Watch** — Watch count per month this year
@@ -246,7 +247,7 @@ A Windows desktop movie collection manager built with WPF + Material Design + SQ
 ```
 EasyMovie/
 ├── EasyMovie.Client/     # WPF desktop client
-│   ├── Views/            # Views (Library/Categories/Stats/Settings/Collections/WatchDiary)
+│   ├── Views/            # Views (Library/Categories/Stats/WatchCalendar/Settings)
 │   ├── Strings/          # i18n resources (zh-CN/en-US)
 │   ├── Converters/       # Value converters
 │   └── App.xaml          # Theme & global config
@@ -299,8 +300,7 @@ dotnet run --project EasyMovie.Client/EasyMovie.Client.csproj
 | 11 | Batch edit + Duplicate detection | ✅ |
 | 12 | Configurable keyboard shortcuts | ✅ |
 | 13 | Movie collection management | ✅ |
-| 14 | Watch diary + Favorites view | ✅ |
-| 15 | Enhanced statistics + Auto backup | ✅ |
+| 14 | Watch calendar + Quick filters + Simplified watch status | ✅ |
 
 ## 📄 License
 

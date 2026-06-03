@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -258,8 +258,8 @@ public class ImportExportServiceTests : IDisposable
     public async Task ImportCsv_ShouldMapWatchStatusCorrectly()
     {
         var csv = "片名,原始片名,年份,导演,主演,国家,语言,片长,简介,评分,观看状态,观看日期,笔记,收藏\n"
+                + "未看片,,,,,,,,,,未看,,,,\n"
                 + "想看片,,,,,,,,,,想看,,,,\n"
-                + "在看片,,,,,,,,,,在看,,,,\n"
                 + "已看片,,,,,,,,,,已看,2024-01-01,,,";
         var path = GetTempPath("status_test.csv");
         await File.WriteAllTextAsync(path, csv, Encoding.UTF8);
@@ -267,8 +267,8 @@ public class ImportExportServiceTests : IDisposable
         var result = await _service.ImportMoviesFromCsvAsync(path);
 
         result.SuccessCount.Should().Be(3);
-        result.ImportedMovies[0].WatchStatus.Should().Be(WatchStatus.WantToWatch);
-        result.ImportedMovies[1].WatchStatus.Should().Be(WatchStatus.Watching);
+        result.ImportedMovies[0].WatchStatus.Should().Be(WatchStatus.NotWatched);
+        result.ImportedMovies[1].WatchStatus.Should().Be(WatchStatus.WantToWatch);
         result.ImportedMovies[2].WatchStatus.Should().Be(WatchStatus.Watched);
         result.ImportedMovies[2].WatchDate.Should().Be(new DateTime(2024, 1, 1));
     }

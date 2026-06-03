@@ -1,4 +1,4 @@
-﻿<UserControl x:Class="EasyMovie.Client.Views.MovieDetailView"
+<UserControl x:Class="EasyMovie.Client.Views.MovieDetailView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -50,7 +50,7 @@
                     <ComboBox x:Name="RatingCombo" Grid.Column="0" materialDesign:HintAssist.Hint="{DynamicResource MovieDetail_Rating}" Style="{StaticResource MaterialDesignFloatingHintComboBox}" />
                     <ComboBox x:Name="StatusCombo" Grid.Column="2" materialDesign:HintAssist.Hint="{DynamicResource MovieDetail_WatchStatus}"
                               Style="{StaticResource MaterialDesignFloatingHintComboBox}" SelectionChanged="StatusCombo_SelectionChanged">
-                        <ComboBoxItem Content="{DynamicResource MovieLib_WantToWatch}" Tag="WantToWatch" /><ComboBoxItem Content="{DynamicResource MovieLib_Watching}" Tag="Watching" /><ComboBoxItem Content="{DynamicResource MovieLib_Watched}" Tag="Watched" />
+                        <ComboBoxItem Content="{DynamicResource MovieLib_NotWatched}" Tag="NotWatched" /><ComboBoxItem Content="{DynamicResource MovieLib_WantToWatch}" Tag="WantToWatch" /><ComboBoxItem Content="{DynamicResource MovieLib_Watched}" Tag="Watched" />
                     </ComboBox>
                 </Grid>
                 <DatePicker x:Name="WatchDatePicker" materialDesign:HintAssist.Hint="{DynamicResource MovieDetail_WatchDate}"

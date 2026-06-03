@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -465,7 +465,7 @@ public class IntegrationTests
         var (_, movieSvc, _, _) = CreateServices(nameof(Statistics_CountByStatus));
 
         var m1 = new Movie { Title = "想看A", Year = 2020, WatchStatus = WatchStatus.WantToWatch };
-        var m2 = new Movie { Title = "在看A", Year = 2021, WatchStatus = WatchStatus.Watching };
+        var m2 = new Movie { Title = "未看A", Year = 2021, WatchStatus = WatchStatus.NotWatched };
         var m3 = new Movie { Title = "已看A", Year = 2022, WatchStatus = WatchStatus.Watched };
         await movieSvc.AddAsync(m1);
         await movieSvc.AddAsync(m2);
@@ -473,13 +473,13 @@ public class IntegrationTests
 
         var (_, countWant) = await movieSvc.SearchAsync(
             null, null, null, null, null, null, WatchStatus.WantToWatch, null, false, 1, 10);
-        var (_, countWatching) = await movieSvc.SearchAsync(
-            null, null, null, null, null, null, WatchStatus.Watching, null, false, 1, 10);
+        var (_, countNotWatched) = await movieSvc.SearchAsync(
+            null, null, null, null, null, null, WatchStatus.NotWatched, null, false, 1, 10);
         var (_, countWatched) = await movieSvc.SearchAsync(
             null, null, null, null, null, null, WatchStatus.Watched, null, false, 1, 10);
 
         countWant.Should().Be(1);
-        countWatching.Should().Be(1);
+        countNotWatched.Should().Be(1);
         countWatched.Should().Be(1);
     }
 
