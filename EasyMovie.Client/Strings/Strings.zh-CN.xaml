@@ -4,6 +4,7 @@
     <!-- MainWindow -->
     <sys:String x:Key="Nav_Movies">电影库</sys:String>
     <sys:String x:Key="Nav_Favorites">我的收藏</sys:String>
+    <sys:String x:Key="Nav_Watchlist">待看清单</sys:String>
     <sys:String x:Key="Nav_Categories">分类与标签</sys:String>
     <sys:String x:Key="Nav_Statistics">统计面板</sys:String>
     <sys:String x:Key="Nav_Settings">设置</sys:String>
@@ -21,6 +22,7 @@
     <sys:String x:Key="MovieLib_Year">年份</sys:String>
     <sys:String x:Key="MovieLib_Sort">排序</sys:String>
     <sys:String x:Key="MovieLib_All">全部</sys:String>
+    <sys:String x:Key="MovieLib_NotWatched">未看</sys:String>
     <sys:String x:Key="MovieLib_WantToWatch">想看</sys:String>
     <sys:String x:Key="MovieLib_Watching">在看</sys:String>
     <sys:String x:Key="MovieLib_Watched">已看</sys:String>
@@ -80,6 +82,9 @@
     <sys:String x:Key="MovieLib_BatchNoSelection">请先选择电影</sys:String>
     <sys:String x:Key="MovieLib_PrevPage">上一页</sys:String>
     <sys:String x:Key="MovieLib_NextPage">下一页</sys:String>
+    <sys:String x:Key="MovieLib_WatchingBar">正在观看：{0}</sys:String>
+    <sys:String x:Key="MovieLib_MarkWatched">标记为已看</sys:String>
+    <sys:String x:Key="MovieLib_Close">关闭</sys:String>
     <sys:String x:Key="MovieLib_AllCategories">全部分类</sys:String>
     <sys:String x:Key="MovieLib_Uncategorized">未分类</sys:String>
     <sys:String x:Key="MovieLib_AllYears">全部年份</sys:String>
@@ -227,8 +232,8 @@
     <sys:String x:Key="Msg_Yes">确定</sys:String>
 
     <!-- Watch status display -->
+    <sys:String x:Key="WatchStatus_NotWatched">未看</sys:String>
     <sys:String x:Key="WatchStatus_WantToWatch">📋 想看</sys:String>
-    <sys:String x:Key="WatchStatus_Watching">👀 在看</sys:String>
     <sys:String x:Key="WatchStatus_Watched">✅ 已看</sys:String>
 
     <!-- Duplicate Detection -->
@@ -269,7 +274,7 @@
     <sys:String x:Key="Shortcuts_Nav1">电影库</sys:String>
     <sys:String x:Key="Shortcuts_Nav2">分类与标签</sys:String>
     <sys:String x:Key="Shortcuts_Nav3">统计面板</sys:String>
-    <sys:String x:Key="Shortcuts_Nav4">设置</sys:String>
+    <sys:String x:Key="Shortcuts_Nav4">观影日历</sys:String>
     <sys:String x:Key="Shortcuts_Help">显示快捷键帮助</sys:String>
     <sys:String x:Key="Shortcuts_ClickToEdit">点击快捷键可重新设置，按 Esc 取消录制</sys:String>
     <sys:String x:Key="Shortcuts_PressKey">按键设置...</sys:String>
@@ -281,6 +286,9 @@
 
     <!-- Collections -->
     <sys:String x:Key="MovieLib_Collections">合集</sys:String>
+    <sys:String x:Key="MovieLib_QuickAll">全部</sys:String>
+    <sys:String x:Key="MovieLib_QuickFavorites">收藏</sys:String>
+    <sys:String x:Key="MovieLib_QuickWatchlist">想看</sys:String>
     <sys:String x:Key="Tip_Collections">电影合集</sys:String>
     <sys:String x:Key="Collection_Empty">暂无合集，点击下方按钮创建第一个合集</sys:String>
     <sys:String x:Key="Collection_AddNew">新建合集</sys:String>
@@ -304,7 +312,7 @@
     <sys:String x:Key="Msg_FileNotFound">找不到视频文件：{0}&#x0a;文件可能已被移动、重命名或存储设备未连接。</sys:String>
 
     <!-- Watch Log / Diary -->
-    <sys:String x:Key="Nav_Diary">观影日记</sys:String>
+    <sys:String x:Key="Nav_Calendar">观影日历</sys:String>
     <sys:String x:Key="WatchLog_Title">观影记录</sys:String>
     <sys:String x:Key="WatchLog_AddTitle">记录观影</sys:String>
     <sys:String x:Key="WatchLog_EditTitle">编辑观影记录</sys:String>
@@ -324,6 +332,18 @@
     <sys:String x:Key="WatchLog_FilterDate">按日期筛选</sys:String>
     <sys:String x:Key="WatchLog_ClearFilter">清除筛选</sys:String>
     <sys:String x:Key="WatchLog_LoadMore">加载更多</sys:String>
+
+    <!-- Watch Calendar -->
+    <sys:String x:Key="Calendar_Title">📅 观影日历</sys:String>
+    <sys:String x:Key="Calendar_Mon">周一</sys:String>
+    <sys:String x:Key="Calendar_Tue">周二</sys:String>
+    <sys:String x:Key="Calendar_Wed">周三</sys:String>
+    <sys:String x:Key="Calendar_Thu">周四</sys:String>
+    <sys:String x:Key="Calendar_Fri">周五</sys:String>
+    <sys:String x:Key="Calendar_Sat">周六</sys:String>
+    <sys:String x:Key="Calendar_Sun">周日</sys:String>
+    <sys:String x:Key="Calendar_NoRecords">—</sys:String>
+    <sys:String x:Key="Calendar_MoviesWatched">部</sys:String>
 
     <!-- OnlineSearchView -->
     <sys:String x:Key="OnlineSearch_Title">🌐 在线搜索添加电影</sys:String>

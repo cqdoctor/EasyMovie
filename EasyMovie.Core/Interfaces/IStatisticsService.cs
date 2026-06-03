@@ -7,7 +7,7 @@ public class StatisticsData
 {
     public int TotalMovies { get; set; }
     public int WantToWatch { get; set; }
-    public int Watching { get; set; }
+    public int NotWatched { get; set; }
     public int Watched { get; set; }
     public int Favorites { get; set; }
     public double AverageRating { get; set; }

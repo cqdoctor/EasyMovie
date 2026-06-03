@@ -68,12 +68,6 @@
                             <TextBlock Text="{DynamicResource Nav_Movies}" />
                         </StackPanel>
                     </ListBoxItem>
-                    <ListBoxItem Tag="Favorites">
-                        <StackPanel Orientation="Horizontal">
-                            <materialDesign:PackIcon Kind="Star" Margin="0,0,12,0" />
-                            <TextBlock Text="{DynamicResource Nav_Favorites}" />
-                        </StackPanel>
-                    </ListBoxItem>
                     <ListBoxItem Tag="Categories">
                         <StackPanel Orientation="Horizontal">
                             <materialDesign:PackIcon Kind="Shape" Margin="0,0,12,0" />
@@ -86,10 +80,10 @@
                             <TextBlock Text="{DynamicResource Nav_Statistics}" />
                         </StackPanel>
                     </ListBoxItem>
-                    <ListBoxItem Tag="Diary">
+                    <ListBoxItem Tag="Calendar">
                         <StackPanel Orientation="Horizontal">
-                            <materialDesign:PackIcon Kind="BookOpenPageVariant" Margin="0,0,12,0" />
-                            <TextBlock Text="{DynamicResource Nav_Diary}" />
+                            <materialDesign:PackIcon Kind="Calendar" Margin="0,0,12,0" />
+                            <TextBlock Text="{DynamicResource Nav_Calendar}" />
                         </StackPanel>
                     </ListBoxItem>
                     <ListBoxItem Tag="Settings">

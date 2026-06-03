@@ -147,6 +147,12 @@ public static class DbHelper
             }
             catch { }
 
+            try
+            {
+                MigrateDefaultWatchStatus();
+            }
+            catch { }
+
             _initialized = true;
         }
     }
@@ -263,5 +269,32 @@ public static class DbHelper
         if (changed) ctx.SaveChanges();
 
         File.WriteAllText(DirtyDataFlagPath, DateTime.UtcNow.ToString("O"));
+    }
+
+    private static readonly string WatchStatusMigratedPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "EasyMovie", ".watchstatus_migrated_v3");
+
+    private static void MigrateDefaultWatchStatus()
+    {
+        if (File.Exists(WatchStatusMigratedPath)) return;
+
+        var options = new DbContextOptionsBuilder<MovieDbContext>().UseSqlite(ConnectionString).Options;
+        using var ctx = new MovieDbContext(options);
+
+        ctx.Database.OpenConnection();
+        using var cmd = ctx.Database.GetDbConnection().CreateCommand();
+        // 旧 Watching(1) → Watched(2)
+        cmd.CommandText = "UPDATE Movies SET WatchStatus = 2 WHERE WatchStatus = 1";
+        cmd.ExecuteNonQuery();
+        // 旧 WantToWatch(0) → NotWatched(0) (值不变，但含义变了)
+        // 旧 NotWatched(3) → NotWatched(0)
+        cmd.CommandText = "UPDATE Movies SET WatchStatus = 0 WHERE WatchStatus = 3";
+        cmd.ExecuteNonQuery();
+        // 没有观影记录的 Watched → NotWatched
+        cmd.CommandText = "UPDATE Movies SET WatchStatus = 0 WHERE WatchStatus = 2 AND Id NOT IN (SELECT DISTINCT MovieId FROM WatchLogs WHERE MovieId IS NOT NULL)";
+        cmd.ExecuteNonQuery();
+        ctx.Database.CloseConnection();
+
+        File.WriteAllText(WatchStatusMigratedPath, DateTime.UtcNow.ToString("O"));
     }
 }

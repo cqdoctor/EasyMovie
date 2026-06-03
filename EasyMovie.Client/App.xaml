@@ -25,7 +25,9 @@
             <converters:NullToVisibilityConverter x:Key="NullToVisibilityConverter" />
             <converters:NullToCollapsedConverter x:Key="NullToCollapsedConverter" />
             <converters:WatchStatusConverter x:Key="WatchStatusConverter" />
+            <converters:WatchStatusColorConverter x:Key="WatchStatusColorConverter" />
             <converters:BoolToStarConverter x:Key="BoolToStarConverter" />
+            <converters:BoolToStarColorConverter x:Key="BoolToStarColorConverter" />
             <converters:FilePathIconConverter x:Key="FilePathIconConverter" />
             <converters:PosterImageConverter x:Key="PosterImageConverter" />
             <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />

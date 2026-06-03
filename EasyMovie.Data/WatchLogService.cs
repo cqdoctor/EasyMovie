@@ -66,4 +66,15 @@ public class WatchLogService
             .Include(w => w.Movie)
             .FirstOrDefaultAsync(w => w.Id == id);
     }
+
+    public async Task<List<WatchLog>> GetByMonthAsync(int year, int month)
+    {
+        var start = new DateTime(year, month, 1);
+        var end = start.AddMonths(1);
+        return await _context.WatchLogs
+            .Include(w => w.Movie)
+            .Where(w => w.WatchDate >= start && w.WatchDate < end)
+            .OrderBy(w => w.WatchDate)
+            .ToListAsync();
+    }
 }

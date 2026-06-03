@@ -1,4 +1,4 @@
-﻿﻿﻿﻿using EasyMovie.Core.Enums;
+﻿﻿﻿﻿﻿﻿using EasyMovie.Core.Enums;
 
 namespace EasyMovie.Core.Models;
 
@@ -54,7 +54,7 @@ public class Movie
     public int? Rating { get; set; }
 
     /// <summary>观看状态</summary>
-    public WatchStatus WatchStatus { get; set; } = WatchStatus.WantToWatch;
+    public WatchStatus WatchStatus { get; set; } = WatchStatus.NotWatched;
 
     /// <summary>观看日期</summary>
     public DateTime? WatchDate { get; set; }

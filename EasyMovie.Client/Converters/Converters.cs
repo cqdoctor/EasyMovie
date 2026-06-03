@@ -3,6 +3,7 @@ using System.Globalization;
 using System.IO;
 using System.Windows;
 using System.Windows.Data;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
 namespace EasyMovie.Client.Converters;
@@ -15,6 +16,17 @@ public class NullToVisibilityConverter : IValueConverter
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
     {
         return value == null ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
+public class BoolToStarColorConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        return value is true ? new SolidColorBrush(Color.FromRgb(0xFF, 0xD7, 0x00)) : new SolidColorBrush(Color.FromRgb(0xAA, 0xAA, 0xAA));
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
@@ -75,13 +87,34 @@ public class WatchStatusConverter : IValueConverter
         {
             return status switch
             {
-                Core.Enums.WatchStatus.WantToWatch => "想看",
-                Core.Enums.WatchStatus.Watching => "在看",
-                Core.Enums.WatchStatus.Watched => "已看",
+                Core.Enums.WatchStatus.NotWatched => "未看",
+                Core.Enums.WatchStatus.WantToWatch => "🕐 想看",
+                Core.Enums.WatchStatus.Watched => "✅ 已看",
                 _ => ""
             };
         }
         return "";
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
+public class WatchStatusColorConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is Core.Enums.WatchStatus status)
+        {
+            return status switch
+            {
+                Core.Enums.WatchStatus.NotWatched => new SolidColorBrush(Color.FromRgb(0xAA, 0xAA, 0xAA)),
+                Core.Enums.WatchStatus.WantToWatch => new SolidColorBrush(Color.FromRgb(0x26, 0xA6, 0x9A)),
+                Core.Enums.WatchStatus.Watched => new SolidColorBrush(Color.FromRgb(0x66, 0xBB, 0x6A)),
+                _ => new SolidColorBrush(Color.FromRgb(0xAA, 0xAA, 0xAA))
+            };
+        }
+        return new SolidColorBrush(Color.FromRgb(0xAA, 0xAA, 0xAA));
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
@@ -95,7 +128,7 @@ public class BoolToStarConverter : IValueConverter
 {
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
     {
-        return value is true ? "⭐" : "☆";
+        return value is true ? "★" : "☆";
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)

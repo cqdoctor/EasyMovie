@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using CsvHelper;
@@ -351,8 +351,8 @@ public class ImportExportService : IImportExportService
             Rating = movie.Rating,
             WatchStatusStr = movie.WatchStatus switch
             {
+                WatchStatus.NotWatched => "未看",
                 WatchStatus.WantToWatch => "想看",
-                WatchStatus.Watching => "在看",
                 WatchStatus.Watched => "已看",
                 _ => ""
             },
@@ -378,10 +378,10 @@ public class ImportExportService : IImportExportService
             Rating = record.Rating,
             WatchStatus = record.WatchStatusStr switch
             {
+                "未看" => WatchStatus.NotWatched,
                 "想看" => WatchStatus.WantToWatch,
-                "在看" => WatchStatus.Watching,
                 "已看" => WatchStatus.Watched,
-                _ => WatchStatus.WantToWatch
+                _ => WatchStatus.NotWatched
             },
             WatchDate = DateTime.TryParse(record.WatchDateStr, out var dt) ? dt : null,
             Notes = string.IsNullOrWhiteSpace(record.Notes) ? null : record.Notes.Trim(),

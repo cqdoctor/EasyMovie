@@ -186,10 +186,9 @@ public partial class MainWindow : Window
             view = page switch
             {
                 "Movies" => new MovieListView(this),
-                "Favorites" => new MovieListView(this, true),
                 "Categories" => new CategoryTagManageView(),
                 "Statistics" => new StatisticsView(),
-                "Diary" => new WatchDiaryView(),
+                "Calendar" => new WatchCalendarView(),
                 "Settings" => new SettingsView(),
                 _ => new MovieListView(this)
             };
@@ -204,7 +203,7 @@ public partial class MainWindow : Window
         _currentPage = page;
 
         // 非电影页面时隐藏电影详情面板
-        MovieDetailPanel.Visibility = (page == "Movies" || page == "Favorites") && _lastSelectedMovie != null
+        MovieDetailPanel.Visibility = page == "Movies" && _lastSelectedMovie != null
             ? Visibility.Visible
             : Visibility.Collapsed;
     }
@@ -236,7 +235,6 @@ public partial class MainWindow : Window
         DetailStatus.Text = movie.WatchStatus switch
         {
             WatchStatus.WantToWatch => LanguageManager.GetString("WatchStatus_WantToWatch"),
-            WatchStatus.Watching => LanguageManager.GetString("WatchStatus_Watching"),
             WatchStatus.Watched => LanguageManager.GetString("WatchStatus_Watched"),
             _ => ""
         };

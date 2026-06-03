@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using System.Threading.Tasks;
 using FluentAssertions;
@@ -44,7 +44,7 @@ public class StatisticsServiceTests
 
         context.Movies.AddRange(
             new Movie { Title = "A", Year = 2020, WatchStatus = WatchStatus.Watched, Rating = 8, IsFavorite = true },
-            new Movie { Title = "B", Year = 2021, WatchStatus = WatchStatus.Watching, Rating = 6 },
+            new Movie { Title = "B", Year = 2021, WatchStatus = WatchStatus.NotWatched, Rating = 6 },
             new Movie { Title = "C", Year = 2022, WatchStatus = WatchStatus.WantToWatch },
             new Movie { Title = "D", Year = 2023, WatchStatus = WatchStatus.Watched, Rating = 10, IsFavorite = true }
         );
@@ -54,7 +54,7 @@ public class StatisticsServiceTests
 
         data.TotalMovies.Should().Be(4);
         data.Watched.Should().Be(2);
-        data.Watching.Should().Be(1);
+        data.NotWatched.Should().Be(1);
         data.WantToWatch.Should().Be(1);
         data.Favorites.Should().Be(2);
         data.RatedCount.Should().Be(3);

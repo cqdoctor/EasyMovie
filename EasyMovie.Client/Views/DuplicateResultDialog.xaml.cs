@@ -283,8 +283,8 @@ public class DuplicateMovieItemViewModel : INotifyPropertyChanged
     public string StatusText => _model.WatchStatus switch
     {
         WatchStatus.Watched => LanguageManager.GetString("WatchStatus_Watched"),
-        WatchStatus.Watching => LanguageManager.GetString("WatchStatus_Watching"),
-        _ => LanguageManager.GetString("WatchStatus_WantToWatch")
+        WatchStatus.WantToWatch => LanguageManager.GetString("WatchStatus_WantToWatch"),
+        _ => ""
     };
 
     public string InfoText
