@@ -130,7 +130,7 @@
                                     <DataTemplate>
                                         <StackPanel Orientation="Horizontal">
                                             <Border Width="14" Height="14" CornerRadius="3"
-                                                    Background="{Binding Color, FallbackValue=Gray}"
+                                                    Background="{Binding Color, Converter={StaticResource StringToBrushConverter}}"
                                                     VerticalAlignment="Center" Margin="0,0,8,0" />
                                             <TextBlock Text="{Binding Name}" VerticalAlignment="Center" FontSize="13" />
                                         </StackPanel>
@@ -148,7 +148,7 @@
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
-                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
                             <TextBlock x:Name="TagFormTitle" Grid.Row="0" Text="{DynamicResource CatTag_SelectOrAddTag}"
@@ -158,9 +158,14 @@
                                      Style="{StaticResource MaterialDesignFloatingHintTextBox}" Margin="0,0,0,12" />
                             <TextBlock Grid.Row="2" Text="{DynamicResource CatTag_TagColor}" FontSize="12"
                                        Foreground="{DynamicResource MaterialDesignHintForeground}" Margin="0,0,0,6" />
-                            <StackPanel Grid.Row="3" Orientation="Horizontal" x:Name="ColorPicker" Margin="0,0,0,10" />
-                            <Border x:Name="ColorPreview" Grid.Row="4" Width="60" Height="60" CornerRadius="8"
-                                    Background="Gray" HorizontalAlignment="Left" VerticalAlignment="Top" />
+                            <WrapPanel Grid.Row="3" x:Name="ColorPicker" Margin="0,0,0,4" />
+                            <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="0,0,0,10">
+                                <Button x:Name="CustomColorBtn" Content="{DynamicResource CatTag_CustomColor}"
+                                        Style="{StaticResource MaterialDesignFlatButton}" FontSize="11"
+                                        Click="CustomColor_Click" Padding="8,2" Margin="0,0,8,0" />
+                                <Border x:Name="ColorPreview" Width="40" Height="28" CornerRadius="4"
+                                        Background="Gray" VerticalAlignment="Center" />
+                            </StackPanel>
                             <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
                                 <Button x:Name="TagDeleteBtn" Content="{DynamicResource CatTag_Delete}" Style="{StaticResource MaterialDesignFlatButton}"
                                         Foreground="{DynamicResource MaterialDesignErrorForeground}"

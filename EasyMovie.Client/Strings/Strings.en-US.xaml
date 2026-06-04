@@ -313,6 +313,7 @@
 
     <!-- Watch Log / Diary -->
     <sys:String x:Key="Nav_Calendar">Watch Calendar</sys:String>
+    <sys:String x:Key="Nav_Relation">Relation Map</sys:String>
     <sys:String x:Key="WatchLog_Title">Watch Logs</sys:String>
     <sys:String x:Key="WatchLog_AddTitle">Log Watching</sys:String>
     <sys:String x:Key="WatchLog_EditTitle">Edit Watch Log</sys:String>
@@ -387,4 +388,20 @@
     <sys:String x:Key="MovieDetail_VideoFiles">Video Files</sys:String>
     <sys:String x:Key="MovieDetail_AllFiles">All Files</sys:String>
     <sys:String x:Key="MovieDetail_FileNotExist">File does not exist.</sys:String>
+
+    <!-- Movie Relation Network -->
+    <sys:String x:Key="Relation_Title">Movie Relation Map</sys:String>
+    <sys:String x:Key="Relation_DirectorLink">Director Links</sys:String>
+    <sys:String x:Key="Relation_ActorLink">Actor Links</sys:String>
+    <sys:String x:Key="Relation_AllNodes">All</sys:String>
+    <sys:String x:Key="Relation_Refresh">Refresh</sys:String>
+    <sys:String x:Key="Relation_Summary">{0} movies · {1} connections</sys:String>
+    <sys:String x:Key="Relation_Connections">connections</sys:String>
+    <sys:String x:Key="Relation_Legend">Legend</sys:String>
+    <sys:String x:Key="Relation_BothLink">Director+Actor</sys:String>
+    <sys:String x:Key="Relation_DirectorLabel">Director</sys:String>
+    <sys:String x:Key="Relation_ActorLabel">Actor</sys:String>
+    <sys:String x:Key="Settings_CatTagHint">Manage movie categories and tags. Categories are hierarchical (e.g. country), tags are flexible labels (e.g. sci-fi, classic).</sys:String>
+    <sys:String x:Key="Settings_ManageCatTag">Manage Categories &amp; Tags</sys:String>
+    <sys:String x:Key="CatTag_CustomColor">Custom Color</sys:String>
 </ResourceDictionary>

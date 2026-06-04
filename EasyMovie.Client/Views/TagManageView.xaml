@@ -1,4 +1,4 @@
-﻿<UserControl x:Class="EasyMovie.Client.Views.TagManageView"
+<UserControl x:Class="EasyMovie.Client.Views.TagManageView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -33,7 +33,7 @@
                         <DataTemplate>
                             <StackPanel Orientation="Horizontal">
                                 <Border Width="16" Height="16" CornerRadius="4"
-                                        Background="{Binding Color, FallbackValue=Gray}"
+                                        Background="{Binding Color, Converter={StaticResource StringToBrushConverter}}"
                                         VerticalAlignment="Center" Margin="0,0,10,0" />
                                 <TextBlock Text="{Binding Name}" VerticalAlignment="Center" FontSize="14" />
                             </StackPanel>

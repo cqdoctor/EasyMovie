@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using EasyMovie.Data;
@@ -153,6 +154,12 @@ public static class DbHelper
             }
             catch { }
 
+            try
+            {
+                SeedDefaultTags();
+            }
+            catch { }
+
             _initialized = true;
         }
     }
@@ -296,5 +303,42 @@ public static class DbHelper
         ctx.Database.CloseConnection();
 
         File.WriteAllText(WatchStatusMigratedPath, DateTime.UtcNow.ToString("O"));
+    }
+
+    private static readonly string SeedTagsFlagPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "EasyMovie", ".tags_seeded_v2");
+
+    private static void SeedDefaultTags()
+    {
+        var colors = new[] { "#F44336","#E91E63","#9C27B0","#673AB7","#3F51B5","#2196F3","#03A9F4","#00BCD4","#009688","#4CAF50","#8BC34A","#CDDC39","#FFEB3B","#FFC107","#FF9800","#FF5722","#795548","#607D8B" };
+        var rng = new Random();
+
+        var tags = new[] {
+            "动作", "喜剧", "剧情", "科幻", "恐怖", "爱情", "悬疑", "惊悚",
+            "动画", "冒险", "奇幻", "犯罪", "纪录片", "战争", "传记", "历史",
+            "音乐", "家庭", "西部", "短片", "武侠", "古装", "灾难", "黑色幽默"
+        };
+
+        var options = new DbContextOptionsBuilder<MovieDbContext>().UseSqlite(ConnectionString).Options;
+        using var ctx = new MovieDbContext(options);
+
+        // 添加缺失的类型标签（支持已有标签的情况）
+        var existingNames = ctx.Tags.Select(t => t.Name).ToHashSet();
+        bool added = false;
+        foreach (var name in tags)
+        {
+            if (!existingNames.Contains(name))
+            {
+                ctx.Tags.Add(new EasyMovie.Core.Models.Tag
+                {
+                    Name = name,
+                    Color = colors[rng.Next(colors.Length)]
+                });
+                added = true;
+            }
+        }
+        if (added) ctx.SaveChanges();
+
+        File.WriteAllText(SeedTagsFlagPath, DateTime.UtcNow.ToString("O"));
     }
 }

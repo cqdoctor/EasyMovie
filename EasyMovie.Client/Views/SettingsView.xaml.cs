@@ -97,6 +97,43 @@ public partial class SettingsView : UserControl
 
     #endregion
 
+    private void ManageCatTag_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new Window
+        {
+            Title = LanguageManager.GetString("CatTag_Title"),
+            Content = new CategoryTagManageView(),
+            Width = 900,
+            Height = 600,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Owner = Window.GetWindow(this)
+        };
+        dlg.SourceInitialized += (s, args) =>
+        {
+            // 使用 Win32 API 去掉窗口图标
+            var hwnd = new System.Runtime.InteropServices.HandleRef(null, new System.Windows.Interop.WindowInteropHelper(dlg).Handle);
+            var style = GetWindowLong(hwnd, GWL_EXSTYLE);
+            SetWindowLong(hwnd, GWL_EXSTYLE, style | WS_EX_DLGMODALFRAME);
+            // 发送 WM_SETICON 消息移除图标
+            SendMessage(hwnd.Handle, WM_SETICON, IntPtr.Zero, IntPtr.Zero);
+            SendMessage(hwnd.Handle, WM_SETICON, (IntPtr)1, IntPtr.Zero);
+        };
+        dlg.ShowDialog();
+    }
+
+    private const int GWL_EXSTYLE = -20;
+    private const int WS_EX_DLGMODALFRAME = 0x00000001;
+    private const uint WM_SETICON = 0x0080;
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern int GetWindowLong(System.Runtime.InteropServices.HandleRef hWnd, int nIndex);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern int SetWindowLong(System.Runtime.InteropServices.HandleRef hWnd, int nIndex, int dwNewLong);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+
     private void DetectDuplicates_Click(object sender, RoutedEventArgs e)
     {
         var dialog = new DuplicateResultDialog

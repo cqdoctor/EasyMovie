@@ -13,6 +13,7 @@ using EasyMovie.Client.Views;
 using EasyMovie.Core.Enums;
 using EasyMovie.Core.Models;
 using EasyMovie.Data;
+using Microsoft.EntityFrameworkCore;
 
 namespace EasyMovie.Client;
 
@@ -186,9 +187,9 @@ public partial class MainWindow : Window
             view = page switch
             {
                 "Movies" => new MovieListView(this),
-                "Categories" => new CategoryTagManageView(),
                 "Statistics" => new StatisticsView(),
                 "Calendar" => new WatchCalendarView(),
+                "Relation" => new MovieRelationView(this),
                 "Settings" => new SettingsView(),
                 _ => new MovieListView(this)
             };
@@ -239,6 +240,9 @@ public partial class MainWindow : Window
             _ => ""
         };
 
+        // 加载标签
+        await LoadDetailTagsAsync(movie.Id);
+
         DetailPoster.Source = null;
 
         var posterLoaded = false;
@@ -287,6 +291,47 @@ public partial class MainWindow : Window
         }
 
         await LoadWatchLogsAsync(movie.Id);
+    }
+
+    private async Task LoadDetailTagsAsync(int movieId)
+    {
+        DetailTags.Children.Clear();
+        try
+        {
+            using var ctx = DbHelper.CreateContext();
+            var tagIds = await ctx.Set<MovieTag>().Where(mt => mt.MovieId == movieId).Select(mt => mt.TagId).ToListAsync();
+            if (tagIds.Count == 0) return;
+            var tags = await ctx.Tags.Where(t => tagIds.Contains(t.Id)).ToListAsync();
+            foreach (var tag in tags)
+            {
+                var border = new Border
+                {
+                    CornerRadius = new CornerRadius(4),
+                    Padding = new Thickness(8, 2, 8, 2),
+                    Margin = new Thickness(0, 0, 4, 2),
+                    Background = TryCreateBrush(tag.Color)
+                };
+                var tb = new TextBlock
+                {
+                    Text = tag.Name,
+                    FontSize = 11,
+                    Foreground = Brushes.White
+                };
+                border.Child = tb;
+                DetailTags.Children.Add(border);
+            }
+        }
+        catch { }
+    }
+
+    private static Brush TryCreateBrush(string? color)
+    {
+        if (!string.IsNullOrEmpty(color))
+        {
+            try { return new SolidColorBrush((Color)ColorConverter.ConvertFromString(color)); }
+            catch { }
+        }
+        return new SolidColorBrush((Color)ColorConverter.ConvertFromString("#5C6BC0"));
     }
 
     private async Task LoadWatchLogsAsync(int movieId)

@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿using EasyMovie.Core.Enums;
+﻿﻿﻿﻿﻿﻿﻿﻿using EasyMovie.Core.Enums;
 
 namespace EasyMovie.Core.Models;
 
