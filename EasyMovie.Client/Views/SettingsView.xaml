@@ -145,6 +145,20 @@
                     </Grid>
                 </Border>
 
+                <!-- 分类与标签 -->
+                <Border Background="{DynamicResource MaterialDesignCardBackground}" CornerRadius="8" Padding="24" Margin="0,0,0,16">
+                    <Grid>
+                        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                        <TextBlock Grid.Row="0" Text="{DynamicResource CatTag_Title}" FontSize="18" FontWeight="Bold" Margin="0,0,0,12"/>
+                        <StackPanel Grid.Row="1">
+                            <TextBlock Text="{DynamicResource Settings_CatTagHint}" FontSize="13"
+                                       Foreground="{DynamicResource MaterialDesignHintForeground}" Margin="0,0,0,12" TextWrapping="Wrap"/>
+                            <Button x:Name="ManageCatTagBtn" Content="{DynamicResource Settings_ManageCatTag}"
+                                    Style="{StaticResource MaterialDesignRaisedButton}" Click="ManageCatTag_Click" HorizontalAlignment="Left" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
                 <!-- 工具 -->
                 <Border Background="{DynamicResource MaterialDesignCardBackground}" CornerRadius="8" Padding="24" Margin="0,0,0,16">
                     <Grid>
@@ -176,7 +190,7 @@
                     <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                         <TextBlock Grid.Row="0" Text="{DynamicResource Settings_About}" FontSize="18" FontWeight="Bold" Margin="0,0,0,16"/>
                         <StackPanel Grid.Row="1">
-                            <TextBlock Text="EasyMovie v1.01" FontSize="14" FontWeight="Bold"/>
+                            <TextBlock Text="EasyMovie v1.02" FontSize="14" FontWeight="Bold"/>
                             <TextBlock Text="WPF + .NET 10 + SQLite" FontSize="13" Foreground="{DynamicResource MaterialDesignHintForeground}"/>
                             <TextBlock Text="{DynamicResource Settings_DataSources}" FontSize="13" Foreground="{DynamicResource MaterialDesignHintForeground}"/>
                         </StackPanel>

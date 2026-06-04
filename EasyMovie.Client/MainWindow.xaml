@@ -68,12 +68,6 @@
                             <TextBlock Text="{DynamicResource Nav_Movies}" />
                         </StackPanel>
                     </ListBoxItem>
-                    <ListBoxItem Tag="Categories">
-                        <StackPanel Orientation="Horizontal">
-                            <materialDesign:PackIcon Kind="Shape" Margin="0,0,12,0" />
-                            <TextBlock Text="{DynamicResource Nav_Categories}" />
-                        </StackPanel>
-                    </ListBoxItem>
                     <ListBoxItem Tag="Statistics">
                         <StackPanel Orientation="Horizontal">
                             <materialDesign:PackIcon Kind="ChartBar" Margin="0,0,12,0" />
@@ -84,6 +78,12 @@
                         <StackPanel Orientation="Horizontal">
                             <materialDesign:PackIcon Kind="Calendar" Margin="0,0,12,0" />
                             <TextBlock Text="{DynamicResource Nav_Calendar}" />
+                        </StackPanel>
+                    </ListBoxItem>
+                    <ListBoxItem Tag="Relation">
+                        <StackPanel Orientation="Horizontal">
+                            <materialDesign:PackIcon Kind="Graph" Margin="0,0,12,0" />
+                            <TextBlock Text="{DynamicResource Nav_Relation}" />
                         </StackPanel>
                     </ListBoxItem>
                     <ListBoxItem Tag="Settings">
@@ -121,6 +121,7 @@
                             <TextBlock x:Name="DetailSynopsis" FontSize="11" Foreground="{DynamicResource MaterialDesignBodyLight}"
                                        TextWrapping="Wrap" MaxHeight="120" TextTrimming="CharacterEllipsis" Margin="0,0,0,4" />
                             <TextBlock x:Name="DetailStatus" FontSize="12" Foreground="#FFD700" Margin="0,0,0,4" />
+                            <WrapPanel x:Name="DetailTags" Margin="0,0,0,4" />
 
                             <!-- 观影记录 -->
                             <Separator Margin="0,4" Background="{DynamicResource MaterialDesignDivider}" />

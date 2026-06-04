@@ -30,6 +30,7 @@
             <converters:BoolToStarColorConverter x:Key="BoolToStarColorConverter" />
             <converters:FilePathIconConverter x:Key="FilePathIconConverter" />
             <converters:PosterImageConverter x:Key="PosterImageConverter" />
+            <converters:StringToBrushConverter x:Key="StringToBrushConverter" />
             <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
             <converters:InverseBoolConverter x:Key="InverseBoolConverter" />
             <converters:PlayButtonToolTipConverter x:Key="PlayButtonToolTipConverter" />

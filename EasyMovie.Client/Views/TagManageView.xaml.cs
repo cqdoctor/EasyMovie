@@ -1,9 +1,10 @@
-﻿﻿using System;
+﻿﻿﻿﻿﻿﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using EasyMovie.Core.Interfaces;
 using EasyMovie.Core.Models;
@@ -34,7 +35,20 @@ public partial class TagManageView : UserControl
     private void BuildColorPicker()
     {
         var colors = new[] { "#F44336","#E91E63","#9C27B0","#673AB7","#3F51B5","#2196F3","#03A9F4","#00BCD4","#009688","#4CAF50","#8BC34A","#CDDC39","#FFEB3B","#FFC107","#FF9800","#FF5722","#795548","#607D8B","#9E9E9E","#000000" };
-        foreach (var c in colors) { var b = new Button { Width=28,Height=28,Margin=new Thickness(2),Tag=c }; b.Content = new System.Windows.Shapes.Ellipse { Width=18,Height=18,Fill=new SolidColorBrush((Color)ColorConverter.ConvertFromString(c)) }; b.Click += (s,e) => { if (s is Button bt && bt.Tag is string cl) { _selectedColor=cl; UpdatePreview(); } }; ColorPicker.Children.Add(b); }
+        foreach (var c in colors)
+        {
+            var border = new Border
+            {
+                Width = 22, Height = 22, CornerRadius = new CornerRadius(4),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(c)),
+                Cursor = Cursors.Hand, Margin = new Thickness(2), Tag = c
+            };
+            border.MouseLeftButtonDown += (s, e) =>
+            {
+                if (s is Border bd && bd.Tag is string cl) { _selectedColor = cl; UpdatePreview(); }
+            };
+            ColorPicker.Children.Add(border);
+        }
     }
 
     private void UpdatePreview() { try { ColorPreview.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(_selectedColor)); } catch { ColorPreview.Background = Brushes.Gray; } }

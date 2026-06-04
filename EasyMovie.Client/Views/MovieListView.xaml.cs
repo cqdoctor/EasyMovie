@@ -1281,21 +1281,25 @@ public partial class MovieListView : UserControl
         if (m == null) return;
         if (string.IsNullOrEmpty(m.FilePath)) { AppMessageBox.ShowInfo(LanguageManager.GetString("Msg_NoFilePath"), LanguageManager.GetString("Msg_Hint")); return; }
         if (!File.Exists(m.FilePath)) { AppMessageBox.ShowWarning(string.Format(LanguageManager.GetString("Msg_FileNotFound"), m.FilePath), LanguageManager.GetString("Msg_Hint")); return; }
+
+        // 每次播放都标记为已看并更新观影日期
         if (m.WatchStatus != WatchStatus.Watched)
         {
             m.WatchStatus = WatchStatus.Watched;
-            m.WatchDate = DateTime.Today;
-            await _movieService.UpdateAsync(m);
-            // 自动添加观影记录，日历可显示
-            var existingLog = await _context.WatchLogs
-                .AnyAsync(w => w.MovieId == m.Id && w.WatchDate.Date == DateTime.Today);
-            if (!existingLog)
-            {
-                _context.WatchLogs.Add(new WatchLog { MovieId = m.Id, WatchDate = DateTime.Today });
-                await _context.SaveChangesAsync();
-            }
-            await LoadMoviesAsync();
         }
+        m.WatchDate = DateTime.Today;
+        await _movieService.UpdateAsync(m);
+
+        // 每次播放都添加观影记录，日历可显示
+        var existingLog = await _context.WatchLogs
+            .AnyAsync(w => w.MovieId == m.Id && w.WatchDate.Date == DateTime.Today);
+        if (!existingLog)
+        {
+            _context.WatchLogs.Add(new WatchLog { MovieId = m.Id, WatchDate = DateTime.Today });
+            await _context.SaveChangesAsync();
+        }
+        await LoadMoviesAsync();
+
         _mainWindow?.ShowMovieDetail(m);
         try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = m.FilePath, UseShellExecute = true }); }
         catch { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = m.FilePath, UseShellExecute = true }); }

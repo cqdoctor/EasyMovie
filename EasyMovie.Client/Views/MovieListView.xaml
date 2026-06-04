@@ -69,14 +69,18 @@
                         <RadioButton x:Name="QuickFilterAll"
                                      GroupName="QuickFilter" IsChecked="True"
                                      Checked="QuickFilter_Changed"
-                                     Margin="0" Padding="14,5"
+                                     Margin="0" Padding="16,5"
                                      FontWeight="Medium" FontSize="13"
-                                     Cursor="Hand"
-                                     Content="{DynamicResource MovieLib_QuickAll}" />
+                                     Cursor="Hand">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="MovieOpenOutline" Width="14" Height="14" VerticalAlignment="Center" Margin="0,0,4,0" />
+                                <TextBlock Text="{DynamicResource MovieLib_QuickAll}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </RadioButton>
                         <RadioButton x:Name="QuickFilterFavorites"
                                      GroupName="QuickFilter"
                                      Checked="QuickFilter_Changed"
-                                     Margin="0" Padding="14,5"
+                                     Margin="0" Padding="16,5"
                                      FontWeight="Medium" FontSize="13"
                                      Cursor="Hand">
                             <StackPanel Orientation="Horizontal">
@@ -87,7 +91,7 @@
                         <RadioButton x:Name="QuickFilterWatchlist"
                                      GroupName="QuickFilter"
                                      Checked="QuickFilter_Changed"
-                                     Margin="0" Padding="14,5"
+                                     Margin="0" Padding="16,5"
                                      FontWeight="Medium" FontSize="13"
                                      Cursor="Hand">
                             <StackPanel Orientation="Horizontal">
@@ -102,53 +106,38 @@
                 <Button x:Name="RecommendToggleBtn"
                         Style="{StaticResource MaterialDesignFlatButton}"
                         Click="RecommendToggle_Click"
-                        ToolTip="{DynamicResource Tip_Recommend}"
+                        ToolTip="{DynamicResource MovieLib_Recommend}"
                         Padding="8,4,8,4"
-                        Margin="0,0,6,0">
-                    <StackPanel Orientation="Horizontal">
-                        <materialDesign:PackIcon Kind="StarShooting" Margin="0,0,4,0" />
-                        <TextBlock Text="{DynamicResource MovieLib_Recommend}" />
-                    </StackPanel>
+                        Margin="0,0,4,0">
+                    <materialDesign:PackIcon Kind="StarShooting" />
                 </Button>
                 <Button Style="{StaticResource MaterialDesignFlatButton}"
                         Click="FetchAll_Click"
-                        ToolTip="{DynamicResource Tip_FetchAll}"
+                        ToolTip="{DynamicResource MovieLib_FetchAll}"
                         Padding="8,4,8,4"
-                        Margin="0,0,6,0">
-                    <StackPanel Orientation="Horizontal">
-                        <materialDesign:PackIcon Kind="CloudDownload" Margin="0,0,4,0" />
-                        <TextBlock Text="{DynamicResource MovieLib_FetchAll}" />
-                    </StackPanel>
+                        Margin="0,0,4,0">
+                    <materialDesign:PackIcon Kind="CloudDownload" />
                 </Button>
                 <Button Style="{StaticResource MaterialDesignFlatButton}"
                         Click="ImportFolder_Click"
-                        ToolTip="{DynamicResource Tip_ImportFolder}"
+                        ToolTip="{DynamicResource MovieLib_ImportFolder}"
                         Padding="8,4,8,4"
-                        Margin="0,0,6,0">
-                    <StackPanel Orientation="Horizontal">
-                        <materialDesign:PackIcon Kind="FolderOpen" Margin="0,0,4,0" />
-                        <TextBlock Text="{DynamicResource MovieLib_ImportFolder}" />
-                    </StackPanel>
+                        Margin="0,0,4,0">
+                    <materialDesign:PackIcon Kind="FolderOpen" />
                 </Button>
                 <Button Style="{StaticResource MaterialDesignFlatButton}"
                         Click="OnlineSearch_Click"
-                        ToolTip="{DynamicResource Tip_OnlineSearch}"
+                        ToolTip="{DynamicResource MovieLib_OnlineSearch}"
                         Padding="8,4,8,4"
-                        Margin="0,0,6,0">
-                    <StackPanel Orientation="Horizontal">
-                        <materialDesign:PackIcon Kind="CloudSearch" Margin="0,0,4,0" />
-                        <TextBlock Text="{DynamicResource MovieLib_OnlineSearch}" />
-                    </StackPanel>
+                        Margin="0,0,4,0">
+                    <materialDesign:PackIcon Kind="CloudSearch" />
                 </Button>
                 <Button Style="{StaticResource MaterialDesignFlatButton}"
                         Click="CollectionView_Click"
-                        ToolTip="{DynamicResource Tip_Collections}"
+                        ToolTip="{DynamicResource MovieLib_Collections}"
                         Padding="8,4,8,4"
-                        Margin="0,0,6,0">
-                    <StackPanel Orientation="Horizontal">
-                        <materialDesign:PackIcon Kind="FolderStar" Margin="0,0,4,0" />
-                        <TextBlock Text="{DynamicResource MovieLib_Collections}" />
-                    </StackPanel>
+                        Margin="0,0,4,0">
+                    <materialDesign:PackIcon Kind="FolderStar" />
                 </Button>
                 <Button Style="{StaticResource MaterialDesignIconForegroundButton}"
                         Click="AddMovie_Click"

@@ -178,3 +178,30 @@ public class PosterImageConverter : IValueConverter
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
         => throw new NotSupportedException();
 }
+
+/// <summary>
+/// 颜色字符串 (如 "#F44336") → SolidColorBrush，null 时根据名称哈希分配颜色
+/// </summary>
+public class StringToBrushConverter : IValueConverter
+{
+    private static readonly string[] Palette = {
+        "#F44336","#E91E63","#9C27B0","#673AB7","#3F51B5",
+        "#2196F3","#03A9F4","#00BCD4","#009688","#4CAF50",
+        "#8BC34A","#CDDC39","#FFEB3B","#FFC107","#FF9800",
+        "#FF5722","#795548","#607D8B"
+    };
+
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is string colorStr && !string.IsNullOrEmpty(colorStr))
+        {
+            try { return new SolidColorBrush((Color)ColorConverter.ConvertFromString(colorStr)); }
+            catch { }
+        }
+        // null 或空字符串时返回靛蓝色
+        return new SolidColorBrush((Color)ColorConverter.ConvertFromString("#5C6BC0"));
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}

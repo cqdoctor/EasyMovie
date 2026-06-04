@@ -313,6 +313,7 @@
 
     <!-- Watch Log / Diary -->
     <sys:String x:Key="Nav_Calendar">观影日历</sys:String>
+    <sys:String x:Key="Nav_Relation">关系网</sys:String>
     <sys:String x:Key="WatchLog_Title">观影记录</sys:String>
     <sys:String x:Key="WatchLog_AddTitle">记录观影</sys:String>
     <sys:String x:Key="WatchLog_EditTitle">编辑观影记录</sys:String>
@@ -404,4 +405,20 @@
     <sys:String x:Key="ImportExport_Clear">清除</sys:String>
     <sys:String x:Key="ImportExport_Scanning">扫描: {0}...</sys:String>
     <sys:String x:Key="ImportExport_Failed">失败: {0}</sys:String>
+
+    <!-- Movie Relation Network -->
+    <sys:String x:Key="Relation_Title">电影关系网</sys:String>
+    <sys:String x:Key="Relation_DirectorLink">导演关联</sys:String>
+    <sys:String x:Key="Relation_ActorLink">演员关联</sys:String>
+    <sys:String x:Key="Relation_AllNodes">全部</sys:String>
+    <sys:String x:Key="Relation_Refresh">刷新</sys:String>
+    <sys:String x:Key="Relation_Summary">{0} 部电影 · {1} 条关联</sys:String>
+    <sys:String x:Key="Relation_Connections">条关联</sys:String>
+    <sys:String x:Key="Relation_Legend">图例</sys:String>
+    <sys:String x:Key="Relation_BothLink">导演+演员</sys:String>
+    <sys:String x:Key="Relation_DirectorLabel">导演</sys:String>
+    <sys:String x:Key="Relation_ActorLabel">演员</sys:String>
+    <sys:String x:Key="Settings_CatTagHint">管理电影的分类和标签，分类为层级结构（如国家），标签为灵活标记（如科幻、经典）。</sys:String>
+    <sys:String x:Key="Settings_ManageCatTag">管理分类与标签</sys:String>
+    <sys:String x:Key="CatTag_CustomColor">自定义颜色</sys:String>
 </ResourceDictionary>
