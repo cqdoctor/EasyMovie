@@ -200,23 +200,18 @@ public partial class CategoryTagManageView : UserControl
     private void CustomColor_Click(object sender, RoutedEventArgs e)
     {
         // 使用 WPF 原生颜色选择器弹窗
+        var owner = Window.GetWindow(this);
         var dlg = new Window
         {
             Title = "🎨 " + LanguageManager.GetString("CatTag_CustomColor"),
             Width = 320,
             Height = 340,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            Owner = Window.GetWindow(this),
-            ResizeMode = ResizeMode.NoResize
+            Owner = owner,
+            ResizeMode = ResizeMode.NoResize,
+            ShowInTaskbar = false
         };
-        dlg.SourceInitialized += (s, args) =>
-        {
-            var hwnd = new System.Runtime.InteropServices.HandleRef(null, new System.Windows.Interop.WindowInteropHelper(dlg).Handle);
-            var style = GetWindowLong(hwnd, GWL_EXSTYLE);
-            SetWindowLong(hwnd, GWL_EXSTYLE, style | WS_EX_DLGMODALFRAME);
-            SendMessage(hwnd.Handle, WM_SETICON, IntPtr.Zero, IntPtr.Zero);
-            SendMessage(hwnd.Handle, WM_SETICON, (IntPtr)1, IntPtr.Zero);
-        };
+        dlg.SourceInitialized += (_, _) => RemoveIcon(dlg);
 
         var panel = new StackPanel { Margin = new Thickness(16) };
 
@@ -327,16 +322,27 @@ public partial class CategoryTagManageView : UserControl
 
     #endregion
 
+    private static void RemoveIcon(Window window)
+    {
+        var hwnd = new System.Windows.Interop.WindowInteropHelper(window).Handle;
+        var extendedStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
+        SetWindowLong(hwnd, GWL_EXSTYLE, extendedStyle | WS_EX_DLGMODALFRAME);
+        SetWindowPos(hwnd, IntPtr.Zero, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
+    }
+
     private const int GWL_EXSTYLE = -20;
-    private const int WS_EX_DLGMODALFRAME = 0x00000001;
-    private const uint WM_SETICON = 0x0080;
+    private const int WS_EX_DLGMODALFRAME = 0x0001;
+    private const uint SWP_NOSIZE = 0x0001;
+    private const uint SWP_NOMOVE = 0x0002;
+    private const uint SWP_NOZORDER = 0x0004;
+    private const uint SWP_FRAMECHANGED = 0x0020;
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]
-    private static extern int GetWindowLong(System.Runtime.InteropServices.HandleRef hWnd, int nIndex);
+    private static extern int GetWindowLong(IntPtr hwnd, int nIndex);
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]
-    private static extern int SetWindowLong(System.Runtime.InteropServices.HandleRef hWnd, int nIndex, int dwNewLong);
+    private static extern int SetWindowLong(IntPtr hwnd, int nIndex, int dwNewLong);
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]
-    private static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+    private static extern bool SetWindowPos(IntPtr hwnd, IntPtr hwndInsertAfter, int x, int y, int width, int height, uint flags);
 }

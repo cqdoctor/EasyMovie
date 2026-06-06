@@ -1,4 +1,4 @@
-﻿namespace EasyMovie.Core.Interfaces;
+namespace EasyMovie.Core.Interfaces;
 
 /// <summary>
 /// 电影搜索结果 DTO
@@ -40,6 +40,29 @@ public class MovieSearchResponse
     public int TotalCount { get; set; }
     public int Page { get; set; }
     public int PageSize { get; set; }
+}
+
+/// <summary>
+/// 影视资讯条目
+/// </summary>
+public class MovieNewsItem
+{
+    public string Title { get; set; } = string.Empty;
+    public string? OriginalTitle { get; set; }
+    public int Year { get; set; }
+    public string? Director { get; set; }
+    public string? Cast { get; set; }
+    public string? Country { get; set; }
+    public string? Synopsis { get; set; }
+    public string? PosterUrl { get; set; }
+    public int? Runtime { get; set; }
+    public double? Rating { get; set; }
+    public string? ExternalId { get; set; }
+    public string Source { get; set; } = string.Empty;   // "douban" / "maoyan"
+    public string Category { get; set; } = string.Empty;  // "coming" / "nowplaying" / "top250" / "hot"
+    public string? ReleaseDate { get; set; }
+    public int? Rank { get; set; }
+    public string? BoxOffice { get; set; }
 }
 
 /// <summary>

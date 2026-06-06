@@ -21,6 +21,12 @@ public class StatisticsData
     public List<PersonStat> CastStats { get; set; } = new();
     public List<CountryStat> CountryStats { get; set; } = new();
     public List<RuntimeRangeStat> RuntimeStats { get; set; } = new();
+    public List<GenreStat> GenreStats { get; set; } = new();
+    public double CompletionRate { get; set; }
+    public int ThisYearWatchedCount { get; set; }
+    public int ThisYearWatchedRuntimeMinutes { get; set; }
+    public List<DayOfWeekStat> DayOfWeekStats { get; set; } = new();
+    public int LongestWatchStreak { get; set; }
 }
 
 public class CategoryStat
@@ -68,6 +74,19 @@ public class RuntimeRangeStat
     public string Label { get; set; } = string.Empty;
     public int MinMinutes { get; set; }
     public int MaxMinutes { get; set; }
+    public int Count { get; set; }
+}
+
+public class GenreStat
+{
+    public string Name { get; set; } = string.Empty;
+    public int Count { get; set; }
+}
+
+public class DayOfWeekStat
+{
+    public int DayOfWeek { get; set; }
+    public string DayName { get; set; } = string.Empty;
     public int Count { get; set; }
 }
 

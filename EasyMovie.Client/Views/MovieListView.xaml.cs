@@ -63,8 +63,11 @@ public partial class MovieListView : UserControl
             {
                 _isFirstLoad = false;
                 UpdateViewButtons();
-                await LoadDataAsync();
+                // 先快速显示第一页，让用户立即看到内容
+                await LoadMoviesAsync();
                 PreMeasureExpander();
+                // 后台执行耗时数据初始化（搜索索引、分类筛选等）
+                _ = LoadDataAsync();
             }
             else
             {
@@ -101,7 +104,6 @@ public partial class MovieListView : UserControl
             PopulateBatchCategoryCombo(allCats);
             PopulateYearFilter(allMovies);
             PopulateAdvancedFilterOptions(allMovies);
-            await LoadMoviesAsync();
         }
         catch (Exception ex) { AppMessageBox.ShowError(LanguageManager.GetString("Msg_LoadFailed") + ex.Message); }
     }
@@ -208,6 +210,8 @@ public partial class MovieListView : UserControl
         PageInfo.Text = string.Format(LanguageManager.GetString("Msg_PageInfo"), total, _currentPage, Math.Max(1, totalPages));
         PrevPageBtn.IsEnabled = _currentPage > 1;
         NextPageBtn.IsEnabled = _currentPage < totalPages;
+        FirstPageBtn.IsEnabled = _currentPage > 1;
+        LastPageBtn.IsEnabled = _currentPage < totalPages;
         var hasMovies = movies.Any();
         MovieDataGrid.Visibility = !_isCardView && !_isPosterView && !_isCollectionView && hasMovies ? Visibility.Visible : Visibility.Collapsed;
         CardScrollViewer.Visibility = _isCardView && hasMovies ? Visibility.Visible : Visibility.Collapsed;
@@ -1640,8 +1644,35 @@ public partial class MovieListView : UserControl
         _mainWindow?.ClearStatus();
         await LoadMoviesAsync();
     }
+    private async void FirstPage_Click(object sender, RoutedEventArgs e) { if (_currentPage > 1) { _currentPage = 1; await LoadMoviesAsync(); } }
     private async void PrevPage_Click(object sender, RoutedEventArgs e) { if (_currentPage > 1) { _currentPage--; await LoadMoviesAsync(); } }
     private async void NextPage_Click(object sender, RoutedEventArgs e) { var tp = (int)Math.Ceiling((double)_totalCount / PageSize); if (_currentPage < tp) { _currentPage++; await LoadMoviesAsync(); } }
+    private async void LastPage_Click(object sender, RoutedEventArgs e) { var tp = (int)Math.Ceiling((double)_totalCount / PageSize); if (_currentPage < tp) { _currentPage = tp; await LoadMoviesAsync(); } }
+
+    private void PageJumpBox_PreviewTextInput(object sender, TextCompositionEventArgs e)
+    {
+        e.Handled = !int.TryParse(e.Text, out _);
+    }
+
+    private async void PageJumpBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter) { await JumpToPage(); e.Handled = true; }
+    }
+
+    private async void PageJumpBtn_Click(object sender, RoutedEventArgs e) { await JumpToPage(); }
+
+    private async Task JumpToPage()
+    {
+        if (int.TryParse(PageJumpBox.Text, out var page))
+        {
+            var totalPages = (int)Math.Ceiling((double)_totalCount / PageSize);
+            if (page < 1) page = 1;
+            if (page > totalPages) page = totalPages;
+            _currentPage = page;
+            PageJumpBox.Text = string.Empty;
+            await LoadMoviesAsync();
+        }
+    }
 
     private static readonly HashSet<string> VideoExts = new(StringComparer.OrdinalIgnoreCase) { ".mp4",".mkv",".avi",".mov",".wmv",".flv",".webm",".m4v",".mpg",".mpeg",".ts",".rmvb" };
 

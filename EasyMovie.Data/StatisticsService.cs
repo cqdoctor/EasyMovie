@@ -21,7 +21,11 @@ public class StatisticsService : IStatisticsService
     {
         var movies = await _context.Movies
             .Include(m => m.Category)
+            .Include(m => m.MovieTags)
+                .ThenInclude(mt => mt.Tag)
             .ToListAsync();
+
+        var watchLogs = await _context.WatchLogs.ToListAsync();
 
         var data = new StatisticsData
         {
@@ -153,6 +157,69 @@ public class StatisticsService : IStatisticsService
             range.Count = movies.Count(m => m.Runtime.HasValue && m.Runtime!.Value >= range.MinMinutes && m.Runtime!.Value <= range.MaxMinutes);
         }
         data.RuntimeStats = runtimeRanges.Where(r => r.Count > 0).ToList();
+
+        // 类型分布（基于标签）
+        data.GenreStats = movies
+            .Where(m => m.MovieTags.Any())
+            .SelectMany(m => m.MovieTags.Select(mt => mt.Tag.Name))
+            .GroupBy(t => t)
+            .Select(g => new GenreStat { Name = g.Key, Count = g.Count() })
+            .OrderByDescending(g => g.Count)
+            .Take(15)
+            .ToList();
+
+        // 观影完成率
+        data.CompletionRate = data.TotalMovies > 0
+            ? Math.Round((double)data.Watched / data.TotalMovies * 100, 1)
+            : 0;
+
+        // 今年观影统计（复用上方 currentYear 变量）
+        var thisYearLogMovieIds = watchLogs
+            .Where(w => w.WatchDate.Year == currentYear)
+            .Select(w => w.MovieId)
+            .Distinct()
+            .ToList();
+        data.ThisYearWatchedCount = thisYearLogMovieIds.Count;
+        data.ThisYearWatchedRuntimeMinutes = movies
+            .Where(m => thisYearLogMovieIds.Contains(m.Id) && m.Runtime.HasValue)
+            .Sum(m => m.Runtime!.Value);
+
+        // 最活跃星期（基于观影记录）
+        var dayNames = new[] { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" };
+        data.DayOfWeekStats = Enumerable.Range(0, 7)
+            .Select(dow => new DayOfWeekStat
+            {
+                DayOfWeek = dow,
+                DayName = dayNames[dow],
+                Count = watchLogs.Count(w => (int)w.WatchDate.DayOfWeek == dow)
+            })
+            .ToList();
+
+        // 最长连续观影天数
+        if (watchLogs.Any())
+        {
+            var watchDates = watchLogs
+                .Select(w => w.WatchDate.Date)
+                .Distinct()
+                .OrderBy(d => d)
+                .ToList();
+
+            var maxStreak = 1;
+            var currentStreak = 1;
+            for (int i = 1; i < watchDates.Count; i++)
+            {
+                if (watchDates[i] == watchDates[i - 1].AddDays(1))
+                {
+                    currentStreak++;
+                    if (currentStreak > maxStreak) maxStreak = currentStreak;
+                }
+                else
+                {
+                    currentStreak = 1;
+                }
+            }
+            data.LongestWatchStreak = watchDates.Count > 0 ? maxStreak : 0;
+        }
 
         return data;
     }

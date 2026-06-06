@@ -45,6 +45,27 @@ public partial class MainWindow : Window
     private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
 
     private const uint WM_SETICON = 0x0080;
+    private const uint WM_GETICON = 0x007F;
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr CreateIconFromResourceEx(byte[] pbIconBits, uint cbIconBits,
+        bool fIcon, int dwVersion, int cxDesired, int cyDesired, uint flags);
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    private static extern IntPtr LoadImage(IntPtr hInst, IntPtr name, uint type,
+        int cxDesired, int cyDesired, uint fuLoad);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Auto)]
+    private static extern IntPtr GetModuleHandle(IntPtr lpModuleName);
+
+    [DllImport("user32.dll")]
+    private static extern int GetSystemMetrics(int nIndex);
+
+    private const uint IMAGE_ICON = 1;
+    private const uint LR_DEFAULTSIZE = 0x00000040;
+    private const uint LR_SHARED = 0x00008000;
+    private const int SM_CXICON = 11;
+    private const int SM_CYICON = 12;
     private const int GWL_EXSTYLE = -20;
     private const int WS_EX_DLGMODALFRAME = 0x00000001;
     private const uint SWP_NOSIZE = 0x0001;
@@ -106,19 +127,16 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         LoadInputBindings();
-        SourceInitialized += (_, _) =>
-        {
-            var hwnd = new WindowInteropHelper(this).Handle;
-            SendMessage(hwnd, WM_SETICON, ICON_SMALL, IntPtr.Zero);
-            SendMessage(hwnd, WM_SETICON, ICON_BIG, IntPtr.Zero);
-            var exStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
-            SetWindowLong(hwnd, GWL_EXSTYLE, exStyle | WS_EX_DLGMODALFRAME);
-            SetWindowPos(hwnd, IntPtr.Zero, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOZORDER | SWP_FRAMECHANGED);
-        };
-        NavListBox.SelectedIndex = 0;
-        NavigateTo("Movies");
         Loaded += OnLoaded;
+        StateChanged += OnStateChanged;
         BackupService.EnsureAutoBackup();
+        NavListBox.SelectedIndex = 0;
+        NavigateTo("Dashboard");
+    }
+
+    private void OnStateChanged(object? sender, EventArgs e)
+    {
+        MaximizeBtn.Content = WindowState == WindowState.Maximized ? "\uE923" : "\uE922";
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
@@ -135,6 +153,8 @@ public partial class MainWindow : Window
         {
             var pages = new (string key, Func<UserControl> create)[]
             {
+                ("Dashboard", () => new DashboardView()),
+                ("Movies", () => new MovieListView(this)),
                 ("Categories", () => new CategoryTagManageView()),
                 ("Statistics", () => new StatisticsView()),
                 ("Settings", () => new SettingsView()),
@@ -149,7 +169,9 @@ public partial class MainWindow : Window
                 ContentArea.Children.Add(view);
 
                 // 预加载数据
-                if (view is CategoryTagManageView catView)
+                if (view is DashboardView dashView)
+                    await dashView.InitializeAsync();
+                else if (view is CategoryTagManageView catView)
                     await catView.InitializeAsync();
                 else if (view is StatisticsView statsView)
                     await statsView.InitializeAsync();
@@ -180,16 +202,18 @@ public partial class MainWindow : Window
     private readonly Dictionary<string, UserControl> _pageCache = new();
     private string _currentPage = "";
 
-    private void NavigateTo(string page)
+    public void NavigateTo(string page)
     {
         if (!_pageCache.TryGetValue(page, out var view))
         {
             view = page switch
             {
+                "Dashboard" => new DashboardView(),
                 "Movies" => new MovieListView(this),
                 "Statistics" => new StatisticsView(),
                 "Calendar" => new WatchCalendarView(),
                 "Relation" => new MovieRelationView(this),
+                "News" => new MovieNewsView(),
                 "Settings" => new SettingsView(),
                 _ => new MovieListView(this)
             };
@@ -511,7 +535,7 @@ public partial class MainWindow : Window
     private void Search_Executed(object sender, ExecutedRoutedEventArgs e)
     {
         if (GetCurrentMovieView() is { } mv) mv.FocusSearchBox();
-        else { NavListBox.SelectedIndex = 0; NavigateTo("Movies"); Dispatcher.BeginInvoke(new Action(() => GetCurrentMovieView()?.FocusSearchBox()), System.Windows.Threading.DispatcherPriority.Background); }
+        else { NavListBox.SelectedIndex = 1; NavigateTo("Movies"); Dispatcher.BeginInvoke(new Action(() => GetCurrentMovieView()?.FocusSearchBox()), System.Windows.Threading.DispatcherPriority.Background); }
     }
 
     private void AddNew_Executed(object sender, ExecutedRoutedEventArgs e)
@@ -549,6 +573,7 @@ public partial class MainWindow : Window
     private void Nav2_Executed(object sender, ExecutedRoutedEventArgs e) { NavListBox.SelectedIndex = 1; }
     private void Nav3_Executed(object sender, ExecutedRoutedEventArgs e) { NavListBox.SelectedIndex = 2; }
     private void Nav4_Executed(object sender, ExecutedRoutedEventArgs e) { NavListBox.SelectedIndex = 3; }
+    private void Nav5_Executed(object sender, ExecutedRoutedEventArgs e) { NavListBox.SelectedIndex = 4; }
 
     private void CycleView_Executed(object sender, ExecutedRoutedEventArgs e)
     {
@@ -648,5 +673,39 @@ public partial class MainWindow : Window
         scroll.Content = panel;
         dlg.Content = scroll;
         dlg.ShowDialog();
+    }
+
+    private void MinimizeWindow_Click(object sender, RoutedEventArgs e)
+    {
+        WindowState = WindowState.Minimized;
+    }
+
+    private void MaximizeWindow_Click(object sender, RoutedEventArgs e)
+    {
+        if (WindowState == WindowState.Maximized)
+        {
+            WindowState = WindowState.Normal;
+        }
+        else
+        {
+            WindowState = WindowState.Maximized;
+        }
+    }
+
+    private void CloseWindow_Click(object sender, RoutedEventArgs e)
+    {
+        Close();
+    }
+
+    private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount == 2)
+        {
+            WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+        }
+        else
+        {
+            DragMove();
+        }
     }
 }

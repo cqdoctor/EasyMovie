@@ -11,15 +11,20 @@
 
 ## ✨ 功能特性
 
+### 🏠 数据概览
+- **仪表盘** — 启动首页，展示最近添加/最近观看/收藏电影/热门导演
+- **快速导航** — 点击卡片直接跳转电影详情或播放
+
 ### 🎬 电影库管理
 - **多视图模式** — 表格 / 卡片 / 海报墙 / 合集，四种视图自由切换
 - **快速筛选** — 顶部标签一键切换"全部/收藏/想看"，无需展开高级筛选
 - **搜索筛选** — 全文搜索 + 高级筛选（分类/年份/评分/状态/收藏/标签 AND/OR 组合）
 - **拼音搜索** — 支持中文拼音全拼、首字母快速检索
 - **批量编辑** — 多选电影 + 批量修改分类/状态/评分/收藏
-- **排序分页** — 多字段排序 + 分页浏览
+- **排序分页** — 多字段排序 + 分页浏览（支持首页/末页/跳转）
 - **文件缺失提示** — 本地文件不存在时播放按钮禁用，悬浮提示
 - **一键收藏** — 列表中直接点击 ★/☆ 切换收藏状态
+- **首屏秒开** — 首次加载立即显示第一页，后台异步初始化筛选数据
 
 ### 📁 分类与标签
 - **分类管理** — 多级分类树，无限嵌套，按国家/地区自动归类
@@ -51,6 +56,15 @@
 - **导演/演员排行** — Top 10 出现次数排行
 - **国家/地区分布** — 电影产地分布
 - **片长分布** — 短片/标准/长片区间分布
+
+### 🔗 电影关系网
+- **人物关系图** — 可视化展示导演与演员之间的合作关系
+- **节点交互** — 点击人物节点高亮关联关系，查看合作电影列表
+- **路径查找** — 查找任意两位影人之间的最短合作路径
+
+### 📰 电影资讯
+- **热映推荐** — 集成猫眼/TMDB 电影资讯，展示热映电影
+- **详情获取** — 点击资讯卡片一键获取电影详情并添加到库中
 
 ### 📦 数据管理
 - **多格式导入导出** — CSV/JSON 导入导出 + 全量备份还原
@@ -147,6 +161,8 @@ dotnet run --project EasyMovie.Client/EasyMovie.Client.csproj
 | 12 | 可配置键盘快捷键 | ✅ |
 | 13 | 电影合集管理 | ✅ |
 | 14 | 观影日历 + 快速筛选 + 简化观看状态 | ✅ |
+| 15 | 数据概览仪表盘 + 电影资讯 + 电影关系网 | ✅ |
+| 16 | 分页增强（首页/末页/跳转）+ 首屏秒开 | ✅ |
 
 ## 📄 License
 
@@ -165,15 +181,20 @@ A Windows desktop movie collection manager built with WPF + Material Design + SQ
 
 ## ✨ Features
 
+### 🏠 Dashboard
+- **Dashboard** — Startup homepage, shows recent additions / recent watches / favorites / popular directors
+- **Quick Navigation** — Click cards to jump to movie details or play
+
 ### 🎬 Movie Library
 - **Multi-View** — Table / Card / Poster Wall / Collections, four view modes
 - **Quick Filters** — One-click tabs for All / Favorites / Watchlist at the top
 - **Search & Filter** — Full-text search + Advanced filter (Category/Year/Rating/Status/Favorite/Tags AND/OR)
 - **Pinyin Search** — Quick search by Chinese pinyin full spelling or initials
 - **Batch Edit** — Multi-select + batch modify category/status/rating/favorite
-- **Sort & Paginate** — Multi-field sorting + paginated browsing
+- **Sort & Paginate** — Multi-field sorting + paginated browsing (First/Last page + jump)
 - **Missing File Alert** — Play button disabled with tooltip when local file is missing
 - **One-Click Favorite** — Toggle ★/☆ directly in the list
+- **Instant First Page** — First page loads immediately, filter data initializes in background
 
 ### 📁 Categories & Tags
 - **Categories** — Multi-level category tree, unlimited nesting, auto-categorize by country
@@ -205,6 +226,15 @@ A Windows desktop movie collection manager built with WPF + Material Design + SQ
 - **Director/Cast Ranking** — Top 10 by appearance count
 - **Country Distribution** — Movie origin distribution
 - **Runtime Distribution** — Short/Standard/Long film range distribution
+
+### 🔗 Movie Relations
+- **Relation Graph** — Visualize director-actor collaboration relationships
+- **Node Interaction** — Click person nodes to highlight connections, view collaboration movie list
+- **Path Finding** — Find the shortest collaboration path between any two people
+
+### 📰 Movie News
+- **Trending** — Integrated with Maoyan/TMDB for trending movie news
+- **One-Click Add** — Click news cards to fetch movie details and add to library
 
 ### 📦 Data Management
 - **Multi-Format Import/Export** — CSV/JSON import/export + full backup & restore
@@ -301,6 +331,8 @@ dotnet run --project EasyMovie.Client/EasyMovie.Client.csproj
 | 12 | Configurable keyboard shortcuts | ✅ |
 | 13 | Movie collection management | ✅ |
 | 14 | Watch calendar + Quick filters + Simplified watch status | ✅ |
+| 15 | Dashboard + Movie news + Movie relation graph | ✅ |
+| 16 | Pagination enhancement (First/Last page) + Instant first page | ✅ |
 
 ## 📄 License
 

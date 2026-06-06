@@ -64,6 +64,15 @@ public partial class StatisticsView : UserControl
             var mins = d.TotalRuntimeMinutes % 60;
             TotalRuntimeText.Text = string.Format(LanguageManager.GetString("Stats_HourFormat"), hours, mins);
 
+            // 观影完成率
+            CompletionRateText.Text = d.CompletionRate + "%";
+            CompletionRateBar.Width = d.CompletionRate * 1.18; // Max width ~118px (card width 150 - padding 32)
+
+            // 今年观影
+            var thisYearHours = d.ThisYearWatchedRuntimeMinutes / 60;
+            var thisYearMins = d.ThisYearWatchedRuntimeMinutes % 60;
+            ThisYearWatchedText.Text = $"{d.ThisYearWatchedCount}{LanguageManager.GetString("Stats_ThisYearMovies")} · {string.Format(LanguageManager.GetString("Stats_HourFormat"), thisYearHours, thisYearMins)}";
+
             // 评分分布
             var ratingItems = Enumerable.Range(1, 10).Reverse().Select(r =>
             {
@@ -145,6 +154,41 @@ public partial class StatisticsView : UserControl
                 CountText = r.Count + LanguageManager.GetString("Stats_MoviesUnit")
             }).ToList();
             RuntimeChart.ItemsSource = runtimeItems;
+
+            // 类型分布
+            var maxGenre = Math.Max(d.GenreStats.Max(g => (int?)g.Count) ?? 1, 1);
+            var genreItems = d.GenreStats.Take(12).Select(g => new BarItem
+            {
+                Name = g.Name,
+                Count = g.Count,
+                BarWidth = Math.Max(4, (double)g.Count / maxGenre * MaxBarWidth),
+                Color = "#9C27B0"
+            }).ToList();
+            GenreChart.ItemsSource = genreItems;
+
+            // 最活跃星期
+            var dayOfWeekNames = new[]
+            {
+                LanguageManager.GetString("Stats_Mon"),
+                LanguageManager.GetString("Stats_Tue"),
+                LanguageManager.GetString("Stats_Wed"),
+                LanguageManager.GetString("Stats_Thu"),
+                LanguageManager.GetString("Stats_Fri"),
+                LanguageManager.GetString("Stats_Sat"),
+                LanguageManager.GetString("Stats_Sun")
+            };
+            var maxDayOfWeek = Math.Max(d.DayOfWeekStats.Max(s => (int?)s.Count) ?? 1, 1);
+            var dayOfWeekItems = d.DayOfWeekStats.Select(s => new DayOfWeekBarItem
+            {
+                DayName = dayOfWeekNames[s.DayOfWeek],
+                Count = s.Count,
+                BarWidth = Math.Max(2, (double)s.Count / maxDayOfWeek * MaxBarWidth),
+                CountText = s.Count.ToString()
+            }).ToList();
+            DayOfWeekChart.ItemsSource = dayOfWeekItems;
+
+            // 最长连续观影
+            LongestStreakText.Text = d.LongestWatchStreak.ToString();
         }
         catch (Exception ex)
         {
@@ -255,6 +299,23 @@ public class RuntimeBarItem : INotifyPropertyChanged
     private string _countText = "";
 
     public string Label { get => _label; set { _label = value; OnPropertyChanged(); } }
+    public int Count { get => _count; set { _count = value; OnPropertyChanged(); } }
+    public double BarWidth { get => _barWidth; set { _barWidth = value; OnPropertyChanged(); } }
+    public string CountText { get => _countText; set { _countText = value; OnPropertyChanged(); } }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+    private void OnPropertyChanged([CallerMemberName] string? n = null) =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(n));
+}
+
+public class DayOfWeekBarItem : INotifyPropertyChanged
+{
+    private string _dayName = "";
+    private int _count;
+    private double _barWidth;
+    private string _countText = "0";
+
+    public string DayName { get => _dayName; set { _dayName = value; OnPropertyChanged(); } }
     public int Count { get => _count; set { _count = value; OnPropertyChanged(); } }
     public double BarWidth { get => _barWidth; set { _barWidth = value; OnPropertyChanged(); } }
     public string CountText { get => _countText; set { _countText = value; OnPropertyChanged(); } }

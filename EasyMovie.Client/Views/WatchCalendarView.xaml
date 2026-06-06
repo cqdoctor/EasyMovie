@@ -7,6 +7,17 @@
              mc:Ignorable="d"
              d:DesignHeight="800" d:DesignWidth="900">
 
+    <UserControl.Resources>
+        <!-- Today pulse animation -->
+        <Storyboard x:Key="TodayPulseStoryboard" RepeatBehavior="Forever">
+            <DoubleAnimationUsingKeyFrames Storyboard.TargetProperty="(Border.Opacity)" BeginTime="0:0:0">
+                <EasingDoubleKeyFrame KeyTime="0:0:0" Value="1.0"/>
+                <EasingDoubleKeyFrame KeyTime="0:0:1.2" Value="0.3"/>
+                <EasingDoubleKeyFrame KeyTime="0:0:2.4" Value="1.0"/>
+            </DoubleAnimationUsingKeyFrames>
+        </Storyboard>
+    </UserControl.Resources>
+
     <DockPanel>
         <!-- Header -->
         <StackPanel DockPanel.Dock="Top" Margin="0,0,0,16">
@@ -40,6 +51,13 @@
                     </Button>
                 </StackPanel>
             </Grid>
+
+            <!-- Month Summary Bar -->
+            <Border x:Name="SummaryBar" CornerRadius="8" Padding="16,10"
+                    Background="{DynamicResource MaterialDesignCardBackground}"
+                    Margin="0,12,0,0" Visibility="Collapsed">
+                <StackPanel x:Name="SummaryPanel" Orientation="Horizontal" />
+            </Border>
         </StackPanel>
 
         <!-- Calendar Grid -->

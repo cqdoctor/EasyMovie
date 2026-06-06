@@ -48,7 +48,9 @@ public partial class MovieRelationView : UserControl
     private async Task LoadDataAsync()
     {
         var movies = await _context.Movies
-            .Where(m => !string.IsNullOrEmpty(m.Director) || !string.IsNullOrEmpty(m.Cast))
+            .Include(m => m.MovieTags).ThenInclude(mt => mt.Tag)
+            .Where(m => !string.IsNullOrEmpty(m.Director) || !string.IsNullOrEmpty(m.Cast)
+                || !string.IsNullOrEmpty(m.Country) || m.MovieTags.Any() || m.Year > 0)
             .ToListAsync();
 
         BuildGraph(movies);
@@ -108,12 +110,18 @@ public partial class MovieRelationView : UserControl
 
         var showDirector = ShowDirectorLinks.IsChecked == true;
         var showActor = ShowActorLinks.IsChecked == true;
+        var showGenre = ShowGenreLinks.IsChecked == true;
+        var showCountry = ShowCountryLinks.IsChecked == true;
+        var showDecade = ShowDecadeLinks.IsChecked == true;
         var minLinks = 0;
         if (MinLinksCombo.SelectedItem is ComboBoxItem ci && ci.Tag is string tag && int.TryParse(tag, out var ml))
             minLinks = ml;
 
         var directorMap = new Dictionary<string, List<int>>();
         var actorMap = new Dictionary<string, List<int>>();
+        var genreMap = new Dictionary<string, List<int>>();
+        var countryMap = new Dictionary<string, List<int>>();
+        var decadeMap = new Dictionary<int, List<int>>();
 
         foreach (var m in movies)
         {
@@ -132,6 +140,30 @@ public partial class MovieRelationView : UserControl
                     if (!actorMap.ContainsKey(a)) actorMap[a] = new List<int>();
                     actorMap[a].Add(m.Id);
                 }
+            }
+            if (showGenre)
+            {
+                foreach (var mt in m.MovieTags)
+                {
+                    var tagName = mt.Tag?.Name;
+                    if (string.IsNullOrEmpty(tagName)) continue;
+                    if (!genreMap.ContainsKey(tagName)) genreMap[tagName] = new List<int>();
+                    genreMap[tagName].Add(m.Id);
+                }
+            }
+            if (showCountry && !string.IsNullOrEmpty(m.Country))
+            {
+                foreach (var c in SplitBySlash(m.Country))
+                {
+                    if (!countryMap.ContainsKey(c)) countryMap[c] = new List<int>();
+                    countryMap[c].Add(m.Id);
+                }
+            }
+            if (showDecade && m.Year > 0)
+            {
+                var decade = m.Year / 10 * 10;
+                if (!decadeMap.ContainsKey(decade)) decadeMap[decade] = new List<int>();
+                decadeMap[decade].Add(m.Id);
             }
         }
 
@@ -152,8 +184,26 @@ public partial class MovieRelationView : UserControl
             }
         }
 
+        void AddDecadeLinks(Dictionary<int, List<int>> map)
+        {
+            foreach (var kv in map)
+            {
+                var ids = kv.Value.Distinct().ToList();
+                if (ids.Count < 2) continue;
+                for (int i = 0; i < ids.Count; i++)
+                    for (int j = i + 1; j < ids.Count; j++)
+                    {
+                        var (a, b) = ids[i] < ids[j] ? (ids[i], ids[j]) : (ids[j], ids[i]);
+                        linkPairs.Add((a, b, kv.Key.ToString(), "decade"));
+                    }
+            }
+        }
+
         AddLinks(directorMap, "director");
         AddLinks(actorMap, "actor");
+        AddLinks(genreMap, "genre");
+        AddLinks(countryMap, "country");
+        AddDecadeLinks(decadeMap);
 
         var movieLinkCount = new Dictionary<int, int>();
         foreach (var (id1, id2, _, _) in linkPairs)
@@ -193,7 +243,10 @@ public partial class MovieRelationView : UserControl
                 mergedLinks[key] = new MovieLink { SourceId = key.Item1, TargetId = key.Item2 };
             var link = mergedLinks[key];
             if (type == "director") { link.HasDirectorLink = true; link.DirectorNames.Add(person); }
-            else { link.HasActorLink = true; link.ActorNames.Add(person); }
+            else if (type == "actor") { link.HasActorLink = true; link.ActorNames.Add(person); }
+            else if (type == "genre") { link.HasGenreLink = true; link.GenreNames.Add(person); }
+            else if (type == "country") { link.HasCountryLink = true; link.CountryNames.Add(person); }
+            else if (type == "decade") { link.HasDecadeLink = true; link.DecadeLabel = person; }
         }
 
         _links = mergedLinks.Values.ToList();
@@ -205,6 +258,13 @@ public partial class MovieRelationView : UserControl
     private static IEnumerable<string> SplitPeople(string text)
     {
         return text.Split(new[] { ", ", "、", " / ", "/", ", " }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(p => p.Trim())
+            .Where(p => !string.IsNullOrEmpty(p) && p.Length < 20);
+    }
+
+    private static IEnumerable<string> SplitBySlash(string text)
+    {
+        return text.Split(new[] { " / ", "/", "、", ", " }, StringSplitOptions.RemoveEmptyEntries)
             .Select(p => p.Trim())
             .Where(p => !string.IsNullOrEmpty(p) && p.Length < 20);
     }
@@ -269,37 +329,51 @@ public partial class MovieRelationView : UserControl
             if (!nodeDict.TryGetValue(link.SourceId, out var src) ||
                 !nodeDict.TryGetValue(link.TargetId, out var tgt)) continue;
 
+            var isMultiLink = link.LinkTypeCount > 1;
             var line = new Line
             {
                 X1 = src.X, Y1 = src.Y,
                 X2 = tgt.X, Y2 = tgt.Y,
-                StrokeThickness = link.HasDirectorLink && link.HasActorLink ? 2.5 : 1.5,
+                StrokeThickness = isMultiLink ? 2.5 : 1.5,
                 Opacity = 0.5
             };
 
-            if (link.HasDirectorLink && link.HasActorLink)
+            // 多种关系用紫色，否则用对应类型颜色
+            if (isMultiLink)
                 line.Stroke = new SolidColorBrush(Color.FromRgb(0x9C, 0x27, 0xB0));
             else if (link.HasDirectorLink)
                 line.Stroke = new SolidColorBrush(Color.FromRgb(0x7C, 0x4D, 0xFF));
-            else
+            else if (link.HasActorLink)
                 line.Stroke = new SolidColorBrush(Color.FromRgb(0x26, 0xA6, 0x9A));
+            else if (link.HasGenreLink)
+                line.Stroke = new SolidColorBrush(Color.FromRgb(0xFF, 0x98, 0x00));
+            else if (link.HasCountryLink)
+                line.Stroke = new SolidColorBrush(Color.FromRgb(0x21, 0x96, 0xF3));
+            else if (link.HasDecadeLink)
+                line.Stroke = new SolidColorBrush(Color.FromRgb(0x00, 0x96, 0x88));
 
-            // 连接线 Tooltip 显示关联人物
+            // 连接线 Tooltip 显示关联详情
             var tipParts = new List<string>();
             if (link.HasDirectorLink) tipParts.Add($"🎬 {LanguageManager.GetString("Relation_DirectorLabel")}: {string.Join(", ", link.DirectorNames)}");
             if (link.HasActorLink) tipParts.Add($"🎭 {LanguageManager.GetString("Relation_ActorLabel")}: {string.Join(", ", link.ActorNames)}");
+            if (link.HasGenreLink) tipParts.Add($"🏷️ {LanguageManager.GetString("Relation_GenreLabel")}: {string.Join(", ", link.GenreNames)}");
+            if (link.HasCountryLink) tipParts.Add($"🌍 {LanguageManager.GetString("Relation_CountryLabel")}: {string.Join(", ", link.CountryNames)}");
+            if (link.HasDecadeLink) tipParts.Add($"📅 {LanguageManager.GetString("Relation_DecadeLabel")}: {link.DecadeLabel}s");
             line.ToolTip = string.Join("\n", tipParts);
 
             GraphCanvas.Children.Add(line);
 
-            // 在连接线中点显示关联人物名称
+            // 在连接线中点显示关联标签
             var midX = (src.X + tgt.X) / 2;
             var midY = (src.Y + tgt.Y) / 2;
 
-            // 最多显示2个人名，避免太拥挤
+            // 最多显示2个标签，避免太拥挤
             var names = new List<string>();
             if (link.HasDirectorLink) names.AddRange(link.DirectorNames.Take(1));
             if (link.HasActorLink) names.AddRange(link.ActorNames.Take(1));
+            if (names.Count == 0 && link.HasGenreLink) names.AddRange(link.GenreNames.Take(1));
+            if (names.Count == 0 && link.HasCountryLink) names.AddRange(link.CountryNames.Take(1));
+            if (names.Count == 0 && link.HasDecadeLink) names.Add(link.DecadeLabel + "s");
             var labelText = string.Join(", ", names);
             if (labelText.Length > 10) labelText = labelText[..10] + "…";
 
@@ -447,6 +521,9 @@ public partial class MovieRelationView : UserControl
                 var parts = new List<string>();
                 if (link.HasDirectorLink) parts.Add($"🎬{string.Join(",", link.DirectorNames)}");
                 if (link.HasActorLink) parts.Add($"🎭{string.Join(",", link.ActorNames.Take(2))}");
+                if (link.HasGenreLink) parts.Add($"🏷️{string.Join(",", link.GenreNames.Take(2))}");
+                if (link.HasCountryLink) parts.Add($"🌍{string.Join(",", link.CountryNames)}");
+                if (link.HasDecadeLink) parts.Add($"📅{link.DecadeLabel}s");
                 linkDetails.Add($"→ {otherNode.Title} ({string.Join(" ", parts)})");
             }
             TooltipLinks.Text = string.Join("\n", linkDetails.Take(5));
@@ -569,6 +646,16 @@ internal class MovieLink
     public int TargetId { get; set; }
     public bool HasDirectorLink { get; set; }
     public bool HasActorLink { get; set; }
+    public bool HasGenreLink { get; set; }
+    public bool HasCountryLink { get; set; }
+    public bool HasDecadeLink { get; set; }
     public List<string> DirectorNames { get; set; } = new();
     public List<string> ActorNames { get; set; } = new();
+    public List<string> GenreNames { get; set; } = new();
+    public List<string> CountryNames { get; set; } = new();
+    public string? DecadeLabel { get; set; }
+
+    public int LinkTypeCount =>
+        (HasDirectorLink ? 1 : 0) + (HasActorLink ? 1 : 0) +
+        (HasGenreLink ? 1 : 0) + (HasCountryLink ? 1 : 0) + (HasDecadeLink ? 1 : 0);
 }

@@ -7,8 +7,14 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <NoWarn>NU1701</NoWarn>
+    <ApplicationIcon>app.ico</ApplicationIcon>
     <Version>1.02</Version>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="app.ico" />
+    <Resource Include="transparent.ico" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\EasyMovie.Core\EasyMovie.Core.csproj" />
@@ -18,7 +24,6 @@
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
-    <PackageReference Include="LiveChartsCore.SkiaSharpView.WPF" Version="2.0.0" />
     <PackageReference Include="MaterialDesignThemes" Version="5.2.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.0">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

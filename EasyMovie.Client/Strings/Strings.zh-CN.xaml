@@ -2,6 +2,7 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:sys="clr-namespace:System;assembly=mscorlib">
     <!-- MainWindow -->
+    <sys:String x:Key="Nav_Dashboard">数据概览</sys:String>
     <sys:String x:Key="Nav_Movies">电影库</sys:String>
     <sys:String x:Key="Nav_Favorites">我的收藏</sys:String>
     <sys:String x:Key="Nav_Watchlist">待看清单</sys:String>
@@ -82,6 +83,10 @@
     <sys:String x:Key="MovieLib_BatchNoSelection">请先选择电影</sys:String>
     <sys:String x:Key="MovieLib_PrevPage">上一页</sys:String>
     <sys:String x:Key="MovieLib_NextPage">下一页</sys:String>
+    <sys:String x:Key="MovieLib_FirstPage">首页</sys:String>
+    <sys:String x:Key="MovieLib_LastPage">末页</sys:String>
+    <sys:String x:Key="MovieLib_GotoPage">跳转到</sys:String>
+    <sys:String x:Key="MovieLib_GotoPageBtn">跳转</sys:String>
     <sys:String x:Key="MovieLib_WatchingBar">正在观看：{0}</sys:String>
     <sys:String x:Key="MovieLib_MarkWatched">标记为已看</sys:String>
     <sys:String x:Key="MovieLib_Close">关闭</sys:String>
@@ -150,6 +155,20 @@
     <sys:String x:Key="Stats_MinutesUnit">分钟</sys:String>
     <sys:String x:Key="Stats_HourFormat">{0}小时{1}分钟</sys:String>
     <sys:String x:Key="Stats_MoviesUnit">部</sys:String>
+    <sys:String x:Key="Stats_GenreDist">类型分布</sys:String>
+    <sys:String x:Key="Stats_CompletionRate">观影完成率</sys:String>
+    <sys:String x:Key="Stats_ThisYear">今年观影</sys:String>
+    <sys:String x:Key="Stats_ThisYearMovies">部</sys:String>
+    <sys:String x:Key="Stats_DayOfWeek">最活跃星期</sys:String>
+    <sys:String x:Key="Stats_LongestStreak">最长连续观影</sys:String>
+    <sys:String x:Key="Stats_Days">天</sys:String>
+    <sys:String x:Key="Stats_Mon">周一</sys:String>
+    <sys:String x:Key="Stats_Tue">周二</sys:String>
+    <sys:String x:Key="Stats_Wed">周三</sys:String>
+    <sys:String x:Key="Stats_Thu">周四</sys:String>
+    <sys:String x:Key="Stats_Fri">周五</sys:String>
+    <sys:String x:Key="Stats_Sat">周六</sys:String>
+    <sys:String x:Key="Stats_Sun">周日</sys:String>
     <sys:String x:Key="Backup_Title">💾 数据备份</sys:String>
     <sys:String x:Key="Backup_Interval">自动备份间隔</sys:String>
     <sys:String x:Key="Backup_Daily">每天</sys:String>
@@ -314,6 +333,7 @@
     <!-- Watch Log / Diary -->
     <sys:String x:Key="Nav_Calendar">观影日历</sys:String>
     <sys:String x:Key="Nav_Relation">关系网</sys:String>
+    <sys:String x:Key="Nav_News">影视资讯</sys:String>
     <sys:String x:Key="WatchLog_Title">观影记录</sys:String>
     <sys:String x:Key="WatchLog_AddTitle">记录观影</sys:String>
     <sys:String x:Key="WatchLog_EditTitle">编辑观影记录</sys:String>
@@ -345,6 +365,13 @@
     <sys:String x:Key="Calendar_Sun">周日</sys:String>
     <sys:String x:Key="Calendar_NoRecords">—</sys:String>
     <sys:String x:Key="Calendar_MoviesWatched">部</sys:String>
+    <sys:String x:Key="Calendar_SummaryMovies">🎬 本月观影</sys:String>
+    <sys:String x:Key="Calendar_SummaryHours">⏱ 观影时长</sys:String>
+    <sys:String x:Key="Calendar_SummaryGenre">🏆 最爱类型</sys:String>
+    <sys:String x:Key="Calendar_SummaryMoviesCount">{0} 部</sys:String>
+    <sys:String x:Key="Calendar_SummaryHoursValue">{0} 小时</sys:String>
+    <sys:String x:Key="Calendar_NoGenre">—</sys:String>
+    <sys:String x:Key="Calendar_RatingStar">⭐</sys:String>
 
     <!-- OnlineSearchView -->
     <sys:String x:Key="OnlineSearch_Title">🌐 在线搜索添加电影</sys:String>
@@ -410,15 +437,44 @@
     <sys:String x:Key="Relation_Title">电影关系网</sys:String>
     <sys:String x:Key="Relation_DirectorLink">导演关联</sys:String>
     <sys:String x:Key="Relation_ActorLink">演员关联</sys:String>
+    <sys:String x:Key="Relation_GenreLink">同类型</sys:String>
+    <sys:String x:Key="Relation_CountryLink">同国家</sys:String>
+    <sys:String x:Key="Relation_DecadeLink">同年代</sys:String>
     <sys:String x:Key="Relation_AllNodes">全部</sys:String>
     <sys:String x:Key="Relation_Refresh">刷新</sys:String>
     <sys:String x:Key="Relation_Summary">{0} 部电影 · {1} 条关联</sys:String>
     <sys:String x:Key="Relation_Connections">条关联</sys:String>
     <sys:String x:Key="Relation_Legend">图例</sys:String>
     <sys:String x:Key="Relation_BothLink">导演+演员</sys:String>
+    <sys:String x:Key="Relation_MultiLink">多重关联</sys:String>
     <sys:String x:Key="Relation_DirectorLabel">导演</sys:String>
     <sys:String x:Key="Relation_ActorLabel">演员</sys:String>
+    <sys:String x:Key="Relation_GenreLabel">类型</sys:String>
+    <sys:String x:Key="Relation_CountryLabel">国家</sys:String>
+    <sys:String x:Key="Relation_DecadeLabel">年代</sys:String>
     <sys:String x:Key="Settings_CatTagHint">管理电影的分类和标签，分类为层级结构（如国家），标签为灵活标记（如科幻、经典）。</sys:String>
     <sys:String x:Key="Settings_ManageCatTag">管理分类与标签</sys:String>
     <sys:String x:Key="CatTag_CustomColor">自定义颜色</sys:String>
+
+    <!-- Movie News -->
+    <sys:String x:Key="News_Title">📰 影视资讯</sys:String>
+    <sys:String x:Key="News_ComingSoon">即将上映</sys:String>
+    <sys:String x:Key="News_NowPlaying">本周热映</sys:String>
+    <sys:String x:Key="News_Top250">豆瓣 Top250</sys:String>
+    <sys:String x:Key="News_MaoyanHot">猫眼榜单</sys:String>
+    <sys:String x:Key="News_Refresh">刷新</sys:String>
+    <sys:String x:Key="News_Loading">加载中...</sys:String>
+    <sys:String x:Key="News_NoData">暂无数据，请检查网络连接</sys:String>
+    <sys:String x:Key="News_AddConfirm">将「{0}」添加到电影库？</sys:String>
+    <sys:String x:Key="News_LoadMore">加载更多</sys:String>
+
+    <!-- Dashboard -->
+    <sys:String x:Key="Dashboard_Title">📊 数据概览</sys:String>
+    <sys:String x:Key="Dashboard_TotalMovies">电影总数</sys:String>
+    <sys:String x:Key="Dashboard_MonthWatched">本月观影</sys:String>
+    <sys:String x:Key="Dashboard_TotalHours">观影时长</sys:String>
+    <sys:String x:Key="Dashboard_AvgRating">平均评分</sys:String>
+    <sys:String x:Key="Dashboard_Favorites">我的收藏</sys:String>
+    <sys:String x:Key="Dashboard_RecentlyAdded">最近添加</sys:String>
+    <sys:String x:Key="Dashboard_RecentlyWatched">最近观看</sys:String>
 </ResourceDictionary>
