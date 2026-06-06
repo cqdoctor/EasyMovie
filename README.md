@@ -9,6 +9,15 @@
 ![SQLite](https://img.shields.io/badge/SQLite-EF_Core_9-003B57?logo=sqlite)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
+## 📸 界面截图
+
+<p align="center">
+  <img src="screenshots/dashboard.png" alt="数据概览" width="45%" />
+  <img src="screenshots/library.png" alt="电影库" width="45%" />
+  <img src="screenshots/statistics.png" alt="统计面板" width="45%" />
+  <img src="screenshots/calendar.png" alt="观影日历" width="45%" />
+</p>
+
 ## ✨ 功能特性
 
 ### 🏠 数据概览
@@ -168,6 +177,8 @@ dotnet run --project EasyMovie.Client/EasyMovie.Client.csproj
 
 MIT License
 
+> 💡 如果觉得有用，请给个 Star ⭐ 支持一下！
+
 ---
 
 # 🎬 EasyMovie — Manage Your Movie Collection with Ease
@@ -178,6 +189,15 @@ A Windows desktop movie collection manager built with WPF + Material Design + SQ
 ![WPF](https://img.shields.io/badge/WPF-Material_Design-68217A)
 ![SQLite](https://img.shields.io/badge/SQLite-EF_Core_9-003B57?logo=sqlite)
 ![License](https://img.shields.io/badge/License-MIT-green)
+
+## 📸 Screenshots
+
+<p align="center">
+  <img src="screenshots/dashboard.png" alt="Dashboard" width="45%" />
+  <img src="screenshots/library.png" alt="Library" width="45%" />
+  <img src="screenshots/statistics.png" alt="Statistics" width="45%" />
+  <img src="screenshots/calendar.png" alt="Calendar" width="45%" />
+</p>
 
 ## ✨ Features
 
@@ -337,3 +357,5 @@ dotnet run --project EasyMovie.Client/EasyMovie.Client.csproj
 ## 📄 License
 
 MIT License
+
+> 💡 If you find this project useful, please give it a Star ⭐!
