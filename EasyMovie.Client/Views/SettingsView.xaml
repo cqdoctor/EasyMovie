@@ -124,6 +124,8 @@
                         <!-- 备份历史 -->
                         <TextBlock Grid.Row="7" Text="{DynamicResource Backup_History}" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,4"/>
                         <ListBox Grid.Row="8" x:Name="BackupHistoryList" MaxHeight="200"
+                                 ScrollViewer.CanContentScroll="False"
+                                 PreviewMouseWheel="BackupHistoryList_PreviewMouseWheel"
                                  materialDesign:ListBoxItemAssist.ShowSelection="False" Margin="0,0,0,0">
                             <ListBox.ItemTemplate>
                                 <DataTemplate>

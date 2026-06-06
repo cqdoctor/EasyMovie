@@ -27,6 +27,15 @@
                     <CheckBox x:Name="ShowActorLinks" Content="{DynamicResource Relation_ActorLink}"
                               IsChecked="True" Margin="0,0,12,0"
                               Checked="Filter_Changed" Unchecked="Filter_Changed" />
+                    <CheckBox x:Name="ShowGenreLinks" Content="{DynamicResource Relation_GenreLink}"
+                              Margin="0,0,12,0"
+                              Checked="Filter_Changed" Unchecked="Filter_Changed" />
+                    <CheckBox x:Name="ShowCountryLinks" Content="{DynamicResource Relation_CountryLink}"
+                              Margin="0,0,12,0"
+                              Checked="Filter_Changed" Unchecked="Filter_Changed" />
+                    <CheckBox x:Name="ShowDecadeLinks" Content="{DynamicResource Relation_DecadeLink}"
+                              Margin="0,0,12,0"
+                              Checked="Filter_Changed" Unchecked="Filter_Changed" />
                     <ComboBox x:Name="MinLinksCombo" Width="100" Margin="0,0,8,0"
                               SelectionChanged="Filter_Changed">
                         <ComboBoxItem Content="{DynamicResource Relation_AllNodes}" Tag="0" />
@@ -79,8 +88,20 @@
                             <TextBlock Text="{DynamicResource Relation_ActorLink}" FontSize="10" Foreground="#BBBBBB" />
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,2">
+                            <Rectangle Width="24" Height="3" Fill="#FF9800" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <TextBlock Text="{DynamicResource Relation_GenreLink}" FontSize="10" Foreground="#BBBBBB" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,2">
+                            <Rectangle Width="24" Height="3" Fill="#2196F3" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <TextBlock Text="{DynamicResource Relation_CountryLink}" FontSize="10" Foreground="#BBBBBB" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,2">
+                            <Rectangle Width="24" Height="3" Fill="#009688" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <TextBlock Text="{DynamicResource Relation_DecadeLink}" FontSize="10" Foreground="#BBBBBB" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,2">
                             <Rectangle Width="24" Height="3" Fill="#9C27B0" VerticalAlignment="Center" Margin="0,0,6,0" />
-                            <TextBlock Text="{DynamicResource Relation_BothLink}" FontSize="10" Foreground="#BBBBBB" />
+                            <TextBlock Text="{DynamicResource Relation_MultiLink}" FontSize="10" Foreground="#BBBBBB" />
                         </StackPanel>
                     </StackPanel>
                 </Border>

@@ -5,11 +5,17 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
         xmlns:local="clr-namespace:EasyMovie.Client"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         mc:Ignorable="d"
-        Title="🎬 EasyMovie" Height="720" Width="1280"
-        Icon="{x:Null}"
+        Height="720" Width="1280"
+        Icon="pack://application:,,,/transparent.ico"
         WindowStartupLocation="CenterScreen"
         Background="{DynamicResource MaterialDesignPaper}">
+
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="32" GlassFrameThickness="0"
+                            ResizeBorderThickness="4" />
+    </shell:WindowChrome.WindowChrome>
 
     <Window.CommandBindings>
         <CommandBinding Command="{x:Static local:MainWindow.SearchCommand}" Executed="Search_Executed" />
@@ -29,6 +35,7 @@
 
     <Grid>
         <Grid.RowDefinitions>
+            <RowDefinition Height="32" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
@@ -37,8 +44,37 @@
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
 
+        <!-- 自定义标题栏 -->
+        <Border Grid.Row="0" Grid.ColumnSpan="2"
+                Background="{DynamicResource {x:Static SystemColors.ActiveCaptionBrushKey}}"
+                shell:WindowChrome.IsHitTestVisibleInChrome="True">
+            <Grid MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                <TextBlock Text="🎬 EasyMovie" FontSize="12"
+                           Foreground="{DynamicResource {x:Static SystemColors.ActiveCaptionTextBrushKey}}"
+                           VerticalAlignment="Center" Margin="8,0,0,0" />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
+                            shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                    <Button Content="&#xE921;" Style="{StaticResource MaterialDesignFlatButton}"
+                            FontFamily="Segoe MDL2 Assets" FontSize="10"
+                            Foreground="{DynamicResource {x:Static SystemColors.ActiveCaptionTextBrushKey}}"
+                            Width="46" Height="32"
+                            Click="MinimizeWindow_Click" />
+                    <Button x:Name="MaximizeBtn" Content="&#xE922;" Style="{StaticResource MaterialDesignFlatButton}"
+                            FontFamily="Segoe MDL2 Assets" FontSize="10"
+                            Foreground="{DynamicResource {x:Static SystemColors.ActiveCaptionTextBrushKey}}"
+                            Width="46" Height="32"
+                            Click="MaximizeWindow_Click" />
+                    <Button Content="&#xE8BB;" Style="{StaticResource MaterialDesignFlatButton}"
+                            FontFamily="Segoe MDL2 Assets" FontSize="10"
+                            Foreground="{DynamicResource {x:Static SystemColors.ActiveCaptionTextBrushKey}}"
+                            Width="46" Height="32"
+                            Click="CloseWindow_Click" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
         <!-- 左侧导航栏 -->
-        <Border Grid.Column="0" Grid.RowSpan="2"
+        <Border Grid.Column="0" Grid.Row="1" Grid.RowSpan="2"
                 Background="{DynamicResource MaterialDesignPaper}"
                 CornerRadius="0">
             <Grid>
@@ -62,6 +98,12 @@
                          Style="{StaticResource MaterialDesignListBox}"
                          SelectionChanged="NavListBox_SelectionChanged"
                          Margin="0,8">
+                    <ListBoxItem Tag="Dashboard">
+                        <StackPanel Orientation="Horizontal">
+                            <materialDesign:PackIcon Kind="ViewDashboard" Margin="0,0,12,0" />
+                            <TextBlock Text="{DynamicResource Nav_Dashboard}" />
+                        </StackPanel>
+                    </ListBoxItem>
                     <ListBoxItem Tag="Movies">
                         <StackPanel Orientation="Horizontal">
                             <materialDesign:PackIcon Kind="MovieOpen" Margin="0,0,12,0" />
@@ -84,6 +126,12 @@
                         <StackPanel Orientation="Horizontal">
                             <materialDesign:PackIcon Kind="Graph" Margin="0,0,12,0" />
                             <TextBlock Text="{DynamicResource Nav_Relation}" />
+                        </StackPanel>
+                    </ListBoxItem>
+                    <ListBoxItem Tag="News">
+                        <StackPanel Orientation="Horizontal">
+                            <materialDesign:PackIcon Kind="NewspaperVariant" Margin="0,0,12,0" />
+                            <TextBlock Text="{DynamicResource Nav_News}" />
                         </StackPanel>
                     </ListBoxItem>
                     <ListBoxItem Tag="Settings">
@@ -143,7 +191,7 @@
         </Border>
 
         <!-- 右侧内容区 -->
-        <Border Grid.Column="1" Grid.Row="0"
+        <Border Grid.Column="1" Grid.Row="1"
                 Background="{DynamicResource MaterialDesignBackground}"
                 CornerRadius="12,0,0,0"
                 Padding="24" Grid.RowSpan="2">
@@ -151,7 +199,7 @@
         </Border>
 
         <!-- 底部状态栏 -->
-        <Border Grid.Column="0" Grid.ColumnSpan="2" Grid.Row="1"
+        <Border Grid.Column="0" Grid.ColumnSpan="2" Grid.Row="2"
                 Background="{DynamicResource MaterialDesignCardBackground}"
                 BorderBrush="{DynamicResource MaterialDesignDivider}"
                 BorderThickness="0,1,0,0"

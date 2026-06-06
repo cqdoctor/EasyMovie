@@ -2,6 +2,8 @@ using System;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
 using Microsoft.Win32;
 using EasyMovie.Core.Interfaces;
 using EasyMovie.Core.Services;
@@ -99,6 +101,7 @@ public partial class SettingsView : UserControl
 
     private void ManageCatTag_Click(object sender, RoutedEventArgs e)
     {
+        var owner = Window.GetWindow(this);
         var dlg = new Window
         {
             Title = LanguageManager.GetString("CatTag_Title"),
@@ -106,33 +109,36 @@ public partial class SettingsView : UserControl
             Width = 900,
             Height = 600,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            Owner = Window.GetWindow(this)
+            Owner = owner,
+            ShowInTaskbar = false
         };
-        dlg.SourceInitialized += (s, args) =>
-        {
-            // 使用 Win32 API 去掉窗口图标
-            var hwnd = new System.Runtime.InteropServices.HandleRef(null, new System.Windows.Interop.WindowInteropHelper(dlg).Handle);
-            var style = GetWindowLong(hwnd, GWL_EXSTYLE);
-            SetWindowLong(hwnd, GWL_EXSTYLE, style | WS_EX_DLGMODALFRAME);
-            // 发送 WM_SETICON 消息移除图标
-            SendMessage(hwnd.Handle, WM_SETICON, IntPtr.Zero, IntPtr.Zero);
-            SendMessage(hwnd.Handle, WM_SETICON, (IntPtr)1, IntPtr.Zero);
-        };
+        dlg.SourceInitialized += (_, _) => RemoveIcon(dlg);
         dlg.ShowDialog();
     }
 
+    private static void RemoveIcon(Window window)
+    {
+        var hwnd = new System.Windows.Interop.WindowInteropHelper(window).Handle;
+        var extendedStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
+        SetWindowLong(hwnd, GWL_EXSTYLE, extendedStyle | WS_EX_DLGMODALFRAME);
+        SetWindowPos(hwnd, IntPtr.Zero, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
+    }
+
     private const int GWL_EXSTYLE = -20;
-    private const int WS_EX_DLGMODALFRAME = 0x00000001;
-    private const uint WM_SETICON = 0x0080;
+    private const int WS_EX_DLGMODALFRAME = 0x0001;
+    private const uint SWP_NOSIZE = 0x0001;
+    private const uint SWP_NOMOVE = 0x0002;
+    private const uint SWP_NOZORDER = 0x0004;
+    private const uint SWP_FRAMECHANGED = 0x0020;
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]
-    private static extern int GetWindowLong(System.Runtime.InteropServices.HandleRef hWnd, int nIndex);
+    private static extern int GetWindowLong(IntPtr hwnd, int nIndex);
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]
-    private static extern int SetWindowLong(System.Runtime.InteropServices.HandleRef hWnd, int nIndex, int dwNewLong);
+    private static extern int SetWindowLong(IntPtr hwnd, int nIndex, int dwNewLong);
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]
-    private static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+    private static extern bool SetWindowPos(IntPtr hwnd, IntPtr hwndInsertAfter, int x, int y, int width, int height, uint flags);
 
     private void DetectDuplicates_Click(object sender, RoutedEventArgs e)
     {
@@ -230,6 +236,29 @@ public partial class SettingsView : UserControl
             RefreshBackupHistory();
         }
         catch (Exception ex) { AppMessageBox.ShowError(ex.Message); }
+    }
+
+    private void BackupHistoryList_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (sender is not ListBox listBox) return;
+        e.Handled = true;
+
+        // Re-raise the event as a bubbling MouseWheelEvent on the parent ScrollViewer
+        var parent = VisualTreeHelper.GetParent(listBox);
+        while (parent != null)
+        {
+            if (parent is ScrollViewer sv)
+            {
+                var e2 = new MouseWheelEventArgs(e.MouseDevice, e.Timestamp, e.Delta)
+                {
+                    RoutedEvent = UIElement.MouseWheelEvent,
+                    Source = sender
+                };
+                sv.RaiseEvent(e2);
+                break;
+            }
+            parent = VisualTreeHelper.GetParent(parent);
+        }
     }
 
     #endregion

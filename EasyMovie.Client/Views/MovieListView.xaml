@@ -652,13 +652,27 @@
         <!-- 分页 -->
         <Border x:Name="PaginationBorder" Grid.Row="4" Margin="0,12,0,0">
             <Grid>
-                <TextBlock x:Name="PageInfo" VerticalAlignment="Center"
+                <TextBlock x:Name="PageInfo" VerticalAlignment="Center" FontSize="13"
                            Foreground="{DynamicResource MaterialDesignHintForeground}" />
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <Button Content="{DynamicResource MovieLib_FirstPage}" Style="{StaticResource MaterialDesignFlatButton}"
+                            x:Name="FirstPageBtn" Click="FirstPage_Click" FontSize="13" />
                     <Button Content="{DynamicResource MovieLib_PrevPage}" Style="{StaticResource MaterialDesignFlatButton}"
-                            x:Name="PrevPageBtn" Click="PrevPage_Click" />
+                            x:Name="PrevPageBtn" Click="PrevPage_Click" FontSize="13" />
                     <Button Content="{DynamicResource MovieLib_NextPage}" Style="{StaticResource MaterialDesignFlatButton}"
-                            x:Name="NextPageBtn" Click="NextPage_Click" />
+                            x:Name="NextPageBtn" Click="NextPage_Click" FontSize="13" />
+                    <Button Content="{DynamicResource MovieLib_LastPage}" Style="{StaticResource MaterialDesignFlatButton}"
+                            x:Name="LastPageBtn" Click="LastPage_Click" FontSize="13" />
+                    <TextBlock Text="{DynamicResource MovieLib_GotoPage}" VerticalAlignment="Center"
+                               Margin="12,0,4,0" FontSize="13" Foreground="{DynamicResource MaterialDesignBodyLight}" />
+                    <TextBox x:Name="PageJumpBox" Width="40" Height="24" VerticalAlignment="Center"
+                             VerticalContentAlignment="Center" HorizontalContentAlignment="Center"
+                             FontSize="13" Padding="0"
+                             Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                             PreviewTextInput="PageJumpBox_PreviewTextInput"
+                             KeyDown="PageJumpBox_KeyDown" />
+                    <Button Content="{DynamicResource MovieLib_GotoPageBtn}" Style="{StaticResource MaterialDesignFlatButton}"
+                            x:Name="PageJumpBtn" Click="PageJumpBtn_Click" Margin="2,0,0,0" FontSize="13" />
                 </StackPanel>
             </Grid>
         </Border>

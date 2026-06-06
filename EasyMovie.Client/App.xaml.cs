@@ -1,10 +1,7 @@
 using System;
 using System.Windows;
 using System.Windows.Threading;
-using LiveChartsCore;
-using LiveChartsCore.SkiaSharpView;
 using Serilog;
-using SkiaSharp;
 
 namespace EasyMovie.Client;
 
@@ -18,16 +15,6 @@ public partial class App : Application
 
         // 初始化语言
         LanguageManager.Initialize();
-
-        // 注册 LiveCharts SkiaSharp 渲染器 + 中文字体
-        LiveCharts.Configure(config => config
-            .AddSkiaSharp()
-            .AddDefaultMappers()
-            .AddDefaultTheme()
-            .HasTextSettings(new LiveChartsCore.SkiaSharpView.TextSettings
-            {
-                DefaultTypeface = SKFontManager.Default.MatchCharacter('汉')
-            }));
 
         Log.Logger = new LoggerConfiguration()
             .MinimumLevel.Information()

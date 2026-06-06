@@ -2,6 +2,7 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:sys="clr-namespace:System;assembly=mscorlib">
     <!-- MainWindow -->
+    <sys:String x:Key="Nav_Dashboard">Dashboard</sys:String>
     <sys:String x:Key="Nav_Movies">Movie Library</sys:String>
     <sys:String x:Key="Nav_Favorites">My Favorites</sys:String>
     <sys:String x:Key="Nav_Watchlist">Watchlist</sys:String>
@@ -82,6 +83,10 @@
     <sys:String x:Key="MovieLib_BatchNoSelection">Please select movies first</sys:String>
     <sys:String x:Key="MovieLib_PrevPage">Previous</sys:String>
     <sys:String x:Key="MovieLib_NextPage">Next</sys:String>
+    <sys:String x:Key="MovieLib_FirstPage">First</sys:String>
+    <sys:String x:Key="MovieLib_LastPage">Last</sys:String>
+    <sys:String x:Key="MovieLib_GotoPage">Go to</sys:String>
+    <sys:String x:Key="MovieLib_GotoPageBtn">Go</sys:String>
     <sys:String x:Key="MovieLib_WatchingBar">Now Playing: {0}</sys:String>
     <sys:String x:Key="MovieLib_MarkWatched">Mark as Watched</sys:String>
     <sys:String x:Key="MovieLib_Close">Close</sys:String>
@@ -150,6 +155,20 @@
     <sys:String x:Key="Stats_MinutesUnit">min</sys:String>
     <sys:String x:Key="Stats_HourFormat">{0}h {1}min</sys:String>
     <sys:String x:Key="Stats_MoviesUnit">movies</sys:String>
+    <sys:String x:Key="Stats_GenreDist">Genre Distribution</sys:String>
+    <sys:String x:Key="Stats_CompletionRate">Completion Rate</sys:String>
+    <sys:String x:Key="Stats_ThisYear">This Year</sys:String>
+    <sys:String x:Key="Stats_ThisYearMovies">movies</sys:String>
+    <sys:String x:Key="Stats_DayOfWeek">Most Active Day</sys:String>
+    <sys:String x:Key="Stats_LongestStreak">Longest Streak</sys:String>
+    <sys:String x:Key="Stats_Days">days</sys:String>
+    <sys:String x:Key="Stats_Mon">Mon</sys:String>
+    <sys:String x:Key="Stats_Tue">Tue</sys:String>
+    <sys:String x:Key="Stats_Wed">Wed</sys:String>
+    <sys:String x:Key="Stats_Thu">Thu</sys:String>
+    <sys:String x:Key="Stats_Fri">Fri</sys:String>
+    <sys:String x:Key="Stats_Sat">Sat</sys:String>
+    <sys:String x:Key="Stats_Sun">Sun</sys:String>
     <sys:String x:Key="Backup_Title">💾 Data Backup</sys:String>
     <sys:String x:Key="Backup_Interval">Auto-backup interval</sys:String>
     <sys:String x:Key="Backup_Daily">Daily</sys:String>
@@ -314,6 +333,7 @@
     <!-- Watch Log / Diary -->
     <sys:String x:Key="Nav_Calendar">Watch Calendar</sys:String>
     <sys:String x:Key="Nav_Relation">Relation Map</sys:String>
+    <sys:String x:Key="Nav_News">Movie News</sys:String>
     <sys:String x:Key="WatchLog_Title">Watch Logs</sys:String>
     <sys:String x:Key="WatchLog_AddTitle">Log Watching</sys:String>
     <sys:String x:Key="WatchLog_EditTitle">Edit Watch Log</sys:String>
@@ -345,6 +365,13 @@
     <sys:String x:Key="Calendar_Sun">Sun</sys:String>
     <sys:String x:Key="Calendar_NoRecords">—</sys:String>
     <sys:String x:Key="Calendar_MoviesWatched">more</sys:String>
+    <sys:String x:Key="Calendar_SummaryMovies">🎬 This Month</sys:String>
+    <sys:String x:Key="Calendar_SummaryHours">⏱ Watch Time</sys:String>
+    <sys:String x:Key="Calendar_SummaryGenre">🏆 Top Genre</sys:String>
+    <sys:String x:Key="Calendar_SummaryMoviesCount">{0} movies</sys:String>
+    <sys:String x:Key="Calendar_SummaryHoursValue">{0} hours</sys:String>
+    <sys:String x:Key="Calendar_NoGenre">—</sys:String>
+    <sys:String x:Key="Calendar_RatingStar">⭐</sys:String>
 
     <!-- OnlineSearchView -->
     <sys:String x:Key="OnlineSearch_Title">🌐 Online Search</sys:String>
@@ -393,15 +420,44 @@
     <sys:String x:Key="Relation_Title">Movie Relation Map</sys:String>
     <sys:String x:Key="Relation_DirectorLink">Director Links</sys:String>
     <sys:String x:Key="Relation_ActorLink">Actor Links</sys:String>
+    <sys:String x:Key="Relation_GenreLink">Same Genre</sys:String>
+    <sys:String x:Key="Relation_CountryLink">Same Country</sys:String>
+    <sys:String x:Key="Relation_DecadeLink">Same Decade</sys:String>
     <sys:String x:Key="Relation_AllNodes">All</sys:String>
     <sys:String x:Key="Relation_Refresh">Refresh</sys:String>
     <sys:String x:Key="Relation_Summary">{0} movies · {1} connections</sys:String>
     <sys:String x:Key="Relation_Connections">connections</sys:String>
     <sys:String x:Key="Relation_Legend">Legend</sys:String>
     <sys:String x:Key="Relation_BothLink">Director+Actor</sys:String>
+    <sys:String x:Key="Relation_MultiLink">Multiple Links</sys:String>
     <sys:String x:Key="Relation_DirectorLabel">Director</sys:String>
     <sys:String x:Key="Relation_ActorLabel">Actor</sys:String>
+    <sys:String x:Key="Relation_GenreLabel">Genre</sys:String>
+    <sys:String x:Key="Relation_CountryLabel">Country</sys:String>
+    <sys:String x:Key="Relation_DecadeLabel">Decade</sys:String>
     <sys:String x:Key="Settings_CatTagHint">Manage movie categories and tags. Categories are hierarchical (e.g. country), tags are flexible labels (e.g. sci-fi, classic).</sys:String>
     <sys:String x:Key="Settings_ManageCatTag">Manage Categories &amp; Tags</sys:String>
     <sys:String x:Key="CatTag_CustomColor">Custom Color</sys:String>
+
+    <!-- Movie News -->
+    <sys:String x:Key="News_Title">📰 Movie News</sys:String>
+    <sys:String x:Key="News_ComingSoon">Coming Soon</sys:String>
+    <sys:String x:Key="News_NowPlaying">Now Playing</sys:String>
+    <sys:String x:Key="News_Top250">Douban Top250</sys:String>
+    <sys:String x:Key="News_MaoyanHot">Maoyan Board</sys:String>
+    <sys:String x:Key="News_Refresh">Refresh</sys:String>
+    <sys:String x:Key="News_Loading">Loading...</sys:String>
+    <sys:String x:Key="News_NoData">No data available. Please check your network connection.</sys:String>
+    <sys:String x:Key="News_AddConfirm">Add "{0}" to your library?</sys:String>
+    <sys:String x:Key="News_LoadMore">Load More</sys:String>
+
+    <!-- Dashboard -->
+    <sys:String x:Key="Dashboard_Title">📊 Dashboard</sys:String>
+    <sys:String x:Key="Dashboard_TotalMovies">Total Movies</sys:String>
+    <sys:String x:Key="Dashboard_MonthWatched">This Month</sys:String>
+    <sys:String x:Key="Dashboard_TotalHours">Total Hours</sys:String>
+    <sys:String x:Key="Dashboard_AvgRating">Avg Rating</sys:String>
+    <sys:String x:Key="Dashboard_Favorites">Favorites</sys:String>
+    <sys:String x:Key="Dashboard_RecentlyAdded">Recently Added</sys:String>
+    <sys:String x:Key="Dashboard_RecentlyWatched">Recently Watched</sys:String>
 </ResourceDictionary>
