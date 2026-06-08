@@ -9,6 +9,21 @@
 ![SQLite](https://img.shields.io/badge/SQLite-EF_Core_9-003B57?logo=sqlite)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
+## 📥 快速下载
+
+> 不想编译？直接下载便携版，解压即用！
+
+| 平台 | 下载 |
+|------|------|
+| Windows x64 | [![GitHub Release](https://img.shields.io/github/v/release/cqdoctor/EasyMovie?label=Latest)](https://github.com/cqdoctor/EasyMovie/releases/latest) |
+
+前往 [Releases](https://github.com/cqdoctor/EasyMovie/releases) 下载 `EasyMovie-win-x64.zip`，解压后运行 `EasyMovie.Client.exe`。
+
+## 🎥 Demo 演示
+
+- 📺 [B站演示视频](https://space.bilibili.com/) — 2 分钟功能概览
+- 📺 [YouTube Demo](https://youtube.com/) — Feature walkthrough
+
 ## 📸 界面截图
 
 <p align="center">
@@ -189,6 +204,21 @@ A Windows desktop movie collection manager built with WPF + Material Design + SQ
 ![WPF](https://img.shields.io/badge/WPF-Material_Design-68217A)
 ![SQLite](https://img.shields.io/badge/SQLite-EF_Core_9-003B57?logo=sqlite)
 ![License](https://img.shields.io/badge/License-MIT-green)
+
+## 📥 Download
+
+> Don't want to compile? Grab the portable version, unzip and run!
+
+| Platform | Download |
+|----------|----------|
+| Windows x64 | [![GitHub Release](https://img.shields.io/github/v/release/cqdoctor/EasyMovie?label=Latest)](https://github.com/cqdoctor/EasyMovie/releases/latest) |
+
+Go to [Releases](https://github.com/cqdoctor/EasyMovie/releases) and download `EasyMovie-win-x64.zip`, then run `EasyMovie.Client.exe`.
+
+## 🎥 Demo
+
+- 📺 [B站 Demo](https://space.bilibili.com/) — 2-minute feature overview
+- 📺 [YouTube Demo](https://youtube.com/) — Feature walkthrough
 
 ## 📸 Screenshots
 
