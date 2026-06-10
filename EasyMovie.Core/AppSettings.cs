@@ -78,6 +78,30 @@ public static class AppSettings
         set { _current.MaxBackupCount = value; Save(); }
     }
 
+    public static string AiProvider
+    {
+        get => _current.AiProvider;
+        set { _current.AiProvider = value; Save(); }
+    }
+
+    public static string? AiApiKey
+    {
+        get => _current.AiApiKey;
+        set { _current.AiApiKey = value; Save(); }
+    }
+
+    public static string AiApiEndpoint
+    {
+        get => _current.AiApiEndpoint;
+        set { _current.AiApiEndpoint = value; Save(); }
+    }
+
+    public static string AiModel
+    {
+        get => _current.AiModel;
+        set { _current.AiModel = value; Save(); }
+    }
+
     static AppSettings() => Load();
 
     private static void Load()
@@ -131,6 +155,10 @@ public static class AppSettings
         public string Language { get; set; } = "zh-CN";
         public int BackupIntervalDays { get; set; } = 7;
         public int MaxBackupCount { get; set; } = 10;
+        public string AiProvider { get; set; } = "";
+        public string? AiApiKey { get; set; }
+        public string AiApiEndpoint { get; set; } = "https://api.openai.com/v1";
+        public string AiModel { get; set; } = "gpt-4o-mini";
     }
 }
 

@@ -59,6 +59,45 @@
                     </Grid>
                 </Border>
 
+                <!-- AI 设置 -->
+                <Border Background="{DynamicResource MaterialDesignCardBackground}" CornerRadius="8" Padding="24" Margin="0,0,0,16">
+                    <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                        <TextBlock Grid.Row="0" Text="{DynamicResource Settings_AI}" FontSize="18" FontWeight="Bold" Margin="0,0,0,12"/>
+                        <StackPanel Grid.Row="1">
+                            <TextBlock Text="{DynamicResource Settings_AIHint}" FontSize="13" Foreground="{DynamicResource MaterialDesignHintForeground}" Margin="0,0,0,12" TextWrapping="Wrap"/>
+                            <!-- 提供商选择 -->
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <TextBlock Text="{DynamicResource Settings_AIProvider}" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0" Width="80"/>
+                                <ComboBox x:Name="AiProviderCombo" Style="{StaticResource MaterialDesignComboBox}" Width="160"
+                                          SelectionChanged="AiProvider_Changed">
+                                    <ComboBoxItem Content="OpenAI" Tag="openai" />
+                                    <ComboBoxItem Content="DeepSeek" Tag="deepseek" />
+                                    <ComboBoxItem Content="智谱GLM" Tag="zhipu" />
+                                    <ComboBoxItem Content="通义千问" Tag="qwen" />
+                                    <ComboBoxItem Content="百度文心" Tag="baidu" />
+                                    <ComboBoxItem Content="Moonshot" Tag="moonshot" />
+                                    <ComboBoxItem Content="豆包 (字节)" Tag="doubao" />
+                                    <ComboBoxItem Content="Ollama (本地)" Tag="ollama" />
+                                    <ComboBoxItem Content="{DynamicResource Settings_AIProviderCustom}" Tag="custom" />
+                                </ComboBox>
+                            </StackPanel>
+                            <!-- API Key -->
+                            <TextBox x:Name="AiApiKeyBox" materialDesign:HintAssist.Hint="{DynamicResource Settings_AIApiKey}" 
+                                     Style="{StaticResource MaterialDesignFloatingHintTextBox}" Width="400" Margin="0,0,0,8"/>
+                            <!-- API Endpoint -->
+                            <TextBox x:Name="AiEndpointBox" materialDesign:HintAssist.Hint="{DynamicResource Settings_AIEndpoint}" 
+                                     Style="{StaticResource MaterialDesignFloatingHintTextBox}" Width="400" Margin="0,0,0,8"/>
+                            <!-- 模型 -->
+                            <TextBox x:Name="AiModelBox" materialDesign:HintAssist.Hint="{DynamicResource Settings_AIModel}" 
+                                     Style="{StaticResource MaterialDesignFloatingHintTextBox}" Width="400" Margin="0,0,0,8"/>
+                            <StackPanel Orientation="Horizontal">
+                                <Button Content="{DynamicResource Settings_Save}" Style="{StaticResource MaterialDesignFlatButton}" Click="SaveAI_Click" Margin="0,0,8,0"/>
+                                <Button Content="{DynamicResource Settings_AITest}" Style="{StaticResource MaterialDesignFlatButton}" Click="TestAI_Click"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
                 <!-- 数据管理 -->
                 <Border Background="{DynamicResource MaterialDesignCardBackground}" CornerRadius="8" Padding="24" Margin="0,0,0,16">
                     <Grid>

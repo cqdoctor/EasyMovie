@@ -1,0 +1,78 @@
+<UserControl x:Class="EasyMovie.Client.Views.WatchHeatmapView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d"
+             d:DesignHeight="600" d:DesignWidth="900"
+             Loaded="UserControl_Loaded">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="8,0,8,24">
+            <!-- 标题行 -->
+            <Grid Margin="0,0,0,16">
+                <StackPanel>
+                    <TextBlock Text="{DynamicResource Heatmap_Title}" FontSize="28" FontWeight="Bold" />
+                    <TextBlock x:Name="SummaryText" FontSize="13"
+                               Foreground="{DynamicResource MaterialDesignBodyLight}"
+                               Margin="0,4,0,0" />
+                </StackPanel>
+            </Grid>
+
+            <!-- 统计卡片 -->
+            <WrapPanel x:Name="StatsPanel" Margin="0,0,0,20" />
+
+            <!-- 热力图主体 -->
+            <Border Background="{DynamicResource MaterialDesignCardBackground}"
+                    CornerRadius="12" Padding="20,16,20,20">
+                <StackPanel>
+                    <!-- 月份标签行 -->
+                    <Grid x:Name="MonthLabelsGrid" Margin="30,0,0,4" Height="18" />
+
+                    <!-- 热力图网格 + 星期标签 -->
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="28" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <!-- 星期标签 -->
+                        <StackPanel x:Name="DayLabelsPanel" Grid.Column="0" Margin="0,0,4,0" />
+                        <!-- 热力图格子容器 -->
+                        <Grid x:Name="HeatmapGrid" Grid.Column="1" />
+                    </Grid>
+
+                    <!-- 图例 -->
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
+                                Margin="0,12,0,0">
+                        <TextBlock Text="{DynamicResource Heatmap_Less}" FontSize="11"
+                                   Foreground="{DynamicResource MaterialDesignBodyLight}"
+                                   VerticalAlignment="Center" Margin="0,0,4,0" />
+                        <Border x:Name="Legend0" Width="14" Height="14" CornerRadius="2"
+                                Margin="0,0,2,0" />
+                        <Border x:Name="Legend1" Width="14" Height="14" CornerRadius="2"
+                                Margin="0,0,2,0" />
+                        <Border x:Name="Legend2" Width="14" Height="14" CornerRadius="2"
+                                Margin="0,0,2,0" />
+                        <Border x:Name="Legend3" Width="14" Height="14" CornerRadius="2"
+                                Margin="0,0,2,0" />
+                        <Border x:Name="Legend4" Width="14" Height="14" CornerRadius="2"
+                                Margin="0,0,2,0" />
+                        <TextBlock Text="{DynamicResource Heatmap_More}" FontSize="11"
+                                   Foreground="{DynamicResource MaterialDesignBodyLight}"
+                                   VerticalAlignment="Center" Margin="4,0,0,0" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- 热门观影日 -->
+            <Border Background="{DynamicResource MaterialDesignCardBackground}"
+                    CornerRadius="12" Padding="20" Margin="0,20,0,0">
+                <StackPanel>
+                    <TextBlock Text="{DynamicResource Heatmap_TopDays}" FontSize="16"
+                               FontWeight="Bold" Margin="0,0,0,12" />
+                    <ItemsControl x:Name="TopDaysList" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

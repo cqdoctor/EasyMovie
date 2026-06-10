@@ -5,14 +5,17 @@ using System.Net.Http;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using EasyMovie.Client.Views;
 using EasyMovie.Core.Enums;
 using EasyMovie.Core.Models;
 using EasyMovie.Data;
+using MaterialDesignThemes.Wpf;
 using Microsoft.EntityFrameworkCore;
 
 namespace EasyMovie.Client;
@@ -130,7 +133,6 @@ public partial class MainWindow : Window
         Loaded += OnLoaded;
         StateChanged += OnStateChanged;
         BackupService.EnsureAutoBackup();
-        NavListBox.SelectedIndex = 0;
         NavigateTo("Dashboard");
     }
 
@@ -142,6 +144,7 @@ public partial class MainWindow : Window
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         Loaded -= OnLoaded;
+        RegisterNavButtons();
         Dispatcher.BeginInvoke(new Action(PreWarmViews), System.Windows.Threading.DispatcherPriority.Background);
     }
 
@@ -191,11 +194,112 @@ public partial class MainWindow : Window
         StatusBarProgress.Visibility = Visibility.Collapsed;
     }
 
-    private void NavListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private readonly Dictionary<string, Button> _navButtons = new();
+
+    private void RegisterNavButtons()
     {
-        if (NavListBox.SelectedItem is ListBoxItem item && item.Tag is string tag)
+        // 遍历 NavPanel 的逻辑树中所有带 Tag 的 Button（包括折叠的 Expander 子项）
+        foreach (var child in FindLogicalButtons(NavPanel))
         {
+            if (child.Tag is string tag)
+                _navButtons[tag] = child;
+        }
+    }
+
+    private static IEnumerable<Button> FindLogicalButtons(DependencyObject parent)
+    {
+        foreach (var child in LogicalTreeHelper.GetChildren(parent))
+        {
+            if (child is Button btn)
+                yield return btn;
+            if (child is DependencyObject depChild)
+            {
+                foreach (var grandchild in FindLogicalButtons(depChild))
+                    yield return grandchild;
+            }
+        }
+    }
+
+    private void NavBtn_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is string tag)
+        {
+            // 点击一级导航项（非分组子项）时，折叠所有分组面板
+            if (tag is "Dashboard" or "Movies" or "Settings")
+                CollapseAllGroups();
+
             NavigateTo(tag);
+        }
+    }
+
+    private void GroupToggle_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not ToggleButton tb) return;
+
+        // 获取箭头的旋转变换
+        var packIcon = FindPackIconInHeader(tb);
+        if (packIcon?.RenderTransform is RotateTransform rot)
+        {
+            var targetAngle = tb.IsChecked == true ? 90.0 : 0.0;
+            var anim = new DoubleAnimation(targetAngle, TimeSpan.FromMilliseconds(150));
+            rot.BeginAnimation(RotateTransform.AngleProperty, anim);
+        }
+
+        if (tb == AnalysisToggle)
+        {
+            AnalysisSubPanel.Visibility = tb.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+            // 同时折叠另一个分组
+            if (tb.IsChecked == true)
+            {
+                DiscoverToggle.IsChecked = false;
+                DiscoverSubPanel.Visibility = Visibility.Collapsed;
+                // 更新另一个箭头角度
+                if (FindPackIconInHeader(DiscoverToggle)?.RenderTransform is RotateTransform rot2)
+                    rot2.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(0, TimeSpan.FromMilliseconds(150)));
+            }
+        }
+        else if (tb == DiscoverToggle)
+        {
+            DiscoverSubPanel.Visibility = tb.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+            if (tb.IsChecked == true)
+            {
+                AnalysisToggle.IsChecked = false;
+                AnalysisSubPanel.Visibility = Visibility.Collapsed;
+                if (FindPackIconInHeader(AnalysisToggle)?.RenderTransform is RotateTransform rot1)
+                    rot1.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(0, TimeSpan.FromMilliseconds(150)));
+            }
+        }
+    }
+
+    private PackIcon? FindPackIconInHeader(ToggleButton tb)
+    {
+        if (tb.Content is Grid grid)
+        {
+            foreach (var child in LogicalTreeHelper.GetChildren(grid).OfType<PackIcon>())
+                return child;
+        }
+        return null;
+    }
+
+    private void CollapseAllGroups()
+    {
+        AnalysisToggle.IsChecked = false;
+        AnalysisSubPanel.Visibility = Visibility.Collapsed;
+        DiscoverToggle.IsChecked = false;
+        DiscoverSubPanel.Visibility = Visibility.Collapsed;
+
+        // 动画旋转箭头回原位
+        if (FindPackIconInHeader(AnalysisToggle)?.RenderTransform is RotateTransform rot1)
+            rot1.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(0, TimeSpan.FromMilliseconds(150)));
+        if (FindPackIconInHeader(DiscoverToggle)?.RenderTransform is RotateTransform rot2)
+            rot2.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(0, TimeSpan.FromMilliseconds(150)));
+    }
+
+    private void HighlightNavButton(string page)
+    {
+        foreach (var (tag, btn) in _navButtons)
+        {
+            btn.FontWeight = tag == page ? FontWeights.Bold : FontWeights.Normal;
         }
     }
 
@@ -214,6 +318,8 @@ public partial class MainWindow : Window
                 "Calendar" => new WatchCalendarView(),
                 "Relation" => new MovieRelationView(this),
                 "News" => new MovieNewsView(),
+                "AI" => new AIRecommendationView(),
+                "Heatmap" => new WatchHeatmapView(),
                 "Settings" => new SettingsView(),
                 _ => new MovieListView(this)
             };
@@ -226,6 +332,9 @@ public partial class MainWindow : Window
             child.Visibility = child == view ? Visibility.Visible : Visibility.Collapsed;
 
         _currentPage = page;
+
+        // 高亮当前导航按钮
+        HighlightNavButton(page);
 
         // 非电影页面时隐藏电影详情面板
         MovieDetailPanel.Visibility = page == "Movies" && _lastSelectedMovie != null
@@ -535,7 +644,7 @@ public partial class MainWindow : Window
     private void Search_Executed(object sender, ExecutedRoutedEventArgs e)
     {
         if (GetCurrentMovieView() is { } mv) mv.FocusSearchBox();
-        else { NavListBox.SelectedIndex = 1; NavigateTo("Movies"); Dispatcher.BeginInvoke(new Action(() => GetCurrentMovieView()?.FocusSearchBox()), System.Windows.Threading.DispatcherPriority.Background); }
+        else { NavigateTo("Movies"); Dispatcher.BeginInvoke(new Action(() => GetCurrentMovieView()?.FocusSearchBox()), System.Windows.Threading.DispatcherPriority.Background); }
     }
 
     private void AddNew_Executed(object sender, ExecutedRoutedEventArgs e)
@@ -569,11 +678,10 @@ public partial class MainWindow : Window
         if (GetCurrentMovieView() is { } mv) mv.SelectAllMovies();
     }
 
-    private void Nav1_Executed(object sender, ExecutedRoutedEventArgs e) { NavListBox.SelectedIndex = 0; }
-    private void Nav2_Executed(object sender, ExecutedRoutedEventArgs e) { NavListBox.SelectedIndex = 1; }
-    private void Nav3_Executed(object sender, ExecutedRoutedEventArgs e) { NavListBox.SelectedIndex = 2; }
-    private void Nav4_Executed(object sender, ExecutedRoutedEventArgs e) { NavListBox.SelectedIndex = 3; }
-    private void Nav5_Executed(object sender, ExecutedRoutedEventArgs e) { NavListBox.SelectedIndex = 4; }
+    private void Nav1_Executed(object sender, ExecutedRoutedEventArgs e) { NavigateTo("Dashboard"); }
+    private void Nav2_Executed(object sender, ExecutedRoutedEventArgs e) { NavigateTo("Movies"); }
+    private void Nav3_Executed(object sender, ExecutedRoutedEventArgs e) { NavigateTo("Statistics"); }
+    private void Nav4_Executed(object sender, ExecutedRoutedEventArgs e) { NavigateTo("Settings"); }
 
     private void CycleView_Executed(object sender, ExecutedRoutedEventArgs e)
     {

@@ -9,6 +9,9 @@
     <sys:String x:Key="Nav_Categories">Categories &amp; Tags</sys:String>
     <sys:String x:Key="Nav_Statistics">Statistics</sys:String>
     <sys:String x:Key="Nav_Settings">Settings</sys:String>
+    <sys:String x:Key="Nav_MovieManage">Movies</sys:String>
+    <sys:String x:Key="Nav_Analysis">Statistics</sys:String>
+    <sys:String x:Key="Nav_Discover">Discover</sys:String>
     <sys:String x:Key="Status_Ready">Ready</sys:String>
 
     <!-- MovieListView -->
@@ -332,6 +335,7 @@
 
     <!-- Watch Log / Diary -->
     <sys:String x:Key="Nav_Calendar">Watch Calendar</sys:String>
+    <sys:String x:Key="Nav_Heatmap">Watch Heatmap</sys:String>
     <sys:String x:Key="Nav_Relation">Relation Map</sys:String>
     <sys:String x:Key="Nav_News">Movie News</sys:String>
     <sys:String x:Key="WatchLog_Title">Watch Logs</sys:String>
@@ -460,4 +464,33 @@
     <sys:String x:Key="Dashboard_Favorites">Favorites</sys:String>
     <sys:String x:Key="Dashboard_RecentlyAdded">Recently Added</sys:String>
     <sys:String x:Key="Dashboard_RecentlyWatched">Recently Watched</sys:String>
+
+    <!-- AI Recommendation -->
+    <sys:String x:Key="Nav_AI">AI Recommend</sys:String>
+    <sys:String x:Key="AI_Title">🤖 AI Smart Recommendations</sys:String>
+    <sys:String x:Key="AI_WelcomeTitle">Tell me what you want to watch</sys:String>
+    <sys:String x:Key="AI_WelcomeDesc">I know your movie library and can recommend films based on your taste and preferences. Try the suggestions below or simply tell me what you're looking for.</sys:String>
+    <sys:String x:Key="AI_InputHint">Describe what you want, e.g. "recommend a thriller"...</sys:String>
+    <sys:String x:Key="AI_ClearChat">Clear Chat</sys:String>
+    <sys:String x:Key="AI_Loading">AI is thinking...</sys:String>
+    <sys:String x:Key="AI_NotConfigured">AI Service Not Configured</sys:String>
+    <sys:String x:Key="AI_NotConfiguredHint">Please configure an AI service (OpenAI / Ollama / compatible API) in Settings to use smart recommendations.</sys:String>
+    <sys:String x:Key="AI_GoToSettings">Go to Settings</sys:String>
+    <sys:String x:Key="Settings_AI">🤖 AI Recommendations</sys:String>
+    <sys:String x:Key="Settings_AIHint">Configure AI model API for smart movie recommendation chat. Supports OpenAI, Ollama local models, and other compatible APIs.</sys:String>
+    <sys:String x:Key="Settings_AIProvider">Provider</sys:String>
+    <sys:String x:Key="Settings_AIProviderCustom">Custom</sys:String>
+    <sys:String x:Key="Settings_AIApiKey">API Key (leave empty for Ollama)</sys:String>
+    <sys:String x:Key="Settings_AIEndpoint">API Endpoint (e.g. https://api.openai.com/v1)</sys:String>
+    <sys:String x:Key="Settings_AIModel">Model Name (e.g. gpt-4o-mini / qwen2.5)</sys:String>
+    <sys:String x:Key="Settings_AITest">Test Connection</sys:String>
+    <sys:String x:Key="Msg_AISaved">AI settings saved</sys:String>
+    <sys:String x:Key="Msg_AITestSuccess">Connection successful! AI service is responding normally.</sys:String>
+    <sys:String x:Key="Msg_AITestFailed">Connection failed. Please check your settings.</sys:String>
+
+    <!-- Watch Heatmap -->
+    <sys:String x:Key="Heatmap_Title">Watch Heatmap</sys:String>
+    <sys:String x:Key="Heatmap_Less">Less</sys:String>
+    <sys:String x:Key="Heatmap_More">More</sys:String>
+    <sys:String x:Key="Heatmap_TopDays">Top 10 Watch Days</sys:String>
 </ResourceDictionary>

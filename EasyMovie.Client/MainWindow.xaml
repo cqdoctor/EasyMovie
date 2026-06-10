@@ -93,54 +93,139 @@
                 </StackPanel>
 
                 <!-- 导航菜单 -->
-                <ListBox Grid.Row="1"
-                         x:Name="NavListBox"
-                         Style="{StaticResource MaterialDesignListBox}"
-                         SelectionChanged="NavListBox_SelectionChanged"
-                         Margin="0,8">
-                    <ListBoxItem Tag="Dashboard">
-                        <StackPanel Orientation="Horizontal">
-                            <materialDesign:PackIcon Kind="ViewDashboard" Margin="0,0,12,0" />
-                            <TextBlock Text="{DynamicResource Nav_Dashboard}" />
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,8">
+                    <StackPanel x:Name="NavPanel">
+                        <!-- 数据概览 - 顶层导航 -->
+                        <Button x:Name="NavBtn_Dashboard" Tag="Dashboard" Click="NavBtn_Click"
+                                Style="{StaticResource MaterialDesignFlatButton}"
+                                HorizontalContentAlignment="Left" Padding="12,8" Margin="4,1">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="ViewDashboard" Margin="0,0,12,0" />
+                                <TextBlock Text="{DynamicResource Nav_Dashboard}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+
+                        <!-- 电影库 - 顶层导航 -->
+                        <Button x:Name="NavBtn_Movies" Tag="Movies" Click="NavBtn_Click"
+                                Style="{StaticResource MaterialDesignFlatButton}"
+                                HorizontalContentAlignment="Left" Padding="12,8" Margin="4,1">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="MovieOpen" Margin="0,0,12,0" />
+                                <TextBlock Text="{DynamicResource Nav_Movies}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+
+                        <!-- 统计分析 - 分组 -->
+                        <ToggleButton x:Name="AnalysisToggle" Click="GroupToggle_Click"
+                                      Style="{StaticResource MaterialDesignFlatButton}"
+                                      HorizontalContentAlignment="Left" Padding="12,8" Margin="4,1"
+                                      IsChecked="False">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Orientation="Horizontal">
+                                    <materialDesign:PackIcon Kind="ChartBar" Margin="0,0,12,0" />
+                                    <TextBlock Text="{DynamicResource Nav_Analysis}" VerticalAlignment="Center" />
+                                </StackPanel>
+                                <materialDesign:PackIcon Grid.Column="1" Kind="ChevronDown" 
+                                                          VerticalAlignment="Center" Margin="8,0,4,0"
+                                                          RenderTransformOrigin="0.5,0.5">
+                                    <materialDesign:PackIcon.RenderTransform>
+                                        <RotateTransform Angle="0" />
+                                    </materialDesign:PackIcon.RenderTransform>
+                                </materialDesign:PackIcon>
+                            </Grid>
+                        </ToggleButton>
+                        <StackPanel x:Name="AnalysisSubPanel" Visibility="Collapsed" Margin="16,0,0,0">
+                            <Button Tag="Statistics" Click="NavBtn_Click"
+                                    Style="{StaticResource MaterialDesignFlatButton}"
+                                    HorizontalContentAlignment="Left" Padding="12,5" Margin="0,1">
+                                <StackPanel Orientation="Horizontal">
+                                    <materialDesign:PackIcon Kind="ChartBar" Margin="0,0,10,0" />
+                                    <TextBlock Text="{DynamicResource Nav_Statistics}" VerticalAlignment="Center" FontSize="13" />
+                                </StackPanel>
+                            </Button>
+                            <Button Tag="Heatmap" Click="NavBtn_Click"
+                                    Style="{StaticResource MaterialDesignFlatButton}"
+                                    HorizontalContentAlignment="Left" Padding="12,5" Margin="0,1">
+                                <StackPanel Orientation="Horizontal">
+                                    <materialDesign:PackIcon Kind="ChartTimelineVariant" Margin="0,0,10,0" />
+                                    <TextBlock Text="{DynamicResource Nav_Heatmap}" VerticalAlignment="Center" FontSize="13" />
+                                </StackPanel>
+                            </Button>
+                            <Button Tag="Calendar" Click="NavBtn_Click"
+                                    Style="{StaticResource MaterialDesignFlatButton}"
+                                    HorizontalContentAlignment="Left" Padding="12,5" Margin="0,1">
+                                <StackPanel Orientation="Horizontal">
+                                    <materialDesign:PackIcon Kind="Calendar" Margin="0,0,10,0" />
+                                    <TextBlock Text="{DynamicResource Nav_Calendar}" VerticalAlignment="Center" FontSize="13" />
+                                </StackPanel>
+                            </Button>
                         </StackPanel>
-                    </ListBoxItem>
-                    <ListBoxItem Tag="Movies">
-                        <StackPanel Orientation="Horizontal">
-                            <materialDesign:PackIcon Kind="MovieOpen" Margin="0,0,12,0" />
-                            <TextBlock Text="{DynamicResource Nav_Movies}" />
+
+                        <!-- 发现 - 分组 -->
+                        <ToggleButton x:Name="DiscoverToggle" Click="GroupToggle_Click"
+                                      Style="{StaticResource MaterialDesignFlatButton}"
+                                      HorizontalContentAlignment="Left" Padding="12,8" Margin="4,1"
+                                      IsChecked="False">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Orientation="Horizontal">
+                                    <materialDesign:PackIcon Kind="Compass" Margin="0,0,12,0" />
+                                    <TextBlock Text="{DynamicResource Nav_Discover}" VerticalAlignment="Center" />
+                                </StackPanel>
+                                <materialDesign:PackIcon Grid.Column="1" Kind="ChevronDown" 
+                                                          VerticalAlignment="Center" Margin="8,0,4,0"
+                                                          RenderTransformOrigin="0.5,0.5">
+                                    <materialDesign:PackIcon.RenderTransform>
+                                        <RotateTransform Angle="0" />
+                                    </materialDesign:PackIcon.RenderTransform>
+                                </materialDesign:PackIcon>
+                            </Grid>
+                        </ToggleButton>
+                        <StackPanel x:Name="DiscoverSubPanel" Visibility="Collapsed" Margin="16,0,0,0">
+                            <Button Tag="Relation" Click="NavBtn_Click"
+                                    Style="{StaticResource MaterialDesignFlatButton}"
+                                    HorizontalContentAlignment="Left" Padding="12,5" Margin="0,1">
+                                <StackPanel Orientation="Horizontal">
+                                    <materialDesign:PackIcon Kind="Graph" Margin="0,0,10,0" />
+                                    <TextBlock Text="{DynamicResource Nav_Relation}" VerticalAlignment="Center" FontSize="13" />
+                                </StackPanel>
+                            </Button>
+                            <Button Tag="News" Click="NavBtn_Click"
+                                    Style="{StaticResource MaterialDesignFlatButton}"
+                                    HorizontalContentAlignment="Left" Padding="12,5" Margin="0,1">
+                                <StackPanel Orientation="Horizontal">
+                                    <materialDesign:PackIcon Kind="NewspaperVariant" Margin="0,0,10,0" />
+                                    <TextBlock Text="{DynamicResource Nav_News}" VerticalAlignment="Center" FontSize="13" />
+                                </StackPanel>
+                            </Button>
+                            <Button Tag="AI" Click="NavBtn_Click"
+                                    Style="{StaticResource MaterialDesignFlatButton}"
+                                    HorizontalContentAlignment="Left" Padding="12,5" Margin="0,1">
+                                <StackPanel Orientation="Horizontal">
+                                    <materialDesign:PackIcon Kind="Robot" Margin="0,0,10,0" />
+                                    <TextBlock Text="{DynamicResource Nav_AI}" VerticalAlignment="Center" FontSize="13" />
+                                </StackPanel>
+                            </Button>
                         </StackPanel>
-                    </ListBoxItem>
-                    <ListBoxItem Tag="Statistics">
-                        <StackPanel Orientation="Horizontal">
-                            <materialDesign:PackIcon Kind="ChartBar" Margin="0,0,12,0" />
-                            <TextBlock Text="{DynamicResource Nav_Statistics}" />
-                        </StackPanel>
-                    </ListBoxItem>
-                    <ListBoxItem Tag="Calendar">
-                        <StackPanel Orientation="Horizontal">
-                            <materialDesign:PackIcon Kind="Calendar" Margin="0,0,12,0" />
-                            <TextBlock Text="{DynamicResource Nav_Calendar}" />
-                        </StackPanel>
-                    </ListBoxItem>
-                    <ListBoxItem Tag="Relation">
-                        <StackPanel Orientation="Horizontal">
-                            <materialDesign:PackIcon Kind="Graph" Margin="0,0,12,0" />
-                            <TextBlock Text="{DynamicResource Nav_Relation}" />
-                        </StackPanel>
-                    </ListBoxItem>
-                    <ListBoxItem Tag="News">
-                        <StackPanel Orientation="Horizontal">
-                            <materialDesign:PackIcon Kind="NewspaperVariant" Margin="0,0,12,0" />
-                            <TextBlock Text="{DynamicResource Nav_News}" />
-                        </StackPanel>
-                    </ListBoxItem>
-                    <ListBoxItem Tag="Settings">
-                        <StackPanel Orientation="Horizontal">
-                            <materialDesign:PackIcon Kind="Cog" Margin="0,0,12,0" />
-                            <TextBlock Text="{DynamicResource Nav_Settings}" />
-                        </StackPanel>
-                    </ListBoxItem>
-                </ListBox>
+
+                        <!-- 设置 - 顶层导航 -->
+                        <Button x:Name="NavBtn_Settings" Tag="Settings" Click="NavBtn_Click"
+                                Style="{StaticResource MaterialDesignFlatButton}"
+                                HorizontalContentAlignment="Left" Padding="12,8" Margin="4,1">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="Cog" Margin="0,0,12,0" />
+                                <TextBlock Text="{DynamicResource Nav_Settings}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </ScrollViewer>
 
                 <!-- 电影详情面板 -->
                 <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Margin="0,4,0,0">

@@ -30,6 +30,7 @@ public partial class SettingsView : UserControl
         UpdateButtonStyles();
         UpdateLanguageStyles();
         InitBackupSettings();
+        InitAISettings();
     }
 
     private void SystemTheme_Click(object sender, RoutedEventArgs e) { App.SetTheme(AppThemeMode.System); UpdateButtonStyles(); }
@@ -258,6 +259,104 @@ public partial class SettingsView : UserControl
                 break;
             }
             parent = VisualTreeHelper.GetParent(parent);
+        }
+    }
+
+    #endregion
+
+    #region AI 设置
+
+    private void InitAISettings()
+    {
+        AiApiKeyBox.Text = AppSettings.AiApiKey ?? "";
+        AiEndpointBox.Text = AppSettings.AiApiEndpoint;
+        AiModelBox.Text = AppSettings.AiModel;
+
+        var provider = AppSettings.AiProvider;
+        for (var i = 0; i < AiProviderCombo.Items.Count; i++)
+            if (AiProviderCombo.Items[i] is ComboBoxItem ci && ci.Tag is string s && s == provider)
+            { AiProviderCombo.SelectedIndex = i; break; }
+    }
+
+    private void AiProvider_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (AiProviderCombo.SelectedItem is not ComboBoxItem ci || ci.Tag is not string tag) return;
+
+        switch (tag)
+        {
+            case "openai":
+                AiEndpointBox.Text = "https://api.openai.com/v1";
+                AiModelBox.Text = "gpt-4o-mini";
+                break;
+            case "deepseek":
+                AiEndpointBox.Text = "https://api.deepseek.com";
+                AiModelBox.Text = "deepseek-v4-flash";
+                break;
+            case "zhipu":
+                AiEndpointBox.Text = "https://open.bigmodel.cn/api/paas/v4";
+                AiModelBox.Text = "glm-4-flash";
+                break;
+            case "qwen":
+                AiEndpointBox.Text = "https://dashscope.aliyuncs.com/compatible-mode/v1";
+                AiModelBox.Text = "qwen-plus";
+                break;
+            case "baidu":
+                AiEndpointBox.Text = "https://qianfan.baidubce.com/v2";
+                AiModelBox.Text = "ernie-speed-128k";
+                break;
+            case "moonshot":
+                AiEndpointBox.Text = "https://api.moonshot.cn/v1";
+                AiModelBox.Text = "kimi-k2.5";
+                break;
+            case "doubao":
+                AiEndpointBox.Text = "https://ark.cn-beijing.volces.com/api/v3";
+                AiModelBox.Text = "doubao-seed-1-6-251015";
+                break;
+            case "ollama":
+                AiEndpointBox.Text = "http://localhost:11434/v1";
+                AiModelBox.Text = "qwen2.5:latest";
+                break;
+            case "custom":
+                break;
+        }
+    }
+
+    private void SaveAI_Click(object sender, RoutedEventArgs e)
+    {
+        AppSettings.AiProvider = (AiProviderCombo.SelectedItem as ComboBoxItem)?.Tag as string ?? "";
+        AppSettings.AiApiKey = AiApiKeyBox.Text?.Trim();
+        AppSettings.AiApiEndpoint = AiEndpointBox.Text?.Trim() ?? "https://api.openai.com/v1";
+        AppSettings.AiModel = AiModelBox.Text?.Trim() ?? "gpt-4o-mini";
+        AppMessageBox.ShowInfo(LanguageManager.GetString("Msg_AISaved"), LanguageManager.GetString("Settings_AI"));
+    }
+
+    private async void TestAI_Click(object sender, RoutedEventArgs e)
+    {
+        AppSettings.AiProvider = (AiProviderCombo.SelectedItem as ComboBoxItem)?.Tag as string ?? "";
+        AppSettings.AiApiKey = AiApiKeyBox.Text?.Trim();
+        AppSettings.AiApiEndpoint = AiEndpointBox.Text?.Trim() ?? "https://api.openai.com/v1";
+        AppSettings.AiModel = AiModelBox.Text?.Trim() ?? "gpt-4o-mini";
+
+        try
+        {
+            var svc = new EasyMovie.Tools.AIChat.AIChatService();
+            var result = new System.Text.StringBuilder();
+            await foreach (var chunk in svc.ChatStreamAsync("你好，请简单介绍一下你自己。", "你好", new()))
+            {
+                result.Append(chunk);
+                if (result.Length > 100) break;
+            }
+            var text = result.ToString();
+            if (text.StartsWith("❌"))
+                AppMessageBox.ShowError(LanguageManager.GetString("Msg_AITestFailed") + "\n" + text);
+            else
+                AppMessageBox.ShowInfo(LanguageManager.GetString("Msg_AITestSuccess") + "\n\n" +
+                    (text.Length > 200 ? text[..200] + "..." : text),
+                    LanguageManager.GetString("Settings_AI"));
+        }
+        catch (Exception ex)
+        {
+            AppMessageBox.ShowError(LanguageManager.GetString("Msg_AITestFailed") + "\n" + ex.Message);
         }
     }
 

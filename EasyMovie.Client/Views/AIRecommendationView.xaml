@@ -1,0 +1,139 @@
+<UserControl x:Class="EasyMovie.Client.Views.AIRecommendationView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+             mc:Ignorable="d" d:DesignHeight="600" d:DesignWidth="700">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- 标题栏 -->
+        <Border Grid.Row="0" Padding="0,0,0,16">
+            <Grid>
+                <TextBlock Text="{DynamicResource AI_Title}" FontSize="28" FontWeight="Bold" />
+                <Button x:Name="ClearBtn" Content="{DynamicResource AI_ClearChat}" 
+                        Style="{StaticResource MaterialDesignFlatButton}" 
+                        HorizontalAlignment="Right" VerticalAlignment="Center"
+                        Click="ClearChat_Click" />
+            </Grid>
+        </Border>
+
+        <!-- 聊天区域 -->
+        <ScrollViewer Grid.Row="1" x:Name="ChatScrollViewer" 
+                      VerticalScrollBarVisibility="Auto"
+                      Padding="0,0,8,0">
+            <StackPanel x:Name="ChatPanel">
+                <!-- 欢迎界面 -->
+                <Border x:Name="WelcomePanel"
+                        Background="{DynamicResource MaterialDesignCardBackground}" 
+                        CornerRadius="12" Padding="28" Margin="0,0,0,16">
+                    <StackPanel>
+                        <TextBlock Text="🤖" FontSize="48" HorizontalAlignment="Center" Margin="0,0,0,12"/>
+                        <TextBlock Text="{DynamicResource AI_WelcomeTitle}" FontSize="20" FontWeight="Bold" 
+                                   HorizontalAlignment="Center" Margin="0,0,0,8"/>
+                        <TextBlock Text="{DynamicResource AI_WelcomeDesc}" FontSize="14" 
+                                   Foreground="{DynamicResource MaterialDesignHintForeground}"
+                                   TextWrapping="Wrap" TextAlignment="Center" Margin="0,0,0,20"/>
+
+                        <!-- 快捷建议 -->
+                        <WrapPanel HorizontalAlignment="Center" ItemWidth="Auto">
+                            <Button x:Name="SuggestBtn1" Style="{StaticResource MaterialDesignFlatButton}" 
+                                    Click="Suggestion_Click" Tag="今晚想看一部悬疑片"
+                                    Margin="0,0,6,6" Padding="12,6"
+                                    FontSize="13">
+                                🔍 推荐一部悬疑片
+                            </Button>
+                            <Button x:Name="SuggestBtn2" Style="{StaticResource MaterialDesignFlatButton}" 
+                                    Click="Suggestion_Click" Tag="推荐一部评分高的科幻片"
+                                    Margin="0,0,6,6" Padding="12,6"
+                                    FontSize="13">
+                                🚀 推荐高评分科幻片
+                            </Button>
+                            <Button x:Name="SuggestBtn3" Style="{StaticResource MaterialDesignFlatButton}" 
+                                    Click="Suggestion_Click" Tag="我最近看了很多动作片，有什么推荐？"
+                                    Margin="0,0,6,6" Padding="12,6"
+                                    FontSize="13">
+                                💥 我看了很多动作片，推荐类似
+                            </Button>
+                            <Button x:Name="SuggestBtn4" Style="{StaticResource MaterialDesignFlatButton}" 
+                                    Click="Suggestion_Click" Tag="推荐一部轻松搞笑的喜剧"
+                                    Margin="0,0,6,6" Padding="12,6"
+                                    FontSize="13">
+                                😂 推荐一部喜剧片
+                            </Button>
+                            <Button x:Name="SuggestBtn5" Style="{StaticResource MaterialDesignFlatButton}" 
+                                    Click="Suggestion_Click" Tag="我收藏的电影里有哪些还没看？"
+                                    Margin="0,0,6,6" Padding="12,6"
+                                    FontSize="13">
+                                ⭐ 我收藏的哪些还没看？
+                            </Button>
+                        </WrapPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- 未配置提示 -->
+                <Border x:Name="NotConfiguredPanel" Visibility="Collapsed"
+                        Background="{DynamicResource MaterialDesignCardBackground}" 
+                        CornerRadius="12" Padding="28" Margin="0,0,0,16">
+                    <StackPanel>
+                        <materialDesign:PackIcon Kind="AlertCircle" Width="48" Height="48" 
+                                                  HorizontalAlignment="Center" Margin="0,0,0,12"
+                                                  Foreground="{DynamicResource MaterialDesignHintForeground}"/>
+                        <TextBlock Text="{DynamicResource AI_NotConfigured}" FontSize="16" FontWeight="SemiBold"
+                                   HorizontalAlignment="Center" Margin="0,0,0,8"/>
+                        <TextBlock Text="{DynamicResource AI_NotConfiguredHint}" FontSize="13"
+                                   Foreground="{DynamicResource MaterialDesignHintForeground}"
+                                   TextWrapping="Wrap" TextAlignment="Center" Margin="0,0,0,16"/>
+                        <Button Content="{DynamicResource AI_GoToSettings}" 
+                                Style="{StaticResource MaterialDesignRaisedButton}"
+                                HorizontalAlignment="Center" Click="GoToSettings_Click"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- 输入栏 -->
+        <Border Grid.Row="2" Margin="0,12,0,0"
+                Background="{DynamicResource MaterialDesignCardBackground}"
+                CornerRadius="12" Padding="12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBox x:Name="MessageInput"
+                         materialDesign:HintAssist.Hint="{DynamicResource AI_InputHint}"
+                         Style="{StaticResource MaterialDesignFloatingHintTextBox}"
+                         TextWrapping="Wrap" AcceptsReturn="True"
+                         MaxHeight="120" MinHeight="40"
+                         VerticalAlignment="Center"
+                         PreviewKeyDown="MessageInput_PreviewKeyDown"
+                         IsEnabled="True" />
+                <Button Grid.Column="1" x:Name="SendBtn"
+                        Width="44" Height="44" Margin="8,0,0,0"
+                        Style="{StaticResource MaterialDesignFloatingActionMiniAccentButton}"
+                        Click="SendBtn_Click"
+                        IsEnabled="True">
+                    <materialDesign:PackIcon Kind="Send" Width="20" Height="20" />
+                </Button>
+            </Grid>
+        </Border>
+
+        <!-- 加载遮罩 -->
+        <Border x:Name="LoadingOverlay" Grid.RowSpan="3" Visibility="Collapsed"
+                Background="#40000000">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                <ProgressBar IsIndeterminate="True" Width="80" Height="4"
+                             Style="{StaticResource MaterialDesignLinearProgressBar}" Margin="0,0,0,12"/>
+                <TextBlock Text="{DynamicResource AI_Loading}" FontSize="14"
+                           Foreground="{DynamicResource MaterialDesignBody}" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>
