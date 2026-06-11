@@ -9,6 +9,7 @@
     <NoWarn>NU1701</NoWarn>
     <ApplicationIcon>app.ico</ApplicationIcon>
     <Version>1.02</Version>
+    <AllowMissingPrunePackageData>true</AllowMissingPrunePackageData>
   </PropertyGroup>
 
   <ItemGroup>

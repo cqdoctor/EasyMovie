@@ -16,6 +16,26 @@ public class AIChatService
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 
+    private static readonly HttpClient _httpClient;
+
+    static AIChatService()
+    {
+        var handler = new HttpClientHandler
+        {
+            AutomaticDecompression = System.Net.DecompressionMethods.All
+        };
+
+        var proxy = AppSettings.HttpProxy;
+        if (!string.IsNullOrWhiteSpace(proxy))
+        {
+            handler.Proxy = new System.Net.WebProxy(proxy);
+            handler.UseProxy = true;
+        }
+
+        _httpClient = new HttpClient(handler) { Timeout = TimeSpan.FromMinutes(3) };
+        _httpClient.DefaultRequestHeaders.Add("User-Agent", "EasyMovie/1.0");
+    }
+
     /// <summary>发送流式聊天请求（非流式模式用于内部实现）</summary>
     private async Task<string> ChatRawAsync(string systemPrompt, string userMessage, List<ChatMessage> history)
     {
@@ -46,13 +66,14 @@ public class AIChatService
         var json = JsonSerializer.Serialize(requestBody, JsonOpts);
         var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-        using var http = CreateHttpClient();
-        http.Timeout = TimeSpan.FromMinutes(3);
+        // 为每次请求创建独立的 HttpRequestMessage，共享 HttpClient
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"{endpoint}/chat/completions")
+        {
+            Content = content
+        };
+        request.Headers.Add("Authorization", $"Bearer {apiKey}");
 
-        if (!string.IsNullOrWhiteSpace(apiKey))
-            http.DefaultRequestHeaders.Add("Authorization", $"Bearer {apiKey}");
-
-        var response = await http.PostAsync($"{endpoint}/chat/completions", content);
+        var response = await _httpClient.SendAsync(request);
         response.EnsureSuccessStatusCode();
 
         var responseJson = await response.Content.ReadAsStringAsync();
@@ -91,25 +112,6 @@ public class AIChatService
         {
             return ($"❌ 请求失败: {ex.Message}\n\n请检查网络连接或 API 设置。", true);
         }
-    }
-
-    private static HttpClient CreateHttpClient()
-    {
-        var handler = new HttpClientHandler
-        {
-            AutomaticDecompression = System.Net.DecompressionMethods.All
-        };
-
-        var proxy = AppSettings.HttpProxy;
-        if (!string.IsNullOrWhiteSpace(proxy))
-        {
-            handler.Proxy = new System.Net.WebProxy(proxy);
-            handler.UseProxy = true;
-        }
-
-        var http = new HttpClient(handler) { Timeout = TimeSpan.FromMinutes(3) };
-        http.DefaultRequestHeaders.Add("User-Agent", "EasyMovie/1.0");
-        return http;
     }
 }
 

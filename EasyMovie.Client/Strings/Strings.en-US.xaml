@@ -3,6 +3,7 @@
                     xmlns:sys="clr-namespace:System;assembly=mscorlib">
     <!-- MainWindow -->
     <sys:String x:Key="Nav_Dashboard">Dashboard</sys:String>
+    <sys:String x:Key="Nav_Home">Home</sys:String>
     <sys:String x:Key="Nav_Movies">Movie Library</sys:String>
     <sys:String x:Key="Nav_Favorites">My Favorites</sys:String>
     <sys:String x:Key="Nav_Watchlist">Watchlist</sys:String>
@@ -464,6 +465,12 @@
     <sys:String x:Key="Dashboard_Favorites">Favorites</sys:String>
     <sys:String x:Key="Dashboard_RecentlyAdded">Recently Added</sys:String>
     <sys:String x:Key="Dashboard_RecentlyWatched">Recently Watched</sys:String>
+    <sys:String x:Key="Dashboard_GreetingMorning">Good Morning</sys:String>
+    <sys:String x:Key="Dashboard_GreetingAfternoon">Good Afternoon</sys:String>
+    <sys:String x:Key="Dashboard_GreetingEvening">Good Evening</sys:String>
+    <sys:String x:Key="Dashboard_GreetingSuffix">A great day for movies 🎬</sys:String>
+    <sys:String x:Key="Dashboard_RandomPick">🎲 Random Pick</sys:String>
+    <sys:String x:Key="Dashboard_GenreDistribution">Genre Distribution</sys:String>
 
     <!-- AI Recommendation -->
     <sys:String x:Key="Nav_AI">AI Recommend</sys:String>
@@ -493,4 +500,22 @@
     <sys:String x:Key="Heatmap_Less">Less</sys:String>
     <sys:String x:Key="Heatmap_More">More</sys:String>
     <sys:String x:Key="Heatmap_TopDays">Top 10 Watch Days</sys:String>
+    <sys:String x:Key="Heatmap_TotalMovies">Total Movies</sys:String>
+    <sys:String x:Key="Heatmap_WatchedDays">Watch Days</sys:String>
+    <sys:String x:Key="Heatmap_MaxPerDay">Max Per Day</sys:String>
+    <sys:String x:Key="Heatmap_LongestStreak">Longest Streak</sys:String>
+    <sys:String x:Key="Heatmap_Summary">{0} movies watched | {1} days | {2} days streak</sys:String>
+    <sys:String x:Key="Heatmap_NoRecord">No records</sys:String>
+    <sys:String x:Key="Heatmap_WatchedCount">{0} movies</sys:String>
+    <sys:String x:Key="Heatmap_DayCount">{0} days</sys:String>
+    <sys:String x:Key="Heatmap_Week">Week</sys:String>
+    <sys:String x:Key="Heatmap_Unknown">Unknown</sys:String>
+    <sys:String x:Key="Heatmap_MoreMovies">{0} more</sys:String>
+    <sys:String x:Key="Heatmap_DayMon">Mon</sys:String>
+    <sys:String x:Key="Heatmap_DayTue">Tue</sys:String>
+    <sys:String x:Key="Heatmap_DayWed">Wed</sys:String>
+    <sys:String x:Key="Heatmap_DayThu">Thu</sys:String>
+    <sys:String x:Key="Heatmap_DayFri">Fri</sys:String>
+    <sys:String x:Key="Heatmap_DaySat">Sat</sys:String>
+    <sys:String x:Key="Heatmap_DaySun">Sun</sys:String>
 </ResourceDictionary>

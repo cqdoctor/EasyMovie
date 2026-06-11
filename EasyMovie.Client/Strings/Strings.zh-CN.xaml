@@ -3,6 +3,7 @@
                     xmlns:sys="clr-namespace:System;assembly=mscorlib">
     <!-- MainWindow -->
     <sys:String x:Key="Nav_Dashboard">数据概览</sys:String>
+    <sys:String x:Key="Nav_Home">首页</sys:String>
     <sys:String x:Key="Nav_Movies">电影库</sys:String>
     <sys:String x:Key="Nav_Favorites">我的收藏</sys:String>
     <sys:String x:Key="Nav_Watchlist">待看清单</sys:String>
@@ -481,6 +482,12 @@
     <sys:String x:Key="Dashboard_Favorites">我的收藏</sys:String>
     <sys:String x:Key="Dashboard_RecentlyAdded">最近添加</sys:String>
     <sys:String x:Key="Dashboard_RecentlyWatched">最近观看</sys:String>
+    <sys:String x:Key="Dashboard_GreetingMorning">早上好</sys:String>
+    <sys:String x:Key="Dashboard_GreetingAfternoon">下午好</sys:String>
+    <sys:String x:Key="Dashboard_GreetingEvening">晚上好</sys:String>
+    <sys:String x:Key="Dashboard_GreetingSuffix">今天宜观影 🎬</sys:String>
+    <sys:String x:Key="Dashboard_RandomPick">🎲 随机推荐</sys:String>
+    <sys:String x:Key="Dashboard_GenreDistribution">类型分布</sys:String>
 
     <!-- AI 推荐 -->
     <sys:String x:Key="Nav_AI">AI 推荐</sys:String>
@@ -510,4 +517,22 @@
     <sys:String x:Key="Heatmap_Less">少</sys:String>
     <sys:String x:Key="Heatmap_More">多</sys:String>
     <sys:String x:Key="Heatmap_TopDays">热门观影日 TOP 10</sys:String>
+    <sys:String x:Key="Heatmap_TotalMovies">总观影数</sys:String>
+    <sys:String x:Key="Heatmap_WatchedDays">观影天数</sys:String>
+    <sys:String x:Key="Heatmap_MaxPerDay">单日最多</sys:String>
+    <sys:String x:Key="Heatmap_LongestStreak">最长连续</sys:String>
+    <sys:String x:Key="Heatmap_Summary">共观影 {0} 部 | {1} 天有记录 | 最长连续 {2} 天</sys:String>
+    <sys:String x:Key="Heatmap_NoRecord">无观影记录</sys:String>
+    <sys:String x:Key="Heatmap_WatchedCount">{0} 部</sys:String>
+    <sys:String x:Key="Heatmap_DayCount">{0} 天</sys:String>
+    <sys:String x:Key="Heatmap_Week">周</sys:String>
+    <sys:String x:Key="Heatmap_Unknown">未知</sys:String>
+    <sys:String x:Key="Heatmap_MoreMovies">还有 {0} 部</sys:String>
+    <sys:String x:Key="Heatmap_DayMon">一</sys:String>
+    <sys:String x:Key="Heatmap_DayTue">二</sys:String>
+    <sys:String x:Key="Heatmap_DayWed">三</sys:String>
+    <sys:String x:Key="Heatmap_DayThu">四</sys:String>
+    <sys:String x:Key="Heatmap_DayFri">五</sys:String>
+    <sys:String x:Key="Heatmap_DaySat">六</sys:String>
+    <sys:String x:Key="Heatmap_DaySun">日</sys:String>
 </ResourceDictionary>

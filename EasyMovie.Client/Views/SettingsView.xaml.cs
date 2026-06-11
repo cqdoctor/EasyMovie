@@ -321,21 +321,23 @@ public partial class SettingsView : UserControl
         }
     }
 
-    private void SaveAI_Click(object sender, RoutedEventArgs e)
+    private void SaveAIFromUI()
     {
         AppSettings.AiProvider = (AiProviderCombo.SelectedItem as ComboBoxItem)?.Tag as string ?? "";
         AppSettings.AiApiKey = AiApiKeyBox.Text?.Trim();
         AppSettings.AiApiEndpoint = AiEndpointBox.Text?.Trim() ?? "https://api.openai.com/v1";
         AppSettings.AiModel = AiModelBox.Text?.Trim() ?? "gpt-4o-mini";
+    }
+
+    private void SaveAI_Click(object sender, RoutedEventArgs e)
+    {
+        SaveAIFromUI();
         AppMessageBox.ShowInfo(LanguageManager.GetString("Msg_AISaved"), LanguageManager.GetString("Settings_AI"));
     }
 
     private async void TestAI_Click(object sender, RoutedEventArgs e)
     {
-        AppSettings.AiProvider = (AiProviderCombo.SelectedItem as ComboBoxItem)?.Tag as string ?? "";
-        AppSettings.AiApiKey = AiApiKeyBox.Text?.Trim();
-        AppSettings.AiApiEndpoint = AiEndpointBox.Text?.Trim() ?? "https://api.openai.com/v1";
-        AppSettings.AiModel = AiModelBox.Text?.Trim() ?? "gpt-4o-mini";
+        SaveAIFromUI();
 
         try
         {

@@ -9,151 +9,192 @@
              UseLayoutRounding="True">
 
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-        <StackPanel Margin="8,0,8,24">
+        <StackPanel Margin="8,2,8,12">
 
-            <TextBlock Text="{DynamicResource Dashboard_Title}" FontSize="28" FontWeight="Bold"
-                       Margin="8,0,0,20" />
+            <!-- 问候语 + 随机推荐 -->
+            <Border CornerRadius="10" Padding="14,10" Margin="0,0,0,8"
+                    Background="{DynamicResource MaterialDesignCardBackground}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock x:Name="GreetingText" FontSize="22" FontWeight="Bold"
+                                       Foreground="{DynamicResource MaterialDesignBody}"
+                                       VerticalAlignment="Center" />
+                            <TextBlock x:Name="GreetingEmoji" Text="☀️" FontSize="20"
+                                       VerticalAlignment="Center" Margin="6,0,0,0" />
+                        </StackPanel>
+                        <TextBlock Text="{DynamicResource Dashboard_GreetingSuffix}"
+                                   FontSize="13" Foreground="{DynamicResource MaterialDesignBodyLight}"
+                                   Margin="0,2,0,0" />
+                    </StackPanel>
+                    <Button x:Name="RandomPickBtn" Grid.Column="1"
+                            Content="{DynamicResource Dashboard_RandomPick}"
+                            Style="{StaticResource MaterialDesignRaisedAccentButton}"
+                            FontSize="14" MinWidth="130" Padding="16,8"
+                            VerticalAlignment="Center"
+                            Click="RandomPickBtn_Click" />
+                </Grid>
+            </Border>
 
             <!-- 统计卡片行 -->
-            <WrapPanel Margin="0,0,0,20">
-                <Border CornerRadius="12" Width="155" Padding="16,14" Margin="0,0,10,10">
+            <Grid Margin="0,0,0,8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Border Grid.Column="0" CornerRadius="10" Padding="12,10" Margin="0,0,8,0">
                     <Border.Background>
                         <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
                             <GradientStop Color="#7C4DFF" Offset="0"/>
                             <GradientStop Color="#B388FF" Offset="1"/>
                         </LinearGradientBrush>
                     </Border.Background>
-                    <Border.Effect>
-                        <DropShadowEffect Color="#7C4DFF" Opacity="0.3" BlurRadius="8" ShadowDepth="2"/>
-                    </Border.Effect>
                     <StackPanel>
-                        <TextBlock Text="{DynamicResource Dashboard_TotalMovies}" FontSize="11" Foreground="#FFFFFFCC" />
-                        <TextBlock x:Name="TotalMoviesText" Text="0" FontSize="30" FontWeight="Bold" Foreground="White" />
+                        <TextBlock Text="{DynamicResource Dashboard_TotalMovies}" FontSize="10" Foreground="#FFFFFFCC" />
+                        <TextBlock x:Name="TotalMoviesText" Text="0" FontSize="26" FontWeight="Bold" Foreground="White" />
                     </StackPanel>
                 </Border>
 
-                <Border CornerRadius="12" Width="155" Padding="16,14" Margin="0,0,10,10">
+                <Border Grid.Column="1" CornerRadius="10" Padding="12,10" Margin="8,0,8,0">
                     <Border.Background>
                         <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
                             <GradientStop Color="#4CAF50" Offset="0"/>
                             <GradientStop Color="#81C784" Offset="1"/>
                         </LinearGradientBrush>
                     </Border.Background>
-                    <Border.Effect>
-                        <DropShadowEffect Color="#4CAF50" Opacity="0.3" BlurRadius="8" ShadowDepth="2"/>
-                    </Border.Effect>
                     <StackPanel>
-                        <TextBlock Text="{DynamicResource Dashboard_MonthWatched}" FontSize="11" Foreground="#FFFFFFCC" />
-                        <TextBlock x:Name="MonthWatchedText" Text="0" FontSize="30" FontWeight="Bold" Foreground="White" />
+                        <TextBlock Text="{DynamicResource Dashboard_MonthWatched}" FontSize="10" Foreground="#FFFFFFCC" />
+                        <TextBlock x:Name="MonthWatchedText" Text="0" FontSize="26" FontWeight="Bold" Foreground="White" />
                     </StackPanel>
                 </Border>
 
-                <Border CornerRadius="12" Width="155" Padding="16,14" Margin="0,0,10,10">
+                <Border Grid.Column="2" CornerRadius="10" Padding="12,10" Margin="8,0,8,0">
                     <Border.Background>
                         <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
                             <GradientStop Color="#FF9800" Offset="0"/>
                             <GradientStop Color="#FFB74D" Offset="1"/>
                         </LinearGradientBrush>
                     </Border.Background>
-                    <Border.Effect>
-                        <DropShadowEffect Color="#FF9800" Opacity="0.3" BlurRadius="8" ShadowDepth="2"/>
-                    </Border.Effect>
                     <StackPanel>
-                        <TextBlock Text="{DynamicResource Dashboard_TotalHours}" FontSize="11" Foreground="#FFFFFFCC" />
-                        <TextBlock x:Name="TotalHoursText" Text="0" FontSize="30" FontWeight="Bold" Foreground="White" />
+                        <TextBlock Text="{DynamicResource Dashboard_TotalHours}" FontSize="10" Foreground="#FFFFFFCC" />
+                        <TextBlock x:Name="TotalHoursText" Text="0" FontSize="26" FontWeight="Bold" Foreground="White" />
                     </StackPanel>
                 </Border>
 
-                <Border CornerRadius="12" Width="155" Padding="16,14" Margin="0,0,10,10">
+                <Border Grid.Column="3" CornerRadius="10" Padding="12,10" Margin="8,0,8,0">
                     <Border.Background>
                         <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
                             <GradientStop Color="#E91E63" Offset="0"/>
                             <GradientStop Color="#F06292" Offset="1"/>
                         </LinearGradientBrush>
                     </Border.Background>
-                    <Border.Effect>
-                        <DropShadowEffect Color="#E91E63" Opacity="0.3" BlurRadius="8" ShadowDepth="2"/>
-                    </Border.Effect>
                     <StackPanel>
-                        <TextBlock Text="{DynamicResource Dashboard_AvgRating}" FontSize="11" Foreground="#FFFFFFCC" />
-                        <TextBlock x:Name="AvgRatingText" Text="0" FontSize="30" FontWeight="Bold" Foreground="White" />
+                        <TextBlock Text="{DynamicResource Dashboard_AvgRating}" FontSize="10" Foreground="#FFFFFFCC" />
+                        <TextBlock x:Name="AvgRatingText" Text="0" FontSize="26" FontWeight="Bold" Foreground="White" />
                     </StackPanel>
                 </Border>
 
-                <Border CornerRadius="12" Width="155" Padding="16,14" Margin="0,0,10,10">
+                <Border Grid.Column="4" CornerRadius="10" Padding="12,10" Margin="8,0,0,0">
                     <Border.Background>
                         <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
                             <GradientStop Color="#00BCD4" Offset="0"/>
                             <GradientStop Color="#4DD0E1" Offset="1"/>
                         </LinearGradientBrush>
                     </Border.Background>
-                    <Border.Effect>
-                        <DropShadowEffect Color="#00BCD4" Opacity="0.3" BlurRadius="8" ShadowDepth="2"/>
-                    </Border.Effect>
                     <StackPanel>
-                        <TextBlock Text="{DynamicResource Dashboard_Favorites}" FontSize="11" Foreground="#FFFFFFCC" />
-                        <TextBlock x:Name="FavoritesText" Text="0" FontSize="30" FontWeight="Bold" Foreground="White" />
+                        <TextBlock Text="{DynamicResource Dashboard_Favorites}" FontSize="10" Foreground="#FFFFFFCC" />
+                        <TextBlock x:Name="FavoritesText" Text="0" FontSize="26" FontWeight="Bold" Foreground="White" />
                     </StackPanel>
                 </Border>
-            </WrapPanel>
+            </Grid>
 
-            <!-- 最近添加 -->
-            <TextBlock Text="{DynamicResource Dashboard_RecentlyAdded}" FontSize="18" FontWeight="SemiBold" Margin="8,0,0,12" />
-            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" Height="180">
-                <ItemsControl x:Name="RecentAddedList">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <StackPanel Orientation="Horizontal" />
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <Border Width="100" Height="150" Margin="0,0,12,0" CornerRadius="8"
-                                    Background="{DynamicResource MaterialDesignCardBackground}"
-                                    Cursor="Hand" MouseLeftButtonDown="MovieCard_Click">
-                                <StackPanel>
-                                    <Border Width="100" Height="133" CornerRadius="8,8,0,0"
-                                            Background="{DynamicResource MaterialDesignDivider}">
-                                        <Image Source="{Binding PosterData, Converter={StaticResource PosterImageConverter}}"
-                                               Stretch="UniformToFill" />
-                                    </Border>
-                                    <TextBlock Text="{Binding Title}" FontSize="11" Margin="6,4"
-                                               TextTrimming="CharacterEllipsis" />
-                                </StackPanel>
-                            </Border>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </ScrollViewer>
+            <!-- 类型分布 + 最近添加 / 最近观看：双列布局 -->
+            <Grid Margin="0,0,0,8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
 
-            <!-- 最近观看 -->
-            <TextBlock Text="{DynamicResource Dashboard_RecentlyWatched}" FontSize="18" FontWeight="SemiBold" Margin="8,16,0,12" />
-            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" Height="180">
-                <ItemsControl x:Name="RecentWatchedList">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <StackPanel Orientation="Horizontal" />
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <Border Width="100" Height="150" Margin="0,0,12,0" CornerRadius="8"
-                                    Background="{DynamicResource MaterialDesignCardBackground}"
-                                    Cursor="Hand" MouseLeftButtonDown="MovieCard_Click">
-                                <StackPanel>
-                                    <Border Width="100" Height="133" CornerRadius="8,8,0,0"
-                                            Background="{DynamicResource MaterialDesignDivider}">
-                                        <Image Source="{Binding PosterData, Converter={StaticResource PosterImageConverter}}"
-                                               Stretch="UniformToFill" />
+                <!-- 左列：类型分布 -->
+                <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                    <TextBlock Text="{DynamicResource Dashboard_GenreDistribution}" FontSize="15" FontWeight="SemiBold"
+                               Margin="4,0,0,6" Foreground="{DynamicResource MaterialDesignBody}" />
+                    <Border CornerRadius="8" Padding="12,10"
+                            Background="{DynamicResource MaterialDesignCardBackground}">
+                        <StackPanel x:Name="GenreChartPanel" />
+                    </Border>
+                </StackPanel>
+
+                <!-- 右列：最近添加 + 最近观看 -->
+                <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                    <!-- 最近添加 -->
+                    <TextBlock Text="{DynamicResource Dashboard_RecentlyAdded}" FontSize="15" FontWeight="SemiBold"
+                               Margin="4,0,0,4" Foreground="{DynamicResource MaterialDesignBody}" />
+                    <ScrollViewer HorizontalScrollBarVisibility="Visible" VerticalScrollBarVisibility="Disabled" Height="138">
+                        <ItemsControl x:Name="RecentAddedList">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Width="80" Height="130" Margin="0,0,8,0" CornerRadius="6"
+                                            Background="{DynamicResource MaterialDesignCardBackground}"
+                                            Cursor="Hand" MouseLeftButtonDown="MovieCard_Click">
+                                        <StackPanel>
+                                            <Border Width="80" Height="110" CornerRadius="6,6,0,0"
+                                                    Background="{DynamicResource MaterialDesignDivider}">
+                                                <Image Source="{Binding PosterData, Converter={StaticResource PosterImageConverter}}"
+                                                       Stretch="UniformToFill" />
+                                            </Border>
+                                            <TextBlock Text="{Binding Title}" FontSize="10" Margin="4,2"
+                                                       TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
                                     </Border>
-                                    <TextBlock Text="{Binding Title}" FontSize="11" Margin="6,4"
-                                               TextTrimming="CharacterEllipsis" />
-                                </StackPanel>
-                            </Border>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </ScrollViewer>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+
+                    <!-- 最近观看 -->
+                    <TextBlock Text="{DynamicResource Dashboard_RecentlyWatched}" FontSize="15" FontWeight="SemiBold"
+                               Margin="4,8,0,4" Foreground="{DynamicResource MaterialDesignBody}" />
+                    <ScrollViewer HorizontalScrollBarVisibility="Visible" VerticalScrollBarVisibility="Disabled" Height="138">
+                        <ItemsControl x:Name="RecentWatchedList">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Width="80" Height="130" Margin="0,0,8,0" CornerRadius="6"
+                                            Background="{DynamicResource MaterialDesignCardBackground}"
+                                            Cursor="Hand" MouseLeftButtonDown="MovieCard_Click">
+                                        <StackPanel>
+                                            <Border Width="80" Height="110" CornerRadius="6,6,0,0"
+                                                    Background="{DynamicResource MaterialDesignDivider}">
+                                                <Image Source="{Binding PosterData, Converter={StaticResource PosterImageConverter}}"
+                                                       Stretch="UniformToFill" />
+                                            </Border>
+                                            <TextBlock Text="{Binding Title}" FontSize="10" Margin="4,2"
+                                                       TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </StackPanel>
+            </Grid>
 
         </StackPanel>
     </ScrollViewer>

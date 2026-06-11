@@ -1912,6 +1912,33 @@ public partial class MovieListView : UserControl
         SearchBox.SelectAll();
     }
 
+    public async void SelectMovieById(int movieId)
+    {
+        // 首先尝试在当前列表中查找电影并选中
+        if (MovieDataGrid.ItemsSource is List<Movie> movies)
+        {
+            var target = movies.FirstOrDefault(m => m.Id == movieId);
+            if (target != null)
+            {
+                MovieDataGrid.SelectedItem = target;
+                MovieDataGrid.ScrollIntoView(target);
+                return;
+            }
+        }
+
+        // 如果不在当前页，通过 DataContext 获取完整电影信息，然后搜索
+        try
+        {
+            using var ctx = DbHelper.CreateContext();
+            var movie = await ctx.Movies.FindAsync(movieId);
+            if (movie != null)
+            {
+                SearchBox.Text = movie.Title;
+            }
+        }
+        catch { }
+    }
+
     public void AddNewMovie() => OpenDetailView(0);
 
     public async void DeleteSelectedMovie()

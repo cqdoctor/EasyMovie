@@ -12,7 +12,15 @@ public partial class WatchHeatmapView : UserControl
     private const int CellSize = 14;
     private const int CellGap = 2;
     private const int WeeksToShow = 53;
-    private static readonly string[] DayLabelsShort = ["一", "二", "三", "四", "五", "六", "日"];
+
+    private static string L(string key) => LanguageManager.GetString(key);
+
+    private static string LocDay(int i) => i switch
+    {
+        0 => "Heatmap_DayMon", 1 => "Heatmap_DayTue", 2 => "Heatmap_DayWed",
+        3 => "Heatmap_DayThu", 4 => "Heatmap_DayFri", 5 => "Heatmap_DaySat",
+        6 => "Heatmap_DaySun", _ => "Heatmap_DayMon"
+    };
 
     public WatchHeatmapView()
     {
@@ -60,7 +68,7 @@ public partial class WatchHeatmapView : UserControl
         var longestStreak = CalcLongestStreak(dailyCounts, startDate, endDate);
 
         SummaryText.Text = $"{startDate:yyyy-MM-dd} - {endDate:yyyy-MM-dd} | " +
-                           $"共观影 {totalMovies} 部 | {totalDays} 天有记录 | 最长连续 {longestStreak} 天";
+                           string.Format(L("Heatmap_Summary"), totalMovies, totalDays, longestStreak);
 
         BuildDayLabels();
 
@@ -103,7 +111,7 @@ public partial class WatchHeatmapView : UserControl
         {
             var tb = new TextBlock
             {
-                Text = DayLabelsShort[i],
+                Text = L(LocDay(i)),
                 FontSize = 10,
                 Height = CellSize + CellGap,
                 VerticalAlignment = VerticalAlignment.Center,
@@ -148,10 +156,10 @@ public partial class WatchHeatmapView : UserControl
     private void BuildStatsCards(int totalMovies, int totalDays, int maxPerDay, int longestStreak)
     {
         StatsPanel.Children.Clear();
-        AddStatCard("总观影数", $"{totalMovies} 部", "#7C4DFF", "#B388FF");
-        AddStatCard("观影天数", $"{totalDays} 天", "#00BFA5", "#64FFDA");
-        AddStatCard("单日最多", $"{maxPerDay} 部", "#FF6D00", "#FFD180");
-        AddStatCard("最长连续", $"{longestStreak} 天", "#D500F9", "#EA80FC");
+        AddStatCard(L("Heatmap_TotalMovies"), string.Format(L("Heatmap_WatchedCount"), totalMovies), "#7C4DFF", "#B388FF");
+        AddStatCard(L("Heatmap_WatchedDays"), string.Format(L("Heatmap_DayCount"), totalDays), "#00BFA5", "#64FFDA");
+        AddStatCard(L("Heatmap_MaxPerDay"), string.Format(L("Heatmap_WatchedCount"), maxPerDay), "#FF6D00", "#FFD180");
+        AddStatCard(L("Heatmap_LongestStreak"), string.Format(L("Heatmap_DayCount"), longestStreak), "#D500F9", "#EA80FC");
     }
 
     private void AddStatCard(string label, string value, string color1, string color2)
@@ -229,16 +237,17 @@ public partial class WatchHeatmapView : UserControl
     private static object BuildTooltip(DateTime date, int count, List<EasyMovie.Core.Models.WatchLog>? logs)
     {
         var sp = new StackPanel();
+        var dayIdx = (int)date.DayOfWeek == 0 ? 6 : (int)date.DayOfWeek - 1;
         sp.Children.Add(new TextBlock
         {
-            Text = $"{date:yyyy-MM-dd} (周{DayLabelsShort[(int)date.DayOfWeek == 0 ? 6 : (int)date.DayOfWeek - 1]})",
+            Text = $"{date:yyyy-MM-dd} ({L("Heatmap_Week")}{L(LocDay(dayIdx))})",
             FontWeight = FontWeights.Bold,
             FontSize = 12,
             Margin = new Thickness(0, 0, 0, 4)
         });
         sp.Children.Add(new TextBlock
         {
-            Text = count == 0 ? "无观影记录" : $"观影 {count} 部",
+            Text = count == 0 ? L("Heatmap_NoRecord") : string.Format(L("Heatmap_WatchedCount"), count),
             FontSize = 11,
             Margin = new Thickness(0, 0, 0, 4)
         });
@@ -248,14 +257,14 @@ public partial class WatchHeatmapView : UserControl
             foreach (var log in logs.Take(5))
                 sp.Children.Add(new TextBlock
                 {
-                    Text = $"  - {log.Movie?.Title ?? "未知"}",
+                    Text = $"  - {log.Movie?.Title ?? L("Heatmap_Unknown")}",
                     FontSize = 11,
                     Foreground = Brushes.Gray
                 });
             if (logs.Count > 5)
                 sp.Children.Add(new TextBlock
                 {
-                    Text = $"  ... 还有 {logs.Count - 5} 部",
+                    Text = $"  ... {string.Format(L("Heatmap_MoreMovies"), logs.Count - 5)}",
                     FontSize = 11,
                     Foreground = Brushes.Gray
                 });
@@ -330,7 +339,7 @@ public partial class WatchHeatmapView : UserControl
 
             var countTb = new TextBlock
             {
-                Text = $"{item.Count} 部",
+                Text = string.Format(L("Heatmap_WatchedCount"), item.Count),
                 FontSize = 13,
                 FontWeight = FontWeights.Bold,
                 VerticalAlignment = VerticalAlignment.Center

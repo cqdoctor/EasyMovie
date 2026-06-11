@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -21,6 +22,7 @@ public partial class AIRecommendationView : UserControl
     private readonly List<ChatMessage> _chatHistory = new();
     private bool _isStreaming;
     private string? _cachedSystemPrompt;
+    private CancellationTokenSource? _streamCts;
 
     public AIRecommendationView()
     {
@@ -30,6 +32,14 @@ public partial class AIRecommendationView : UserControl
             await PreBuildSystemPromptAsync();
             Dispatcher.BeginInvoke(UpdateUIState, DispatcherPriority.Background);
         };
+    }
+
+    private void UserControl_Unloaded(object sender, RoutedEventArgs e)
+    {
+        // 取消正在进行的流式请求
+        _streamCts?.Cancel();
+        _streamCts?.Dispose();
+        _streamCts = null;
     }
 
     /// <summary>预构建系统提示词（启动时异步执行，避免每次请求都查库）</summary>
@@ -206,12 +216,22 @@ public partial class AIRecommendationView : UserControl
 
     #region UI Helpers
 
+    private Brush SafeFindBrush(string resourceKey, Color fallback)
+    {
+        var brush = this.TryFindResource(resourceKey) as Brush
+                   ?? Application.Current?.TryFindResource(resourceKey) as Brush
+                   ?? new SolidColorBrush(fallback);
+        if (!brush.IsFrozen)
+            brush.Freeze();
+        return brush;
+    }
+
     private void AddMessageBubble(string role, string content)
     {
         var isUser = role == "user";
-        var cardBg = TryFindResource("MaterialDesignCardBackground") as Brush ?? new SolidColorBrush(Color.FromRgb(45, 45, 45));
-        var bodyFg = TryFindResource("MaterialDesignBody") as Brush ?? Brushes.White;
-        var darkBg = TryFindResource("MaterialDesignDarkBackground") as Brush ?? new SolidColorBrush(Color.FromRgb(55, 71, 79));
+        var cardBg = SafeFindBrush("MaterialDesignCardBackground", Color.FromRgb(45, 45, 45));
+        var bodyFg = SafeFindBrush("MaterialDesignBody", Colors.White);
+        var darkBg = SafeFindBrush("MaterialDesignDarkBackground", Color.FromRgb(55, 71, 79));
 
         var bubble = new Border
         {
@@ -238,8 +258,8 @@ public partial class AIRecommendationView : UserControl
 
     private Border CreateAIBubble(string initialContent)
     {
-        var cardBg = TryFindResource("MaterialDesignCardBackground") as Brush ?? new SolidColorBrush(Color.FromRgb(45, 45, 45));
-        var bodyFg = TryFindResource("MaterialDesignBody") as Brush ?? Brushes.White;
+        var cardBg = SafeFindBrush("MaterialDesignCardBackground", Color.FromRgb(45, 45, 45));
+        var bodyFg = SafeFindBrush("MaterialDesignBody", Colors.White);
 
         var bubble = new Border
         {

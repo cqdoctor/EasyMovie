@@ -95,13 +95,13 @@
                 <!-- 导航菜单 -->
                 <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,8">
                     <StackPanel x:Name="NavPanel">
-                        <!-- 数据概览 - 顶层导航 -->
-                        <Button x:Name="NavBtn_Dashboard" Tag="Dashboard" Click="NavBtn_Click"
+                        <!-- 首页按钮 -->
+                        <Button x:Name="NavBtn_Home" Tag="Dashboard" Click="NavBtn_Click"
                                 Style="{StaticResource MaterialDesignFlatButton}"
                                 HorizontalContentAlignment="Left" Padding="12,8" Margin="4,1">
                             <StackPanel Orientation="Horizontal">
-                                <materialDesign:PackIcon Kind="ViewDashboard" Margin="0,0,12,0" />
-                                <TextBlock Text="{DynamicResource Nav_Dashboard}" VerticalAlignment="Center" />
+                                <materialDesign:PackIcon Kind="Home" Margin="0,0,12,0" />
+                                <TextBlock Text="{DynamicResource Nav_Home}" VerticalAlignment="Center" />
                             </StackPanel>
                         </Button>
 

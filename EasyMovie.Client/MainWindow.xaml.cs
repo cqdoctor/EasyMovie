@@ -232,11 +232,22 @@ public partial class MainWindow : Window
         }
     }
 
+    private void ToggleGroup(ToggleButton toggle, StackPanel panel, ToggleButton otherToggle, StackPanel otherPanel)
+    {
+        panel.Visibility = toggle.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        if (toggle.IsChecked == true)
+        {
+            otherToggle.IsChecked = false;
+            otherPanel.Visibility = Visibility.Collapsed;
+            if (FindPackIconInHeader(otherToggle)?.RenderTransform is RotateTransform rot)
+                rot.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(0, TimeSpan.FromMilliseconds(150)));
+        }
+    }
+
     private void GroupToggle_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not ToggleButton tb) return;
 
-        // 获取箭头的旋转变换
         var packIcon = FindPackIconInHeader(tb);
         if (packIcon?.RenderTransform is RotateTransform rot)
         {
@@ -246,29 +257,9 @@ public partial class MainWindow : Window
         }
 
         if (tb == AnalysisToggle)
-        {
-            AnalysisSubPanel.Visibility = tb.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
-            // 同时折叠另一个分组
-            if (tb.IsChecked == true)
-            {
-                DiscoverToggle.IsChecked = false;
-                DiscoverSubPanel.Visibility = Visibility.Collapsed;
-                // 更新另一个箭头角度
-                if (FindPackIconInHeader(DiscoverToggle)?.RenderTransform is RotateTransform rot2)
-                    rot2.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(0, TimeSpan.FromMilliseconds(150)));
-            }
-        }
+            ToggleGroup(tb, AnalysisSubPanel, DiscoverToggle, DiscoverSubPanel);
         else if (tb == DiscoverToggle)
-        {
-            DiscoverSubPanel.Visibility = tb.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
-            if (tb.IsChecked == true)
-            {
-                AnalysisToggle.IsChecked = false;
-                AnalysisSubPanel.Visibility = Visibility.Collapsed;
-                if (FindPackIconInHeader(AnalysisToggle)?.RenderTransform is RotateTransform rot1)
-                    rot1.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(0, TimeSpan.FromMilliseconds(150)));
-            }
-        }
+            ToggleGroup(tb, DiscoverSubPanel, AnalysisToggle, AnalysisSubPanel);
     }
 
     private PackIcon? FindPackIconInHeader(ToggleButton tb)
@@ -305,9 +296,13 @@ public partial class MainWindow : Window
 
     private readonly Dictionary<string, UserControl> _pageCache = new();
     private string _currentPage = "";
+    private static readonly Duration PageAnimDuration = new(TimeSpan.FromMilliseconds(200));
 
     public void NavigateTo(string page)
     {
+        if (_currentPage == page && _pageCache.ContainsKey(page))
+            return;
+
         if (!_pageCache.TryGetValue(page, out var view))
         {
             view = page switch
@@ -327,9 +322,40 @@ public partial class MainWindow : Window
             ContentArea.Children.Add(view);
         }
 
-        // 用 Visibility 切换，避免重复布局
+        // 找到当前可见的页面
+        UIElement? oldView = null;
         foreach (UIElement child in ContentArea.Children)
-            child.Visibility = child == view ? Visibility.Visible : Visibility.Collapsed;
+        {
+            if (child.Visibility == Visibility.Visible && child != view)
+                oldView = child;
+        }
+
+        var newView = view;
+
+        if (oldView == null)
+        {
+            // 首次加载：直接显示新页面（不带动画）
+            newView.Opacity = 1;
+            newView.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            // 过渡动画：旧页面淡出 → 新页面淡入
+            newView.Opacity = 0;
+            newView.Visibility = Visibility.Visible;
+
+            var fadeOut = new DoubleAnimation(1.0, 0.0, PageAnimDuration);
+            fadeOut.Completed += (s, e) =>
+            {
+                oldView.Visibility = Visibility.Collapsed;
+                var fadeIn = new DoubleAnimation(0.0, 1.0, PageAnimDuration)
+                {
+                    EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
+                };
+                newView.BeginAnimation(UIElement.OpacityProperty, fadeIn);
+            };
+            oldView.BeginAnimation(UIElement.OpacityProperty, fadeOut);
+        }
 
         _currentPage = page;
 
@@ -424,6 +450,12 @@ public partial class MainWindow : Window
         }
 
         await LoadWatchLogsAsync(movie.Id);
+
+        // 通知电影列表选中该电影
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            GetCurrentMovieView()?.SelectMovieById(movie.Id);
+        }), System.Windows.Threading.DispatcherPriority.Background);
     }
 
     private async Task LoadDetailTagsAsync(int movieId)
@@ -680,8 +712,27 @@ public partial class MainWindow : Window
 
     private void Nav1_Executed(object sender, ExecutedRoutedEventArgs e) { NavigateTo("Dashboard"); }
     private void Nav2_Executed(object sender, ExecutedRoutedEventArgs e) { NavigateTo("Movies"); }
-    private void Nav3_Executed(object sender, ExecutedRoutedEventArgs e) { NavigateTo("Statistics"); }
+    private void Nav3_Executed(object sender, ExecutedRoutedEventArgs e) { NavigateTo("Statistics"); ExpandGroup("Statistics"); }
     private void Nav4_Executed(object sender, ExecutedRoutedEventArgs e) { NavigateTo("Settings"); }
+
+    /// <summary>根据页面 tag 自动展开对应分组</summary>
+    private void ExpandGroup(string page)
+    {
+        if (page is "Statistics" or "Heatmap" or "Calendar")
+        {
+            AnalysisToggle.IsChecked = true;
+            AnalysisSubPanel.Visibility = Visibility.Visible;
+            DiscoverToggle.IsChecked = false;
+            DiscoverSubPanel.Visibility = Visibility.Collapsed;
+        }
+        else if (page is "Relation" or "News" or "AI")
+        {
+            DiscoverToggle.IsChecked = true;
+            DiscoverSubPanel.Visibility = Visibility.Visible;
+            AnalysisToggle.IsChecked = false;
+            AnalysisSubPanel.Visibility = Visibility.Collapsed;
+        }
+    }
 
     private void CycleView_Executed(object sender, ExecutedRoutedEventArgs e)
     {
