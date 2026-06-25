@@ -1,0 +1,47 @@
+<Application x:Class="EasyMovie.Client.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+             xmlns:converters="clr-namespace:EasyMovie.Client.Converters"
+             StartupUri="MainWindow.xaml">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <!-- Material Design 主题 -->
+                <materialDesign:BundledTheme BaseTheme="Dark"
+                                             PrimaryColor="DeepPurple"
+                                             SecondaryColor="Lime" />
+                <ResourceDictionary Source="pack://application:,,,/MaterialDesignThemes.Wpf;component/Themes/MaterialDesign3.Defaults.xaml" />
+                <!-- MDIX 5.x 兼容旧版样式键名 -->
+                <ResourceDictionary Source="pack://application:,,,/MaterialDesignThemes.Wpf;component/Themes/MaterialDesignTheme.ObsoleteStyles.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/MaterialDesignThemes.Wpf;component/Themes/MaterialDesignTheme.ObsoleteBrushes.xaml" />
+                <!-- 默认语言 (zh-CN)，运行时由 LanguageManager 动态替换 -->
+                <ResourceDictionary Source="Strings/Strings.zh-CN.xaml" />
+                <!-- 自定义控件样式 -->
+                <ResourceDictionary Source="Controls/RangeSliderStyle.xaml" />
+                <!-- 皮肤：公共样式模板（颜色通过 DynamicResource 引用皮肤刷子） -->
+                <ResourceDictionary Source="Themes/SkinBase.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <!-- 值转换器 -->
+            <converters:NullToVisibilityConverter x:Key="NullToVisibilityConverter" />
+            <converters:NullToCollapsedConverter x:Key="NullToCollapsedConverter" />
+            <converters:WatchStatusConverter x:Key="WatchStatusConverter" />
+            <converters:WatchStatusColorConverter x:Key="WatchStatusColorConverter" />
+            <converters:BoolToStarConverter x:Key="BoolToStarConverter" />
+            <converters:BoolToStarColorConverter x:Key="BoolToStarColorConverter" />
+            <converters:FilePathIconConverter x:Key="FilePathIconConverter" />
+            <converters:PosterImageConverter x:Key="PosterImageConverter" />
+            <converters:StringToBrushConverter x:Key="StringToBrushConverter" />
+            <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
+            <converters:InverseBoolConverter x:Key="InverseBoolConverter" />
+            <converters:PlayButtonToolTipConverter x:Key="PlayButtonToolTipConverter" />
+
+            <!-- 全局 TextBlock 跟随主题颜色 -->
+            <Style TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{DynamicResource MaterialDesignBody}" />
+            </Style>
+
+            </ResourceDictionary>
+    </Application.Resources>
+</Application>

@@ -1,0 +1,15 @@
+[45436:45440:0523/225126.430:ERROR:rarecc_manager.cpp(923)] UserJsonFile::Load failed
+[45436:45440:0523/225126.430:ERROR:rarecc_manager.cpp(674)] Load rarecc.dat failed: 
+[45436:45440:0523/225126.491:WARNING:t_skinfilemap.cpp(63)] SGRenderLog:CheckUpdate newMem.OpenMem Suc, szNewMem:Local\sgime_skin.v3.filemap.sogouime
+[45436:45440:0523/225126.491:WARNING:t_skinfilemap.cpp(65)] SGRenderLog:CheckUpdate finish: old version:1
+[45436:45440:0523/225126.491:WARNING:t_skinfilemap.cpp(67)] SGRenderLog:CheckUpdate finish: new version:3
+[14944:16924:0526/144742.717:ERROR:rarecc_manager.cpp(923)] UserJsonFile::Load failed
+[14944:16924:0526/144742.717:ERROR:rarecc_manager.cpp(674)] Load rarecc.dat failed: 
+[14944:16924:0526/144742.773:WARNING:t_skinfilemap.cpp(63)] SGRenderLog:CheckUpdate newMem.OpenMem Suc, szNewMem:Local\sgime_skin.v3.filemap.sogouime
+[14944:16924:0526/144742.773:WARNING:t_skinfilemap.cpp(65)] SGRenderLog:CheckUpdate finish: old version:1
+[14944:16924:0526/144742.773:WARNING:t_skinfilemap.cpp(67)] SGRenderLog:CheckUpdate finish: new version:3
+[17016:22104:0527/142128.504:ERROR:rarecc_manager.cpp(923)] UserJsonFile::Load failed
+[17016:22104:0527/142128.507:ERROR:rarecc_manager.cpp(674)] Load rarecc.dat failed: 
+[17016:22104:0527/142128.608:WARNING:t_skinfilemap.cpp(63)] SGRenderLog:CheckUpdate newMem.OpenMem Suc, szNewMem:Local\sgime_skin.v5.filemap.sogouime
+[17016:22104:0527/142128.608:WARNING:t_skinfilemap.cpp(65)] SGRenderLog:CheckUpdate finish: old version:1
+[17016:22104:0527/142128.608:WARNING:t_skinfilemap.cpp(67)] SGRenderLog:CheckUpdate finish: new version:5

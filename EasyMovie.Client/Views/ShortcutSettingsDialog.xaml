@@ -1,0 +1,34 @@
+<Window x:Class="EasyMovie.Client.Views.ShortcutSettingsDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+        Title="{DynamicResource Shortcuts_Title}"
+        Width="480" Height="560"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="{DynamicResource MaterialDesignPaper}">
+
+    <Grid Margin="0">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto">
+            <StackPanel x:Name="ShortcutsPanel" Margin="20,16,20,8" />
+        </ScrollViewer>
+
+        <Border Grid.Row="1" Background="{DynamicResource MaterialDesignCardBackground}"
+                BorderBrush="{DynamicResource MaterialDesignDivider}" BorderThickness="0,1,0,0"
+                Padding="16,10">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="{DynamicResource Shortcuts_ResetDefault}" Style="{StaticResource MaterialDesignFlatButton}"
+                        Click="Reset_Click" Margin="0,0,8,0" />
+                <Button Content="{DynamicResource Msg_Cancel}" Style="{StaticResource MaterialDesignOutlinedButton}"
+                        Click="Cancel_Click" Margin="0,0,8,0" />
+                <Button Content="{DynamicResource CatTag_Save}" Style="{StaticResource MaterialDesignRaisedButton}"
+                        Click="Save_Click" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>

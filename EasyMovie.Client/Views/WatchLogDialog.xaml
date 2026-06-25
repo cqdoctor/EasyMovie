@@ -1,0 +1,55 @@
+<Window x:Class="EasyMovie.Client.Views.WatchLogDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+        Title="{DynamicResource WatchLog_AddTitle}"
+        Width="440" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="{DynamicResource MaterialDesignPaper}">
+
+    <StackPanel Margin="24">
+        <TextBlock x:Name="MovieTitleText" FontSize="16" FontWeight="Bold" Margin="0,0,0,16"
+                   Foreground="{DynamicResource MaterialDesignBody}" />
+
+        <DatePicker x:Name="WatchDatePicker"
+                    materialDesign:HintAssist.Hint="{DynamicResource WatchLog_Date}"
+                    Style="{StaticResource MaterialDesignOutlinedDatePicker}"
+                    Margin="0,0,0,12" />
+
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+            <TextBlock Text="{DynamicResource WatchLog_Rating}" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0"
+                       Foreground="{DynamicResource MaterialDesignBody}" />
+            <ComboBox x:Name="RatingCombo" Width="80" Style="{StaticResource MaterialDesignOutlinedComboBox}">
+                <ComboBoxItem Content="" />
+                <ComboBoxItem Content="1" />
+                <ComboBoxItem Content="2" />
+                <ComboBoxItem Content="3" />
+                <ComboBoxItem Content="4" />
+                <ComboBoxItem Content="5" />
+                <ComboBoxItem Content="6" />
+                <ComboBoxItem Content="7" />
+                <ComboBoxItem Content="8" />
+                <ComboBoxItem Content="9" />
+                <ComboBoxItem Content="10" />
+            </ComboBox>
+        </StackPanel>
+
+        <TextBox x:Name="LocationBox" materialDesign:HintAssist.Hint="{DynamicResource WatchLog_Location}"
+                 Style="{StaticResource MaterialDesignOutlinedTextBox}" Margin="0,0,0,12" />
+
+        <TextBox x:Name="CompanionBox" materialDesign:HintAssist.Hint="{DynamicResource WatchLog_Companion}"
+                 Style="{StaticResource MaterialDesignOutlinedTextBox}" Margin="0,0,0,12" />
+
+        <TextBox x:Name="NotesBox" materialDesign:HintAssist.Hint="{DynamicResource WatchLog_Notes}"
+                 Style="{StaticResource MaterialDesignOutlinedTextBox}" Margin="0,0,0,16"
+                 AcceptsReturn="True" Height="100" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" />
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="{DynamicResource Msg_Cancel}" Style="{StaticResource MaterialDesignOutlinedButton}"
+                    Click="Cancel_Click" Margin="0,0,8,0" />
+            <Button Content="{DynamicResource CatTag_Save}" Style="{StaticResource MaterialDesignRaisedButton}"
+                    Click="Save_Click" />
+        </StackPanel>
+    </StackPanel>
+</Window>

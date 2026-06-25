@@ -1,0 +1,154 @@
+<UserControl x:Class="EasyMovie.Client.Views.MovieNewsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+             mc:Ignorable="d"
+             d:DesignHeight="900" d:DesignWidth="900">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- 标题栏 -->
+        <Grid Margin="0,0,0,16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Text="{DynamicResource News_Title}" FontSize="28" FontWeight="Bold"
+                       VerticalAlignment="Center" />
+
+            <Button x:Name="RefreshBtn" Style="{StaticResource MaterialDesignIconButton}"
+                    ToolTip="{DynamicResource News_Refresh}" Click="RefreshBtn_Click"
+                    HorizontalAlignment="Right" VerticalAlignment="Center">
+                <materialDesign:PackIcon Kind="Refresh" Width="22" Height="22" />
+            </Button>
+        </Grid>
+
+        <!-- Tab 切换 -->
+        <TabControl Grid.Row="1" x:Name="NewsTabControl"
+                    Style="{StaticResource MaterialDesignTabControl}"
+                    SelectionChanged="NewsTabControl_SelectionChanged">
+
+            <!-- 即将上映 -->
+            <TabItem x:Name="ComingSoonTab">
+                <TabItem.Header>
+                    <StackPanel Orientation="Horizontal">
+                        <materialDesign:PackIcon Kind="CalendarClock" Margin="0,0,6,0" VerticalAlignment="Center" />
+                        <TextBlock Text="{DynamicResource News_ComingSoon}" />
+                    </StackPanel>
+                </TabItem.Header>
+                <Grid>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <WrapPanel x:Name="ComingSoonPanel" Margin="0,8,0,0" />
+                    </ScrollViewer>
+                    <StackPanel x:Name="ComingSoonLoading" Visibility="Collapsed"
+                                HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <ProgressBar Style="{StaticResource MaterialDesignCircularProgressBar}"
+                                     IsIndeterminate="True" Width="32" Height="32"
+                                     HorizontalAlignment="Center" Margin="0,0,0,12" />
+                        <TextBlock Text="{DynamicResource News_Loading}" Foreground="{DynamicResource MaterialDesignHintForeground}"
+                                   HorizontalAlignment="Center" />
+                    </StackPanel>
+                    <TextBlock x:Name="ComingSoonEmpty" Visibility="Collapsed"
+                               Text="{DynamicResource News_NoData}" FontSize="14"
+                               Foreground="{DynamicResource MaterialDesignHintForeground}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Grid>
+            </TabItem>
+
+            <!-- 本周热映 -->
+            <TabItem x:Name="NowPlayingTab">
+                <TabItem.Header>
+                    <StackPanel Orientation="Horizontal">
+                        <materialDesign:PackIcon Kind="MovieOpenPlay" Margin="0,0,6,0" VerticalAlignment="Center" />
+                        <TextBlock Text="{DynamicResource News_NowPlaying}" />
+                    </StackPanel>
+                </TabItem.Header>
+                <Grid>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <WrapPanel x:Name="NowPlayingPanel" Margin="0,8,0,0" />
+                    </ScrollViewer>
+                    <StackPanel x:Name="NowPlayingLoading" Visibility="Collapsed"
+                                HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <ProgressBar Style="{StaticResource MaterialDesignCircularProgressBar}"
+                                     IsIndeterminate="True" Width="32" Height="32"
+                                     HorizontalAlignment="Center" Margin="0,0,0,12" />
+                        <TextBlock Text="{DynamicResource News_Loading}" Foreground="{DynamicResource MaterialDesignHintForeground}"
+                                   HorizontalAlignment="Center" />
+                    </StackPanel>
+                    <TextBlock x:Name="NowPlayingEmpty" Visibility="Collapsed"
+                               Text="{DynamicResource News_NoData}" FontSize="14"
+                               Foreground="{DynamicResource MaterialDesignHintForeground}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Grid>
+            </TabItem>
+
+            <!-- 豆瓣 Top250 -->
+            <TabItem x:Name="Top250Tab">
+                <TabItem.Header>
+                    <StackPanel Orientation="Horizontal">
+                        <materialDesign:PackIcon Kind="Trophy" Margin="0,0,6,0" VerticalAlignment="Center" />
+                        <TextBlock Text="{DynamicResource News_Top250}" />
+                    </StackPanel>
+                </TabItem.Header>
+                <Grid>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel>
+                            <WrapPanel x:Name="Top250Panel" Margin="0,8,0,0" />
+                            <Button x:Name="Top250LoadMoreBtn" Visibility="Collapsed"
+                                    Style="{StaticResource MaterialDesignOutlinedButton}"
+                                    Content="{DynamicResource News_LoadMore}"
+                                    HorizontalAlignment="Center" Margin="0,8,0,16"
+                                    Click="Top250LoadMoreBtn_Click" />
+                        </StackPanel>
+                    </ScrollViewer>
+                    <StackPanel x:Name="Top250Loading" Visibility="Collapsed"
+                                HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <ProgressBar Style="{StaticResource MaterialDesignCircularProgressBar}"
+                                     IsIndeterminate="True" Width="32" Height="32"
+                                     HorizontalAlignment="Center" Margin="0,0,0,12" />
+                        <TextBlock Text="{DynamicResource News_Loading}" Foreground="{DynamicResource MaterialDesignHintForeground}"
+                                   HorizontalAlignment="Center" />
+                    </StackPanel>
+                    <TextBlock x:Name="Top250Empty" Visibility="Collapsed"
+                               Text="{DynamicResource News_NoData}" FontSize="14"
+                               Foreground="{DynamicResource MaterialDesignHintForeground}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Grid>
+            </TabItem>
+
+            <!-- 猫眼榜单 -->
+            <TabItem x:Name="MaoyanHotTab">
+                <TabItem.Header>
+                    <StackPanel Orientation="Horizontal">
+                        <materialDesign:PackIcon Kind="Fire" Margin="0,0,6,0" VerticalAlignment="Center" />
+                        <TextBlock Text="{DynamicResource News_MaoyanHot}" />
+                    </StackPanel>
+                </TabItem.Header>
+                <Grid>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <WrapPanel x:Name="MaoyanHotPanel" Margin="0,8,0,0" />
+                    </ScrollViewer>
+                    <StackPanel x:Name="MaoyanHotLoading" Visibility="Collapsed"
+                                HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <ProgressBar Style="{StaticResource MaterialDesignCircularProgressBar}"
+                                     IsIndeterminate="True" Width="32" Height="32"
+                                     HorizontalAlignment="Center" Margin="0,0,0,12" />
+                        <TextBlock Text="{DynamicResource News_Loading}" Foreground="{DynamicResource MaterialDesignHintForeground}"
+                                   HorizontalAlignment="Center" />
+                    </StackPanel>
+                    <TextBlock x:Name="MaoyanHotEmpty" Visibility="Collapsed"
+                               Text="{DynamicResource News_NoData}" FontSize="14"
+                               Foreground="{DynamicResource MaterialDesignHintForeground}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Grid>
+            </TabItem>
+        </TabControl>
+    </Grid>
+</UserControl>
