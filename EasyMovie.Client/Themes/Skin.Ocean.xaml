@@ -1,0 +1,9 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <SolidColorBrush x:Key="Skin.ScrollBarThumbBrush" Color="#554FC3F7" />
+    <SolidColorBrush x:Key="Skin.ScrollBarThumbHoverBrush" Color="#AA4FC3F7" />
+    <SolidColorBrush x:Key="Skin.TitleBarBrush" Color="#0277BD" />
+    <SolidColorBrush x:Key="Skin.TitleBarTextBrush" Color="#FFFFFF" />
+
+</ResourceDictionary>

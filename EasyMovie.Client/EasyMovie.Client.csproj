@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <NoWarn>NU1701</NoWarn>
+    <ApplicationIcon>app.ico</ApplicationIcon>
+    <Version>1.03</Version>
+    <AllowMissingPrunePackageData>true</AllowMissingPrunePackageData>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="app.ico" />
+    <Resource Include="app_multisize.ico" />
+    <Resource Include="app_white.ico" />
+    <Resource Include="transparent.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\EasyMovie.Core\EasyMovie.Core.csproj" />
+    <ProjectReference Include="..\EasyMovie.Data\EasyMovie.Data.csproj" />
+    <ProjectReference Include="..\EasyMovie.Tools\EasyMovie.Tools.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="LibVLCSharp.WPF" Version="3.9.3" />
+    <PackageReference Include="VideoLAN.LibVLC.Windows" Version="3.0.21" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="MaterialDesignThemes" Version="5.2.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.0">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.0" />
+    <PackageReference Include="Serilog.Sinks.Debug" Version="3.0.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="EasyMovie.Core" />
+  </ItemGroup>
+
+</Project>

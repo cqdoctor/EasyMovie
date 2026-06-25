@@ -1,0 +1,79 @@
+<UserControl x:Class="EasyMovie.Client.Views.MovieDetailView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+             mc:Ignorable="d"
+             d:DesignHeight="650" d:DesignWidth="650">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <Grid Margin="24">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <TextBlock x:Name="FetchStatus" Grid.Row="0" FontSize="13"
+                       Foreground="{DynamicResource MaterialDesignSecondaryMid}"
+                       Margin="0,0,0,16" Visibility="Collapsed" TextWrapping="Wrap" />
+
+            <StackPanel Grid.Row="1">
+                <TextBox x:Name="TitleBox" materialDesign:HintAssist.Hint="{DynamicResource MovieDetail_TitleHint}"
+                         Style="{StaticResource MaterialDesignFloatingHintTextBox}" Margin="0,0,0,12" />
+                <TextBox x:Name="OriginalTitleBox" materialDesign:HintAssist.Hint="{DynamicResource MovieDetail_OriginalTitle}"
+                         Style="{StaticResource MaterialDesignFloatingHintTextBox}" Margin="0,0,0,12" />
+                <Grid Margin="0,0,0,12">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="12" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <TextBox x:Name="YearBox" Grid.Column="0" materialDesign:HintAssist.Hint="{DynamicResource MovieDetail_Year}" Style="{StaticResource MaterialDesignFloatingHintTextBox}" />
+                    <TextBox x:Name="RuntimeBox" Grid.Column="2" materialDesign:HintAssist.Hint="{DynamicResource MovieDetail_Runtime}" Style="{StaticResource MaterialDesignFloatingHintTextBox}" />
+                </Grid>
+                <Grid Margin="0,0,0,12">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="12" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <TextBox x:Name="DirectorBox" Grid.Column="0" materialDesign:HintAssist.Hint="{DynamicResource MovieDetail_Director}" Style="{StaticResource MaterialDesignFloatingHintTextBox}" />
+                    <TextBox x:Name="CountryBox" Grid.Column="2" materialDesign:HintAssist.Hint="{DynamicResource MovieDetail_Country}" Style="{StaticResource MaterialDesignFloatingHintTextBox}" />
+                </Grid>
+                <TextBox x:Name="CastBox" materialDesign:HintAssist.Hint="{DynamicResource MovieDetail_Cast}"
+                         Style="{StaticResource MaterialDesignFloatingHintTextBox}" Margin="0,0,0,12" />
+                <TextBox x:Name="SynopsisBox" materialDesign:HintAssist.Hint="{DynamicResource MovieDetail_Synopsis}"
+                         Style="{StaticResource MaterialDesignFloatingHintTextBox}" TextWrapping="Wrap" AcceptsReturn="True"
+                         MinHeight="60" MaxHeight="100" Margin="0,0,0,12" />
+                <ComboBox x:Name="CategoryCombo" materialDesign:HintAssist.Hint="{DynamicResource MovieDetail_Category}"
+                          Style="{StaticResource MaterialDesignFloatingHintComboBox}" Margin="0,0,0,12" />
+                <Border Background="{DynamicResource MaterialDesignBackground}" CornerRadius="4" Padding="12" Margin="0,0,0,12">
+                    <Grid><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                        <TextBlock Grid.Row="0" Text="{DynamicResource MovieDetail_Tags}" FontSize="13" Foreground="{DynamicResource MaterialDesignHintForeground}" Margin="0,0,0,8" />
+                        <WrapPanel x:Name="TagPanel" Grid.Row="1" /></Grid>
+                </Border>
+                <Grid Margin="0,0,0,12">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="12" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <ComboBox x:Name="RatingCombo" Grid.Column="0" materialDesign:HintAssist.Hint="{DynamicResource MovieDetail_Rating}" Style="{StaticResource MaterialDesignFloatingHintComboBox}" />
+                    <ComboBox x:Name="StatusCombo" Grid.Column="2" materialDesign:HintAssist.Hint="{DynamicResource MovieDetail_WatchStatus}"
+                              Style="{StaticResource MaterialDesignFloatingHintComboBox}" SelectionChanged="StatusCombo_SelectionChanged">
+                        <ComboBoxItem Content="{DynamicResource MovieLib_NotWatched}" Tag="NotWatched" /><ComboBoxItem Content="{DynamicResource MovieLib_WantToWatch}" Tag="WantToWatch" /><ComboBoxItem Content="{DynamicResource MovieLib_Watched}" Tag="Watched" />
+                    </ComboBox>
+                </Grid>
+                <DatePicker x:Name="WatchDatePicker" materialDesign:HintAssist.Hint="{DynamicResource MovieDetail_WatchDate}"
+                            Style="{StaticResource MaterialDesignFloatingHintDatePicker}" Margin="0,0,0,12" IsEnabled="False" />
+                <CheckBox x:Name="FavoriteCheck" Content="{DynamicResource MovieDetail_Favorite}" Style="{StaticResource MaterialDesignCheckBox}" Margin="0,0,0,12" />
+                <TextBox x:Name="FilePathBox" materialDesign:HintAssist.Hint="{DynamicResource MovieDetail_FilePath}"
+                         Style="{StaticResource MaterialDesignFloatingHintTextBox}" Margin="0,0,0,4" />
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                    <Button Content="{DynamicResource MovieDetail_Browse}" Style="{StaticResource MaterialDesignFlatButton}" Click="BrowseFile_Click" Margin="0,0,8,0" />
+                    <Button x:Name="PlayFileBtn" Content="{DynamicResource MovieDetail_Play}" Style="{StaticResource MaterialDesignFlatButton}" Click="PlayFile_Click" />
+                </StackPanel>
+                <TextBox x:Name="NotesBox" materialDesign:HintAssist.Hint="{DynamicResource MovieDetail_Notes}"
+                         Style="{StaticResource MaterialDesignFloatingHintTextBox}" TextWrapping="Wrap" AcceptsReturn="True"
+                         MinHeight="50" MaxHeight="100" Margin="0,0,0,12" />
+            </StackPanel>
+
+            <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+                <Button x:Name="DeleteBtn" Content="{DynamicResource CatTag_Delete}" Style="{StaticResource MaterialDesignFlatButton}"
+                        Foreground="{DynamicResource MaterialDesignErrorForeground}" Click="DeleteBtn_Click" Margin="0,0,8,0" />
+                <Button Content="{DynamicResource Msg_Cancel}" Style="{StaticResource MaterialDesignFlatButton}" Click="CancelBtn_Click" Margin="0,0,8,0" />
+                <Button Content="{DynamicResource CatTag_Save}" Style="{StaticResource MaterialDesignRaisedButton}" Click="SaveBtn_Click" />
+            </StackPanel>
+        </Grid>
+    </ScrollViewer>
+</UserControl>

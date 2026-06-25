@@ -1,0 +1,219 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Text.Json;
+
+namespace EasyMovie.Core;
+
+/// <summary>
+/// 应用设置持久化管理
+/// </summary>
+public static class AppSettings
+{
+    private static readonly string SettingsPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "EasyMovie", "settings.json");
+
+    // 旧版路径（用于自动迁移）
+    private static readonly string OldSettingsPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "MovieManager", "settings.json");
+
+    private static SettingsData _current = new();
+
+    public static AppThemeMode Theme
+    {
+        get => _current.Theme;
+        set { _current.Theme = value; Save(); }
+    }
+
+    /// <summary>当前是否为深色主题（考虑系统主题）</summary>
+    public static bool IsDarkTheme => _current.Theme switch
+    {
+        AppThemeMode.Dark => true,
+        AppThemeMode.Light => false,
+        _ => IsNightTime()
+    };
+
+    /// <summary>根据时间判断是否为夜间（18:00-06:00 为夜间，使用深色主题）</summary>
+    public static bool IsNightTime()
+    {
+        var hour = DateTime.Now.Hour;
+        return hour >= 18 || hour < 6;
+    }
+
+    public static string SkinName
+    {
+        get => _current.SkinName;
+        set { _current.SkinName = value; Save(); }
+    }
+
+    public static string? TmdbApiKey
+    {
+        get => _current.TmdbApiKey;
+        set { _current.TmdbApiKey = value; Save(); }
+    }
+
+    public static string? HttpProxy
+    {
+        get => _current.HttpProxy;
+        set { _current.HttpProxy = value; Save(); }
+    }
+
+    public static string? DoubanCookie
+    {
+        get => _current.DoubanCookie;
+        set { _current.DoubanCookie = value; Save(); }
+    }
+
+    public static string? OmdbApiKey
+    {
+        get => _current.OmdbApiKey;
+        set { _current.OmdbApiKey = value; Save(); }
+    }
+
+    /// <summary>界面语言 (zh-CN / en-US)</summary>
+    public static string Language
+    {
+        get => _current.Language;
+        set { _current.Language = value; Save(); }
+    }
+
+    public static int BackupIntervalDays
+    {
+        get => _current.BackupIntervalDays;
+        set { _current.BackupIntervalDays = value; Save(); }
+    }
+
+    public static int MaxBackupCount
+    {
+        get => _current.MaxBackupCount;
+        set { _current.MaxBackupCount = value; Save(); }
+    }
+
+    public static string AiProvider
+    {
+        get => _current.AiProvider;
+        set { _current.AiProvider = value; Save(); }
+    }
+
+    public static string? AiApiKey
+    {
+        get => _current.AiApiKey;
+        set { _current.AiApiKey = value; Save(); }
+    }
+
+    public static string AiApiEndpoint
+    {
+        get => _current.AiApiEndpoint;
+        set { _current.AiApiEndpoint = value; Save(); }
+    }
+
+    public static string AiModel
+    {
+        get => _current.AiModel;
+        set { _current.AiModel = value; Save(); }
+    }
+
+    public static bool FolderMonitorEnabled
+    {
+        get => _current.FolderMonitorEnabled;
+        set { _current.FolderMonitorEnabled = value; Save(); }
+    }
+
+    public static List<string> MonitoredFolders
+    {
+        get => _current.MonitoredFolders;
+        set { _current.MonitoredFolders = value; Save(); }
+    }
+
+    /// <summary>已删除的电影文件路径（防止重新导入）</summary>
+    public static HashSet<string> DeletedFilePaths
+    {
+        get => _current.DeletedFilePaths;
+        set { _current.DeletedFilePaths = value; Save(); }
+    }
+
+    /// <summary>记录已删除的文件路径，防止重新导入</summary>
+    public static void MarkFileDeleted(string filePath)
+    {
+        if (string.IsNullOrEmpty(filePath)) return;
+        if (_current.DeletedFilePaths.Add(filePath))
+            Save();
+    }
+
+    /// <summary>手动保存设置（用于直接修改集合后）</summary>
+    public static void SaveSettings() => Save();
+
+    static AppSettings() => Load();
+
+    private static void Load()
+    {
+        // 自动从旧版迁移设置
+        MigrateFromOldVersion();
+        try
+        {
+            if (File.Exists(SettingsPath))
+            {
+                var json = File.ReadAllText(SettingsPath);
+                _current = JsonSerializer.Deserialize<SettingsData>(json) ?? new();
+            }
+        }
+        catch { _current = new(); }
+    }
+
+    private static void Save()
+    {
+        try
+        {
+            var dir = Path.GetDirectoryName(SettingsPath);
+            if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+                Directory.CreateDirectory(dir);
+            File.WriteAllText(SettingsPath, JsonSerializer.Serialize(_current));
+        }
+        catch { }
+    }
+
+    /// <summary>从旧版 MovieManager 自动迁移设置文件</summary>
+    private static void MigrateFromOldVersion()
+    {
+        try
+        {
+            if (File.Exists(SettingsPath)) return;
+            if (!File.Exists(OldSettingsPath)) return;
+            var dir = Path.GetDirectoryName(SettingsPath);
+            if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+                Directory.CreateDirectory(dir);
+            File.Copy(OldSettingsPath, SettingsPath, overwrite: false);
+        }
+        catch { }
+    }
+
+    private class SettingsData
+    {
+        public AppThemeMode Theme { get; set; } = AppThemeMode.System;
+        public string SkinName { get; set; } = "";
+        public string? TmdbApiKey { get; set; }
+        public string? HttpProxy { get; set; }
+        public string? DoubanCookie { get; set; }
+        public string? OmdbApiKey { get; set; }
+        public string Language { get; set; } = "zh-CN";
+        public int BackupIntervalDays { get; set; } = 7;
+        public int MaxBackupCount { get; set; } = 10;
+        public string AiProvider { get; set; } = "";
+        public string? AiApiKey { get; set; }
+        public string AiApiEndpoint { get; set; } = "https://api.openai.com/v1";
+        public string AiModel { get; set; } = "gpt-4o-mini";
+        public bool FolderMonitorEnabled { get; set; } = false;
+        public List<string> MonitoredFolders { get; set; } = new();
+        public HashSet<string> DeletedFilePaths { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    }
+}
+
+/// <summary>主题模式</summary>
+public enum AppThemeMode
+{
+    System = 0,
+    Dark = 1,
+    Light = 2
+}

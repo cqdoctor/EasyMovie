@@ -1,0 +1,314 @@
+<Window x:Class="EasyMovie.Client.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+        xmlns:local="clr-namespace:EasyMovie.Client"
+        xmlns:views="clr-namespace:EasyMovie.Client.Views"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        mc:Ignorable="d"
+        Height="720" Width="1280"
+        Icon="pack://application:,,,/transparent.ico"
+        WindowStartupLocation="CenterScreen"
+        SnapsToDevicePixels="True"
+        RenderOptions.BitmapScalingMode="HighQuality"
+        TextOptions.TextFormattingMode="Display"
+        Background="{DynamicResource MaterialDesignPaper}">
+
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="32" GlassFrameThickness="0"
+                            ResizeBorderThickness="4" />
+    </shell:WindowChrome.WindowChrome>
+
+    <Window.CommandBindings>
+        <CommandBinding Command="{x:Static local:MainWindow.SearchCommand}" Executed="Search_Executed" />
+        <CommandBinding Command="{x:Static local:MainWindow.AddNewCommand}" Executed="AddNew_Executed" />
+        <CommandBinding Command="{x:Static local:MainWindow.DeleteCommand}" Executed="Delete_Executed" />
+        <CommandBinding Command="{x:Static local:MainWindow.DetailCommand}" Executed="Detail_Executed" />
+        <CommandBinding Command="{x:Static local:MainWindow.EscapeCommand}" Executed="Escape_Executed" />
+        <CommandBinding Command="{x:Static local:MainWindow.RefreshCommand}" Executed="Refresh_Executed" />
+        <CommandBinding Command="{x:Static local:MainWindow.SelectAllCommand}" Executed="SelectAll_Executed" />
+        <CommandBinding Command="{x:Static local:MainWindow.Nav1Command}" Executed="Nav1_Executed" />
+        <CommandBinding Command="{x:Static local:MainWindow.Nav2Command}" Executed="Nav2_Executed" />
+        <CommandBinding Command="{x:Static local:MainWindow.Nav3Command}" Executed="Nav3_Executed" />
+        <CommandBinding Command="{x:Static local:MainWindow.Nav4Command}" Executed="Nav4_Executed" />
+        <CommandBinding Command="{x:Static local:MainWindow.CycleViewCommand}" Executed="CycleView_Executed" />
+        <CommandBinding Command="{x:Static local:MainWindow.ShortcutsHelpCommand}" Executed="ShortcutsHelp_Executed" />
+    </Window.CommandBindings>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="32" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="260" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!-- 自定义标题栏 -->
+        <Border Grid.Row="0" Grid.ColumnSpan="2"
+                Background="{DynamicResource Skin.TitleBarBrush}"
+                shell:WindowChrome.IsHitTestVisibleInChrome="True">
+            <Grid MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                <TextBlock Text="🎬 EasyMovie" FontSize="12"
+                           Foreground="{DynamicResource Skin.TitleBarTextBrush}"
+                           VerticalAlignment="Center" Margin="8,0,0,0" />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
+                            shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                    <Button Content="&#xE921;" Style="{StaticResource MaterialDesignFlatButton}"
+                            FontFamily="Segoe MDL2 Assets" FontSize="10"
+                            Foreground="{DynamicResource Skin.TitleBarTextBrush}"
+                            Width="46" Height="32"
+                            Click="MinimizeWindow_Click" />
+                    <Button x:Name="MaximizeBtn" Content="&#xE922;" Style="{StaticResource MaterialDesignFlatButton}"
+                            FontFamily="Segoe MDL2 Assets" FontSize="10"
+                            Foreground="{DynamicResource Skin.TitleBarTextBrush}"
+                            Width="46" Height="32"
+                            Click="MaximizeWindow_Click" />
+                    <Button Content="&#xE8BB;" Style="{StaticResource MaterialDesignFlatButton}"
+                            FontFamily="Segoe MDL2 Assets" FontSize="10"
+                            Foreground="{DynamicResource Skin.TitleBarTextBrush}"
+                            Width="46" Height="32"
+                            Click="CloseWindow_Click" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- 左侧导航栏 -->
+        <Border Grid.Column="0" Grid.Row="1" Grid.RowSpan="2"
+                Background="{DynamicResource MaterialDesignPaper}"
+                CornerRadius="0">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="80" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!-- Logo -->
+                <StackPanel Grid.Row="0" VerticalAlignment="Center" Margin="16,0" Orientation="Horizontal">
+                    <TextBlock Text="🎬" FontSize="24" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <TextBlock Text="EasyMovie" FontSize="18"
+                               FontWeight="Bold" Foreground="{DynamicResource MaterialDesignBody}" VerticalAlignment="Center" />
+                </StackPanel>
+
+                <!-- 导航菜单 -->
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,8">
+                    <StackPanel x:Name="NavPanel">
+                        <!-- 首页按钮 -->
+                        <Button x:Name="NavBtn_Home" Tag="Dashboard" Click="NavBtn_Click"
+                                Style="{StaticResource MaterialDesignFlatButton}"
+                                HorizontalContentAlignment="Left" Padding="12,8" Margin="4,1">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="Home" Margin="0,0,12,0" />
+                                <TextBlock Text="{DynamicResource Nav_Home}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+
+                        <!-- 电影库 - 顶层导航 -->
+                        <Button x:Name="NavBtn_Movies" Tag="Movies" Click="NavBtn_Click"
+                                Style="{StaticResource MaterialDesignFlatButton}"
+                                HorizontalContentAlignment="Left" Padding="12,8" Margin="4,1">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="MovieOpen" Margin="0,0,12,0" />
+                                <TextBlock Text="{DynamicResource Nav_Movies}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+
+                        <!-- 统计分析 - 分组 -->
+                        <ToggleButton x:Name="AnalysisToggle" Click="GroupToggle_Click"
+                                      Style="{StaticResource MaterialDesignFlatButton}"
+                                      HorizontalContentAlignment="Left" Padding="12,8" Margin="4,1"
+                                      IsChecked="False">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Orientation="Horizontal">
+                                    <materialDesign:PackIcon Kind="ChartBar" Margin="0,0,12,0" />
+                                    <TextBlock Text="{DynamicResource Nav_Analysis}" VerticalAlignment="Center" />
+                                </StackPanel>
+                                <materialDesign:PackIcon Grid.Column="1" Kind="ChevronDown" 
+                                                          VerticalAlignment="Center" Margin="8,0,4,0"
+                                                          RenderTransformOrigin="0.5,0.5">
+                                    <materialDesign:PackIcon.RenderTransform>
+                                        <RotateTransform Angle="0" />
+                                    </materialDesign:PackIcon.RenderTransform>
+                                </materialDesign:PackIcon>
+                            </Grid>
+                        </ToggleButton>
+                        <StackPanel x:Name="AnalysisSubPanel" Visibility="Collapsed" Margin="16,0,0,0">
+                            <Button Tag="Statistics" Click="NavBtn_Click"
+                                    Style="{StaticResource MaterialDesignFlatButton}"
+                                    HorizontalContentAlignment="Left" Padding="12,5" Margin="0,1">
+                                <StackPanel Orientation="Horizontal">
+                                    <materialDesign:PackIcon Kind="ChartBar" Margin="0,0,10,0" />
+                                    <TextBlock Text="{DynamicResource Nav_Statistics}" VerticalAlignment="Center" FontSize="13" />
+                                </StackPanel>
+                            </Button>
+                            <Button Tag="Heatmap" Click="NavBtn_Click"
+                                    Style="{StaticResource MaterialDesignFlatButton}"
+                                    HorizontalContentAlignment="Left" Padding="12,5" Margin="0,1">
+                                <StackPanel Orientation="Horizontal">
+                                    <materialDesign:PackIcon Kind="ChartTimelineVariant" Margin="0,0,10,0" />
+                                    <TextBlock Text="{DynamicResource Nav_Heatmap}" VerticalAlignment="Center" FontSize="13" />
+                                </StackPanel>
+                            </Button>
+                            <Button Tag="Calendar" Click="NavBtn_Click"
+                                    Style="{StaticResource MaterialDesignFlatButton}"
+                                    HorizontalContentAlignment="Left" Padding="12,5" Margin="0,1">
+                                <StackPanel Orientation="Horizontal">
+                                    <materialDesign:PackIcon Kind="Calendar" Margin="0,0,10,0" />
+                                    <TextBlock Text="{DynamicResource Nav_Calendar}" VerticalAlignment="Center" FontSize="13" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+
+                        <!-- 发现 - 分组 -->
+                        <ToggleButton x:Name="DiscoverToggle" Click="GroupToggle_Click"
+                                      Style="{StaticResource MaterialDesignFlatButton}"
+                                      HorizontalContentAlignment="Left" Padding="12,8" Margin="4,1"
+                                      IsChecked="False">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Orientation="Horizontal">
+                                    <materialDesign:PackIcon Kind="Compass" Margin="0,0,12,0" />
+                                    <TextBlock Text="{DynamicResource Nav_Discover}" VerticalAlignment="Center" />
+                                </StackPanel>
+                                <materialDesign:PackIcon Grid.Column="1" Kind="ChevronDown" 
+                                                          VerticalAlignment="Center" Margin="8,0,4,0"
+                                                          RenderTransformOrigin="0.5,0.5">
+                                    <materialDesign:PackIcon.RenderTransform>
+                                        <RotateTransform Angle="0" />
+                                    </materialDesign:PackIcon.RenderTransform>
+                                </materialDesign:PackIcon>
+                            </Grid>
+                        </ToggleButton>
+                        <StackPanel x:Name="DiscoverSubPanel" Visibility="Collapsed" Margin="16,0,0,0">
+                            <Button Tag="Relation" Click="NavBtn_Click"
+                                    Style="{StaticResource MaterialDesignFlatButton}"
+                                    HorizontalContentAlignment="Left" Padding="12,5" Margin="0,1">
+                                <StackPanel Orientation="Horizontal">
+                                    <materialDesign:PackIcon Kind="Graph" Margin="0,0,10,0" />
+                                    <TextBlock Text="{DynamicResource Nav_Relation}" VerticalAlignment="Center" FontSize="13" />
+                                </StackPanel>
+                            </Button>
+                            <Button Tag="News" Click="NavBtn_Click"
+                                    Style="{StaticResource MaterialDesignFlatButton}"
+                                    HorizontalContentAlignment="Left" Padding="12,5" Margin="0,1">
+                                <StackPanel Orientation="Horizontal">
+                                    <materialDesign:PackIcon Kind="NewspaperVariant" Margin="0,0,10,0" />
+                                    <TextBlock Text="{DynamicResource Nav_News}" VerticalAlignment="Center" FontSize="13" />
+                                </StackPanel>
+                            </Button>
+                            <Button Tag="AI" Click="NavBtn_Click"
+                                    Style="{StaticResource MaterialDesignFlatButton}"
+                                    HorizontalContentAlignment="Left" Padding="12,5" Margin="0,1">
+                                <StackPanel Orientation="Horizontal">
+                                    <materialDesign:PackIcon Kind="Robot" Margin="0,0,10,0" />
+                                    <TextBlock Text="{DynamicResource Nav_AI}" VerticalAlignment="Center" FontSize="13" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+
+                        <!-- 设置 - 顶层导航 -->
+                        <Button x:Name="NavBtn_Settings" Tag="Settings" Click="NavBtn_Click"
+                                Style="{StaticResource MaterialDesignFlatButton}"
+                                HorizontalContentAlignment="Left" Padding="12,8" Margin="4,1">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="Cog" Margin="0,0,12,0" />
+                                <TextBlock Text="{DynamicResource Nav_Settings}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- 电影详情面板 -->
+                <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Margin="0,4,0,0">
+                    <Border x:Name="MovieDetailPanel" Visibility="Collapsed" Margin="8,0,8,0"
+                            Background="{DynamicResource MaterialDesignCardBackground}" CornerRadius="8" Padding="12">
+                        <StackPanel>
+                            <!-- 海报 -->
+                            <Border Background="{DynamicResource MaterialDesignDivider}" CornerRadius="8" Margin="0,0,0,8"
+                                    ClipToBounds="True" HorizontalAlignment="Center">
+                                <Image x:Name="DetailPoster" Width="230" Height="326"
+                                       Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality" />
+                            </Border>
+                            <!-- 信息 -->
+                            <TextBlock x:Name="DetailTitle" FontSize="16" FontWeight="Bold"
+                                       Foreground="{DynamicResource MaterialDesignBody}" TextWrapping="Wrap" Margin="0,0,0,4" />
+                            <TextBlock x:Name="DetailOriginalTitle" FontSize="12"
+                                       Foreground="{DynamicResource MaterialDesignBodyLight}" TextWrapping="Wrap" Margin="0,0,0,8" />
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                <TextBlock x:Name="DetailYear" FontSize="13" Foreground="{DynamicResource MaterialDesignBody}" Margin="0,0,12,0" />
+                                <TextBlock x:Name="DetailRuntime" FontSize="13" Foreground="{DynamicResource MaterialDesignBody}" Margin="0,0,12,0" />
+                                <TextBlock x:Name="DetailRating" FontSize="13" Foreground="#FFD700" />
+                            </StackPanel>
+                            <TextBlock x:Name="DetailDirector" FontSize="12" Foreground="{DynamicResource MaterialDesignBody}" Margin="0,0,0,2" />
+                            <TextBlock x:Name="DetailCountry" FontSize="12" Foreground="{DynamicResource MaterialDesignBody}" Margin="0,0,0,2" />
+                            <TextBlock x:Name="DetailCast" FontSize="12" Foreground="{DynamicResource MaterialDesignBody}" TextWrapping="Wrap" Margin="0,0,0,6" />
+                            <TextBlock x:Name="DetailSynopsis" FontSize="11" Foreground="{DynamicResource MaterialDesignBodyLight}"
+                                       TextWrapping="Wrap" MaxHeight="120" TextTrimming="CharacterEllipsis" Margin="0,0,0,4" />
+                            <TextBlock x:Name="DetailStatus" FontSize="12" Foreground="#FFD700" Margin="0,0,0,4" />
+                            <WrapPanel x:Name="DetailTags" Margin="0,0,0,4" />
+
+                            <!-- 观影记录 -->
+                            <Separator Margin="0,4" Background="{DynamicResource MaterialDesignDivider}" />
+                            <Grid Margin="0,4,0,0">
+                                <TextBlock Text="{DynamicResource WatchLog_Title}" FontSize="13" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource MaterialDesignBody}" VerticalAlignment="Center" />
+                                <Button x:Name="AddWatchLogBtn" Content="{DynamicResource WatchLog_AddShort}"
+                                        Style="{StaticResource MaterialDesignFlatButton}" FontSize="11" Padding="6,2"
+                                        HorizontalAlignment="Right" VerticalAlignment="Center" Click="AddWatchLog_Click" />
+                            </Grid>
+                            <StackPanel x:Name="WatchLogList" Margin="0,4,0,0" />
+                        </StackPanel>
+                    </Border>
+                </ScrollViewer>
+
+                <!-- 底部留白 -->
+                <StackPanel Grid.Row="3" Margin="16,8" />
+            </Grid>
+        </Border>
+
+        <!-- 右侧内容区 -->
+        <Border Grid.Column="1" Grid.Row="1"
+                Background="{DynamicResource MaterialDesignBackground}"
+                CornerRadius="12,0,0,0"
+                Padding="24" Grid.RowSpan="2">
+            <Grid>
+                <Grid x:Name="ContentArea" />
+                <views:VideoPlayerHost x:Name="PlayerHost" Visibility="Collapsed" Margin="-24" />
+            </Grid>
+        </Border>
+
+        <!-- 底部状态栏 -->
+        <Border Grid.Column="0" Grid.ColumnSpan="2" Grid.Row="2"
+                Background="{DynamicResource MaterialDesignBackground}"
+                BorderBrush="{DynamicResource MaterialDesignDivider}"
+                BorderThickness="0,1,0,0"
+                Padding="16,6">
+            <Grid>
+                <TextBlock x:Name="StatusBarText"
+                           Text="{DynamicResource Status_Ready}"
+                           FontSize="12"
+                           VerticalAlignment="Center"
+                           Foreground="{DynamicResource MaterialDesignHintForeground}" />
+                <ProgressBar x:Name="StatusBarProgress"
+                             HorizontalAlignment="Right"
+                             Width="120" Height="4"
+                             IsIndeterminate="True"
+                             Visibility="Collapsed"
+                             Style="{StaticResource MaterialDesignLinearProgressBar}" />
+            </Grid>
+        </Border>
+    </Grid>
+</Window>
