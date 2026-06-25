@@ -33,6 +33,18 @@ Thumbs.db
 Desktop.ini
 .DS_Store
 
+## Git internals (should not be at root level)
+/COMMIT_EDITMSG
+/HEAD
+/config
+/description
+/index
+/hooks/
+/info/
+/logs/
+/objects/
+/refs/
+
 ## Config (sensitive)
 settings.json
 appsettings*.json
