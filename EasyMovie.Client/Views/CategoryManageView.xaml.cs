@@ -15,6 +15,7 @@ namespace EasyMovie.Client.Views;
 public partial class CategoryManageView : UserControl
 {
     private readonly MovieDbContext _context;
+    private bool _disposed;
     private readonly ICategoryService _categoryService;
     private Category? _selectedCategory;
     private bool _isAddingChild;
@@ -26,7 +27,15 @@ public partial class CategoryManageView : UserControl
         _context = DbHelper.CreateContext();
         _categoryService = new CategoryService(new CategoryRepository(_context));
         Loaded += async (s, e) => await LoadTreeAsync();
-        Unloaded += (s, e) => _context.Dispose();
+        Unloaded += OnUnloaded;
+    }
+
+    private void OnUnloaded(object sender, RoutedEventArgs e)
+    {
+        if (_disposed) return;
+        _disposed = true;
+        Unloaded -= OnUnloaded;
+        _context.Dispose();
     }
 
     private async Task LoadTreeAsync()
