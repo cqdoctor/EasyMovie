@@ -10,6 +10,8 @@ using EasyMovie.Core.Models;
 using EasyMovie.Core.Services;
 using EasyMovie.Data;
 using EasyMovie.Data.Repositories;
+using EasyMovie.Client.ViewModels;
+using Microsoft.Extensions.DependencyInjection;
 
 using Serilog;
 
@@ -18,8 +20,7 @@ namespace EasyMovie.Client.Views;
 public partial class CategoryTagManageView : UserControl
 {
     private readonly MovieDbContext _context;
-    private readonly ICategoryService _categoryService;
-    private readonly ITagService _tagService;
+    private readonly CategoryTagManageViewModel _vm;
     private Category? _selectedCategory;
     private Tag? _selectedTag;
     private bool _isAddingChild;
@@ -31,8 +32,11 @@ public partial class CategoryTagManageView : UserControl
     {
         InitializeComponent();
         _context = DbHelper.CreateContext();
-        _categoryService = new CategoryService(new CategoryRepository(_context));
-        _tagService = new TagService(new TagRepository(_context));
+        // 通过 DI 容器解析 ViewModel；DI 不可用时回退手工创建，行为等价
+        _vm = App.Services?.GetService<CategoryTagManageViewModel>()
+              ?? new CategoryTagManageViewModel(
+                  new CategoryService(new CategoryRepository(_context)),
+                  new TagService(new TagRepository(_context)));
         Loaded += async (s, e) => await InitializeAsync();
     }
 
@@ -48,7 +52,7 @@ public partial class CategoryTagManageView : UserControl
 
     private async Task LoadTreeAsync()
     {
-        try { CategoryTree.ItemsSource = await _categoryService.GetCategoryTreeAsync(); }
+        try { CategoryTree.ItemsSource = await _vm.CategoryService.GetCategoryTreeAsync(); }
         catch (Exception ex) { AppMessageBox.ShowError(LanguageManager.GetString("Msg_LoadCategoryFailed") + ex.Message); }
     }
 
@@ -63,10 +67,10 @@ public partial class CategoryTagManageView : UserControl
         CategoryNameBox.Text = cat.Name;
         CategoryDescBox.Text = cat.Description ?? "";
         ParentInfo.Text = cat.ParentId.HasValue
-            ? LanguageManager.GetString("CatTag_Parent") + (await _categoryService.GetByIdAsync(cat.ParentId.Value))?.Name
+            ? LanguageManager.GetString("CatTag_Parent") + (await _vm.CategoryService.GetByIdAsync(cat.ParentId.Value))?.Name
             : LanguageManager.GetString("CatTag_RootCategory");
-        var children = await _categoryService.GetChildrenAsync(cat.Id);
-        var canDel = await _categoryService.CanDeleteAsync(cat.Id);
+        var children = await _vm.CategoryService.GetChildrenAsync(cat.Id);
+        var canDel = await _vm.CategoryService.CanDeleteAsync(cat.Id);
         StatInfo.Text = $"{(children.Any() ? $"{children.Count} {LanguageManager.GetString("CatTag_SubCategories")} · " : "")}{(canDel ? LanguageManager.GetString("CatTag_CanDelete") : LanguageManager.GetString("CatTag_CannotDelete"))}";
         DeleteBtn.IsEnabled = canDel;
         DeleteBtn.Visibility = Visibility.Visible;
@@ -92,9 +96,9 @@ public partial class CategoryTagManageView : UserControl
             var name = CategoryNameBox.Text.Trim();
             if (string.IsNullOrWhiteSpace(name)) { AppMessageBox.ShowInfo(LanguageManager.GetString("Msg_EnterName")); return; }
             var desc = string.IsNullOrWhiteSpace(CategoryDescBox.Text) ? null : CategoryDescBox.Text.Trim();
-            if (_isAddingChild) await _categoryService.AddAsync(new Category { Name = name, Description = desc, ParentId = _addChildParentId });
-            else if (_selectedCategory != null) { _selectedCategory.Name = name; _selectedCategory.Description = desc; await _categoryService.UpdateAsync(_selectedCategory); }
-            else await _categoryService.AddAsync(new Category { Name = name, Description = desc });
+            if (_isAddingChild) await _vm.CategoryService.AddAsync(new Category { Name = name, Description = desc, ParentId = _addChildParentId });
+            else if (_selectedCategory != null) { _selectedCategory.Name = name; _selectedCategory.Description = desc; await _vm.CategoryService.UpdateAsync(_selectedCategory); }
+            else await _vm.CategoryService.AddAsync(new Category { Name = name, Description = desc });
             await LoadTreeAsync(); ClearForm(LanguageManager.GetString("Msg_Saved"), "");
         }
         catch (Exception ex) { AppMessageBox.ShowError(ex.Message); }
@@ -102,9 +106,9 @@ public partial class CategoryTagManageView : UserControl
 
     private async void DeleteBtn_Click(object sender, RoutedEventArgs e)
     {
-        if (_selectedCategory == null || !await _categoryService.CanDeleteAsync(_selectedCategory.Id)) { AppMessageBox.ShowInfo(LanguageManager.GetString("Msg_CannotDelete")); return; }
+        if (_selectedCategory == null || !await _vm.CategoryService.CanDeleteAsync(_selectedCategory.Id)) { AppMessageBox.ShowInfo(LanguageManager.GetString("Msg_CannotDelete")); return; }
         if (AppMessageBox.Confirm(LanguageManager.GetString("Msg_ConfirmDelete"), LanguageManager.GetString("Msg_Confirm")))
-        { await _categoryService.DeleteAsync(_selectedCategory.Id); await LoadTreeAsync(); ClearForm(LanguageManager.GetString("CatTag_SelectOrAdd"), ""); }
+        { await _vm.CategoryService.DeleteAsync(_selectedCategory.Id); await LoadTreeAsync(); ClearForm(LanguageManager.GetString("CatTag_SelectOrAdd"), ""); }
     }
 
     private void ClearForm(string title, string parent)
@@ -137,14 +141,14 @@ public partial class CategoryTagManageView : UserControl
     {
         try
         {
-            var tags = await _tagService.GetAllAsync();
+            var tags = await _vm.TagService.GetAllAsync();
             // 给没有颜色的标签分配不同颜色并保存
             for (int i = 0; i < tags.Count; i++)
             {
                 if (string.IsNullOrEmpty(tags[i].Color))
                 {
                     tags[i].Color = TagPalette[i % TagPalette.Length];
-                    await _tagService.UpdateAsync(tags[i]);
+                    await _vm.TagService.UpdateAsync(tags[i]);
                 }
             }
             TagListBox.ItemsSource = tags;
@@ -186,8 +190,8 @@ public partial class CategoryTagManageView : UserControl
         try
         {
             var name = TagNameBox.Text.Trim(); if (string.IsNullOrWhiteSpace(name)) { AppMessageBox.ShowInfo(LanguageManager.GetString("Msg_EnterName")); return; }
-            if (_selectedTag != null) { _selectedTag.Name = name; _selectedTag.Color = _selectedColor; await _tagService.UpdateAsync(_selectedTag); }
-            else await _tagService.AddAsync(new Tag { Name = name, Color = _selectedColor });
+            if (_selectedTag != null) { _selectedTag.Name = name; _selectedTag.Color = _selectedColor; await _vm.TagService.UpdateAsync(_selectedTag); }
+            else await _vm.TagService.AddAsync(new Tag { Name = name, Color = _selectedColor });
             await LoadTagsAsync(); _selectedTag = null; TagFormTitle.Text = LanguageManager.GetString("Msg_Saved"); TagDeleteBtn.Visibility = Visibility.Collapsed;
         }
         catch (Exception ex) { AppMessageBox.ShowError(ex.Message); }
@@ -196,7 +200,7 @@ public partial class CategoryTagManageView : UserControl
     private async void DeleteTag_Click(object sender, RoutedEventArgs e)
     {
         if (_selectedTag == null || !AppMessageBox.Confirm(LanguageManager.GetString("Msg_ConfirmDelete"), LanguageManager.GetString("Msg_Confirm"))) return;
-        await _tagService.DeleteAsync(_selectedTag.Id); await LoadTagsAsync(); _selectedTag = null; TagFormTitle.Text = LanguageManager.GetString("CatTag_SelectOrAddTag"); TagNameBox.Text = ""; TagDeleteBtn.Visibility = Visibility.Collapsed;
+        await _vm.TagService.DeleteAsync(_selectedTag.Id); await LoadTagsAsync(); _selectedTag = null; TagFormTitle.Text = LanguageManager.GetString("CatTag_SelectOrAddTag"); TagNameBox.Text = ""; TagDeleteBtn.Visibility = Visibility.Collapsed;
     }
 
     private void CustomColor_Click(object sender, RoutedEventArgs e)

@@ -11,6 +11,8 @@ using System.Windows.Shapes;
 using EasyMovie.Core.Models;
 using EasyMovie.Data;
 using Microsoft.EntityFrameworkCore;
+using EasyMovie.Client.ViewModels;
+using Microsoft.Extensions.DependencyInjection;
 
 using Serilog;
 
@@ -18,7 +20,7 @@ namespace EasyMovie.Client.Views;
 
 public partial class MovieRelationView : UserControl
 {
-    private readonly MovieDbContext _context;
+    private readonly MovieRelationViewModel _vm;
     private readonly MainWindow? _mainWindow;
     private List<MovieNode> _nodes = new();
     private List<MovieLink> _links = new();
@@ -42,14 +44,16 @@ public partial class MovieRelationView : UserControl
     {
         InitializeComponent();
         _mainWindow = mainWindow;
-        _context = DbHelper.CreateContext();
+        // 通过 DI 容器解析 ViewModel（承载 DbContext）；DI 不可用时回退手工创建，行为等价
+        _vm = App.Services?.GetService<MovieRelationViewModel>()
+              ?? new MovieRelationViewModel(DbHelper.CreateContext());
         Loaded += async (s, e) => await LoadDataAsync();
         GraphContainer.SizeChanged += (s, e) => { if (_centered && _nodes.Count > 0) ApplyTransform(); };
     }
 
     private async Task LoadDataAsync()
     {
-        var movies = await _context.Movies
+        var movies = await _vm.Context.Movies
             .Include(m => m.MovieTags).ThenInclude(mt => mt.Tag)
             .Where(m => !string.IsNullOrEmpty(m.Director) || !string.IsNullOrEmpty(m.Cast)
                 || !string.IsNullOrEmpty(m.Country) || m.MovieTags.Any() || m.Year > 0)
@@ -493,7 +497,7 @@ public partial class MovieRelationView : UserControl
     {
         if (!_isDragging && sender is Canvas c && c.Tag is int id)
         {
-            var movie = await _context.Movies.FindAsync(id);
+            var movie = await _vm.Context.Movies.FindAsync(id);
             if (movie != null) _mainWindow?.ShowMovieDetail(movie);
         }
     }

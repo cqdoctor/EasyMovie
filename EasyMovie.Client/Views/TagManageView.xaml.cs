@@ -11,6 +11,8 @@ using EasyMovie.Core.Models;
 using EasyMovie.Core.Services;
 using EasyMovie.Data;
 using EasyMovie.Data.Repositories;
+using EasyMovie.Client.ViewModels;
+using Microsoft.Extensions.DependencyInjection;
 
 using Serilog;
 
@@ -20,7 +22,7 @@ public partial class TagManageView : UserControl
 {
     private readonly MovieDbContext _context;
     private bool _disposed;
-    private readonly ITagService _tagService;
+    private readonly TagManageViewModel _vm;
     private Tag? _selectedTag;
     private string _selectedColor = "#5C6BC0";
 
@@ -28,7 +30,9 @@ public partial class TagManageView : UserControl
     {
         InitializeComponent();
         _context = DbHelper.CreateContext();
-        _tagService = new TagService(new TagRepository(_context));
+        // 通过 DI 容器解析 ViewModel；DI 不可用时回退手工创建，行为等价
+        _vm = App.Services?.GetService<TagManageViewModel>()
+              ?? new TagManageViewModel(new TagService(new TagRepository(_context)));
         Loaded += async (s, e) => await InitAsync();
         Unloaded += OnUnloaded;
     }
@@ -64,7 +68,7 @@ public partial class TagManageView : UserControl
 
     private void UpdatePreview() { try { ColorPreview.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(_selectedColor)); } catch (Exception ex) { Log.Error(ex, "颜色预览转换失败"); ColorPreview.Background = Brushes.Gray; } }
 
-    private async Task LoadTagsAsync() { try { TagListBox.ItemsSource = await _tagService.GetAllAsync(); } catch (Exception ex) { AppMessageBox.ShowError(ex.Message); } }
+    private async Task LoadTagsAsync() { try { TagListBox.ItemsSource = await _vm.GetAllAsync(); } catch (Exception ex) { AppMessageBox.ShowError(ex.Message); } }
 
     private void TagListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
@@ -78,8 +82,8 @@ public partial class TagManageView : UserControl
         try
         {
             var name = TagNameBox.Text.Trim(); if (string.IsNullOrWhiteSpace(name)) { AppMessageBox.ShowInfo("请输入名称"); return; }
-            if (_selectedTag!=null) { _selectedTag.Name=name; _selectedTag.Color=_selectedColor; await _tagService.UpdateAsync(_selectedTag); }
-            else await _tagService.AddAsync(new Tag{Name=name,Color=_selectedColor});
+            if (_selectedTag!=null) { _selectedTag.Name=name; _selectedTag.Color=_selectedColor; await _vm.UpdateAsync(_selectedTag); }
+            else await _vm.AddAsync(new Tag{Name=name,Color=_selectedColor});
             await LoadTagsAsync(); _selectedTag=null; FormTitle.Text="保存成功！"; DeleteBtn.Visibility=Visibility.Collapsed;
         }
         catch (Exception ex) { AppMessageBox.ShowError(ex.Message); }
@@ -88,6 +92,6 @@ public partial class TagManageView : UserControl
     private async void DeleteTag_Click(object sender, RoutedEventArgs e)
     {
         if (_selectedTag==null || !AppMessageBox.Confirm("确定删除？","确认")) return;
-        await _tagService.DeleteAsync(_selectedTag.Id); await LoadTagsAsync(); _selectedTag=null; FormTitle.Text="选择标签"; TagNameBox.Text=""; DeleteBtn.Visibility=Visibility.Collapsed;
+        await _vm.DeleteAsync(_selectedTag.Id); await LoadTagsAsync(); _selectedTag=null; FormTitle.Text="选择标签"; TagNameBox.Text=""; DeleteBtn.Visibility=Visibility.Collapsed;
     }
 }

@@ -12,13 +12,15 @@ using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 using EasyMovie.Core.Models;
 using EasyMovie.Data;
+using EasyMovie.Client.ViewModels;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace EasyMovie.Client.Views;
 
 public partial class WatchCalendarView : UserControl
 {
     private readonly MovieDbContext _context;
-    private readonly WatchLogService _watchLogService;
+    private readonly WatchCalendarViewModel _vm;
     private int _displayYear;
     private int _displayMonth;
     private bool _isInitialized;
@@ -39,7 +41,9 @@ public partial class WatchCalendarView : UserControl
     {
         InitializeComponent();
         _context = DbHelper.CreateContext();
-        _watchLogService = new WatchLogService(_context);
+        // 通过 DI 容器解析 ViewModel；DI 不可用时回退手工创建，行为等价
+        _vm = App.Services?.GetService<WatchCalendarViewModel>()
+              ?? new WatchCalendarViewModel(new WatchLogService(_context));
 
         var now = DateTime.Today;
         _displayYear = now.Year;
@@ -74,7 +78,7 @@ public partial class WatchCalendarView : UserControl
         var yearSuffix = LanguageManager.GetString("Msg_YearSuffix");
         MonthYearText.Text = $"{_displayYear}{yearSuffix}{_displayMonth}月";
 
-        var logs = await _watchLogService.GetByMonthAsync(_displayYear, _displayMonth);
+        var logs = await _vm.WatchLogService.GetByMonthAsync(_displayYear, _displayMonth);
 
         var logsByDay = logs
             .GroupBy(w => w.WatchDate.Day)

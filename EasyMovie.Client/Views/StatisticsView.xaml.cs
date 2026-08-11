@@ -8,13 +8,15 @@ using System.Windows.Controls;
 using EasyMovie.Core.Interfaces;
 using EasyMovie.Core.Services;
 using EasyMovie.Data;
+using EasyMovie.Client.ViewModels;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace EasyMovie.Client.Views;
 
 public partial class StatisticsView : UserControl
 {
     private readonly MovieDbContext _context;
-    private readonly IStatisticsService _statsService;
+    private readonly StatisticsViewModel _vm;
 
     // 柱状图最大宽度（像素）
     private const double MaxBarWidth = 200;
@@ -33,7 +35,9 @@ public partial class StatisticsView : UserControl
     {
         InitializeComponent();
         _context = DbHelper.CreateContext();
-        _statsService = new StatisticsService(_context);
+        // 通过 DI 容器解析 ViewModel；DI 不可用时回退手工创建，行为等价
+        _vm = App.Services?.GetService<StatisticsViewModel>()
+              ?? new StatisticsViewModel(new StatisticsService(_context));
         Loaded += async (s, e) => await InitializeAsync();
         IsVisibleChanged += async (_, e) =>
         {
@@ -53,7 +57,7 @@ public partial class StatisticsView : UserControl
     {
         try
         {
-            var d = await _statsService.GetStatisticsAsync();
+            var d = await _vm.StatisticsService.GetStatisticsAsync();
             TotalMoviesText.Text = d.TotalMovies.ToString();
             WatchedText.Text = d.Watched.ToString();
             WantWatchText.Text = d.WantToWatch.ToString();

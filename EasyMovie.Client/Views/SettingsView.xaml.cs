@@ -12,6 +12,8 @@ using EasyMovie.Data;
 using EasyMovie.Data.Repositories;
 using EasyMovie.Tools.ImportExport;
 using EasyMovie.Tools.MovieApi;
+using EasyMovie.Client.ViewModels;
+using Microsoft.Extensions.DependencyInjection;
 
 using Serilog;
 
@@ -20,13 +22,15 @@ namespace EasyMovie.Client.Views;
 public partial class SettingsView : UserControl
 {
     private readonly MovieDbContext _context;
-    private readonly IImportExportService _importExportService;
+    private readonly SettingsViewModel _vm;
 
     public SettingsView()
     {
         InitializeComponent();
         _context = DbHelper.CreateContext();
-        _importExportService = new ImportExportService(_context);
+        // 通过 DI 容器解析 ViewModel；DI 不可用时回退手工创建，行为等价
+        _vm = App.Services?.GetService<SettingsViewModel>()
+              ?? new SettingsViewModel(new ImportExportService(_context));
         TmdbKeyBox.Text = AppSettings.TmdbApiKey ?? "";
         ProxyBox.Text = AppSettings.HttpProxy ?? "";
         DoubanCookieBox.Text = AppSettings.DoubanCookie ?? "";
@@ -137,14 +141,14 @@ public partial class SettingsView : UserControl
         catch (Exception ex) { AppMessageBox.ShowError(ex.Message); }
     }
 
-    private async void ExportCsv_Click(object sender, RoutedEventArgs e) { var d = new SaveFileDialog { Filter = "CSV|*.csv", FileName = $"export_{DateTime.Now:yyyyMMdd}.csv" }; if (d.ShowDialog() != true) return; try { await _importExportService.ExportMoviesToCsvAsync(d.FileName); AppMessageBox.ShowInfo(LanguageManager.GetString("Msg_ExportDone")); } catch (Exception ex) { AppMessageBox.ShowError(ex.Message); } }
-    private async void ExportJson_Click(object sender, RoutedEventArgs e) { var d = new SaveFileDialog { Filter = "JSON|*.json", FileName = $"export_{DateTime.Now:yyyyMMdd}.json" }; if (d.ShowDialog() != true) return; try { await _importExportService.ExportMoviesToJsonAsync(d.FileName); AppMessageBox.ShowInfo(LanguageManager.GetString("Msg_ExportDone")); } catch (Exception ex) { AppMessageBox.ShowError(ex.Message); } }
-    private async void ExportFullBackup_Click(object sender, RoutedEventArgs e) { var d = new SaveFileDialog { Filter = "JSON|*.json", FileName = $"backup_{DateTime.Now:yyyyMMdd_HHmm}.json" }; if (d.ShowDialog() != true) return; try { await _importExportService.ExportFullDataToJsonAsync(d.FileName); AppMessageBox.ShowInfo(LanguageManager.GetString("Msg_BackupDone")); } catch (Exception ex) { AppMessageBox.ShowError(ex.Message); } }
-    private async void ImportCsv_Click(object sender, RoutedEventArgs e) { var d = new OpenFileDialog { Filter = "CSV|*.csv" }; if (d.ShowDialog() != true) return; try { var r = await _importExportService.ImportMoviesFromCsvAsync(d.FileName); AppMessageBox.ShowInfo(string.Format(LanguageManager.GetString("Msg_ImportCount"), r.SuccessCount)); } catch (Exception ex) { AppMessageBox.ShowError(ex.Message); } }
-    private async void ImportJson_Click(object sender, RoutedEventArgs e) { var d = new OpenFileDialog { Filter = "JSON|*.json" }; if (d.ShowDialog() != true) return; try { var r = await _importExportService.ImportMoviesFromJsonAsync(d.FileName); AppMessageBox.ShowInfo(string.Format(LanguageManager.GetString("Msg_ImportCount"), r.SuccessCount)); } catch (Exception ex) { AppMessageBox.ShowError(ex.Message); } }
-    private async void RestoreBackup_Click(object sender, RoutedEventArgs e) { if (!AppMessageBox.Confirm(LanguageManager.GetString("Msg_ConfirmOverwrite"), LanguageManager.GetString("Msg_Confirm"))) return; var d = new OpenFileDialog { Filter = "JSON|*.json" }; if (d.ShowDialog() != true) return; try { var r = await _importExportService.ImportFullDataFromJsonAsync(d.FileName); AppMessageBox.ShowInfo(string.Format(LanguageManager.GetString("Msg_RestoreCount"), r.SuccessCount)); } catch (Exception ex) { AppMessageBox.ShowError(ex.Message); } }
-    private async void BackupDbFile_Click(object sender, RoutedEventArgs e) { var d = new SaveFileDialog { Filter = "DB|*.db", FileName = $"EasyMovie_{DateTime.Now:yyyyMMdd_HHmm}.db" }; if (d.ShowDialog() != true) return; try { await _importExportService.BackupDatabaseAsync(d.FileName); AppMessageBox.ShowInfo(LanguageManager.GetString("Msg_BackupDone")); } catch (Exception ex) { AppMessageBox.ShowError(ex.Message); } }
-    private async void RestoreDbFile_Click(object sender, RoutedEventArgs e) { if (!AppMessageBox.Confirm(LanguageManager.GetString("Msg_ConfirmReplaceDb"), LanguageManager.GetString("Msg_Confirm"))) return; var d = new OpenFileDialog { Filter = "DB|*.db" }; if (d.ShowDialog() != true) return; try { await _importExportService.RestoreDatabaseAsync(d.FileName); AppMessageBox.ShowInfo(LanguageManager.GetString("Msg_RestartRequired")); } catch (Exception ex) { AppMessageBox.ShowError(ex.Message); } }
+    private async void ExportCsv_Click(object sender, RoutedEventArgs e) { var d = new SaveFileDialog { Filter = "CSV|*.csv", FileName = $"export_{DateTime.Now:yyyyMMdd}.csv" }; if (d.ShowDialog() != true) return; try { await _vm.ImportExportService.ExportMoviesToCsvAsync(d.FileName); AppMessageBox.ShowInfo(LanguageManager.GetString("Msg_ExportDone")); } catch (Exception ex) { AppMessageBox.ShowError(ex.Message); } }
+    private async void ExportJson_Click(object sender, RoutedEventArgs e) { var d = new SaveFileDialog { Filter = "JSON|*.json", FileName = $"export_{DateTime.Now:yyyyMMdd}.json" }; if (d.ShowDialog() != true) return; try { await _vm.ImportExportService.ExportMoviesToJsonAsync(d.FileName); AppMessageBox.ShowInfo(LanguageManager.GetString("Msg_ExportDone")); } catch (Exception ex) { AppMessageBox.ShowError(ex.Message); } }
+    private async void ExportFullBackup_Click(object sender, RoutedEventArgs e) { var d = new SaveFileDialog { Filter = "JSON|*.json", FileName = $"backup_{DateTime.Now:yyyyMMdd_HHmm}.json" }; if (d.ShowDialog() != true) return; try { await _vm.ImportExportService.ExportFullDataToJsonAsync(d.FileName); AppMessageBox.ShowInfo(LanguageManager.GetString("Msg_BackupDone")); } catch (Exception ex) { AppMessageBox.ShowError(ex.Message); } }
+    private async void ImportCsv_Click(object sender, RoutedEventArgs e) { var d = new OpenFileDialog { Filter = "CSV|*.csv" }; if (d.ShowDialog() != true) return; try { var r = await _vm.ImportExportService.ImportMoviesFromCsvAsync(d.FileName); AppMessageBox.ShowInfo(string.Format(LanguageManager.GetString("Msg_ImportCount"), r.SuccessCount)); } catch (Exception ex) { AppMessageBox.ShowError(ex.Message); } }
+    private async void ImportJson_Click(object sender, RoutedEventArgs e) { var d = new OpenFileDialog { Filter = "JSON|*.json" }; if (d.ShowDialog() != true) return; try { var r = await _vm.ImportExportService.ImportMoviesFromJsonAsync(d.FileName); AppMessageBox.ShowInfo(string.Format(LanguageManager.GetString("Msg_ImportCount"), r.SuccessCount)); } catch (Exception ex) { AppMessageBox.ShowError(ex.Message); } }
+    private async void RestoreBackup_Click(object sender, RoutedEventArgs e) { if (!AppMessageBox.Confirm(LanguageManager.GetString("Msg_ConfirmOverwrite"), LanguageManager.GetString("Msg_Confirm"))) return; var d = new OpenFileDialog { Filter = "JSON|*.json" }; if (d.ShowDialog() != true) return; try { var r = await _vm.ImportExportService.ImportFullDataFromJsonAsync(d.FileName); AppMessageBox.ShowInfo(string.Format(LanguageManager.GetString("Msg_RestoreCount"), r.SuccessCount)); } catch (Exception ex) { AppMessageBox.ShowError(ex.Message); } }
+    private async void BackupDbFile_Click(object sender, RoutedEventArgs e) { var d = new SaveFileDialog { Filter = "DB|*.db", FileName = $"EasyMovie_{DateTime.Now:yyyyMMdd_HHmm}.db" }; if (d.ShowDialog() != true) return; try { await _vm.ImportExportService.BackupDatabaseAsync(d.FileName); AppMessageBox.ShowInfo(LanguageManager.GetString("Msg_BackupDone")); } catch (Exception ex) { AppMessageBox.ShowError(ex.Message); } }
+    private async void RestoreDbFile_Click(object sender, RoutedEventArgs e) { if (!AppMessageBox.Confirm(LanguageManager.GetString("Msg_ConfirmReplaceDb"), LanguageManager.GetString("Msg_Confirm"))) return; var d = new OpenFileDialog { Filter = "DB|*.db" }; if (d.ShowDialog() != true) return; try { await _vm.ImportExportService.RestoreDatabaseAsync(d.FileName); AppMessageBox.ShowInfo(LanguageManager.GetString("Msg_RestartRequired")); } catch (Exception ex) { AppMessageBox.ShowError(ex.Message); } }
 
     #endregion
 
