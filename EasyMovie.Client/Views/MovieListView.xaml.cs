@@ -915,12 +915,25 @@ public partial class MovieListView : UserControl
         return card;
     }
 
+    private static readonly HttpClient _httpClient = EasyMovie.Core.HttpClientFactory.Create();
+
+    private static async Task<byte[]?> DownloadPosterAsync(string url)
+    {
+        using var req = new HttpRequestMessage(HttpMethod.Get, url);
+        if (url.Contains("themoviedb.org") || url.Contains("tmdb.org"))
+            req.Headers.Referrer = new Uri("https://www.themoviedb.org/");
+        else if (url.Contains("douban"))
+            req.Headers.Referrer = new Uri("https://movie.douban.com/");
+        using var resp = await _httpClient.SendAsync(req);
+        if (!resp.IsSuccessStatusCode) return null;
+        return await resp.Content.ReadAsByteArrayAsync();
+    }
+
     private async Task LoadPosterAsync(Image img, Border posterBorder, string posterUrl, Brush fallbackBg)
     {
         try
         {
-            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
-            var bytes = await http.GetByteArrayAsync(posterUrl);
+            var bytes = await _httpClient.GetByteArrayAsync(posterUrl);
             var bmp = new BitmapImage();
             bmp.BeginInit(); bmp.CacheOption = BitmapCacheOption.OnLoad; bmp.StreamSource = new MemoryStream(bytes); bmp.EndInit(); bmp.Freeze();
             img.Source = bmp;
@@ -1179,13 +1192,8 @@ public partial class MovieListView : UserControl
                     m.PosterUrl = info.PosterUrl;
                     try
                     {
-                        var imgClient = new HttpClient(new HttpClientHandler { AutomaticDecompression = System.Net.DecompressionMethods.All }) { Timeout = TimeSpan.FromSeconds(10) };
-                        imgClient.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36");
-                        if (info.PosterUrl.Contains("themoviedb.org") || info.PosterUrl.Contains("tmdb.org"))
-                            imgClient.DefaultRequestHeaders.Add("Referer", "https://www.themoviedb.org/");
-                        else if (info.PosterUrl.Contains("douban"))
-                            imgClient.DefaultRequestHeaders.Add("Referer", "https://movie.douban.com/");
-                        m.PosterData = await imgClient.GetByteArrayAsync(info.PosterUrl);
+                        var posterBytes = await DownloadPosterAsync(info.PosterUrl);
+                        if (posterBytes != null) m.PosterData = posterBytes;
                     }
                     catch (Exception ex) { Log.Error(ex, "MovieListView 操作异常"); }
                 }
@@ -1480,14 +1488,8 @@ public partial class MovieListView : UserControl
                     // 下载海报存入数据库
                     try
                     {
-                        var imgClient = new HttpClient(new HttpClientHandler { AutomaticDecompression = System.Net.DecompressionMethods.All }) { Timeout = TimeSpan.FromSeconds(10) };
-                        imgClient.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36");
-                        if (info.PosterUrl.Contains("themoviedb.org") || info.PosterUrl.Contains("tmdb.org"))
-                            imgClient.DefaultRequestHeaders.Add("Referer", "https://www.themoviedb.org/");
-                        else if (info.PosterUrl.Contains("douban"))
-                            imgClient.DefaultRequestHeaders.Add("Referer", "https://movie.douban.com/");
-                        var posterBytes = await imgClient.GetByteArrayAsync(info.PosterUrl);
-                        m.PosterData = posterBytes;
+                        var posterBytes = await DownloadPosterAsync(info.PosterUrl);
+                        if (posterBytes != null) m.PosterData = posterBytes;
                     }
                     catch (Exception ex) { Log.Error(ex, "MovieListView 操作异常"); }
                 }
@@ -1550,10 +1552,6 @@ public partial class MovieListView : UserControl
         var failed = 0;
         var updatedMovies = new List<Movie>();
         var updateLock = new object();
-
-        using var imgClient = new HttpClient(new HttpClientHandler { AutomaticDecompression = System.Net.DecompressionMethods.All })
-        { Timeout = TimeSpan.FromSeconds(10) };
-        imgClient.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36");
 
         // 配置了豆瓣 Cookie 时中文电影会走豆瓣（500ms 限流），并发不宜过高；否则 TMDB 可高并发
         var semaphore = new SemaphoreSlim(string.IsNullOrEmpty(cookie) ? 10 : 3);
@@ -1643,11 +1641,8 @@ public partial class MovieListView : UserControl
                 m.PosterUrl = info.PosterUrl;
                 try
                 {
-                    if (info.PosterUrl.Contains("themoviedb.org") || info.PosterUrl.Contains("tmdb.org"))
-                        imgClient.DefaultRequestHeaders.Referrer = new Uri("https://www.themoviedb.org/");
-                    else if (info.PosterUrl.Contains("douban"))
-                        imgClient.DefaultRequestHeaders.Referrer = new Uri("https://movie.douban.com/");
-                    m.PosterData = await imgClient.GetByteArrayAsync(info.PosterUrl);
+                    var posterBytes = await DownloadPosterAsync(info.PosterUrl);
+                    if (posterBytes != null) m.PosterData = posterBytes;
                 }
                 catch (Exception ex) { Log.Error(ex, "MovieListView 操作异常"); }
             }
@@ -1946,13 +1941,8 @@ public partial class MovieListView : UserControl
                                 m.PosterUrl = info.PosterUrl;
                                 try
                                 {
-                                    var imgClient = new HttpClient(new HttpClientHandler { AutomaticDecompression = System.Net.DecompressionMethods.All }) { Timeout = TimeSpan.FromSeconds(10) };
-                                    imgClient.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36");
-                                    if (info.PosterUrl.Contains("themoviedb.org") || info.PosterUrl.Contains("tmdb.org"))
-                                        imgClient.DefaultRequestHeaders.Add("Referer", "https://www.themoviedb.org/");
-                                    else if (info.PosterUrl.Contains("douban"))
-                                        imgClient.DefaultRequestHeaders.Add("Referer", "https://movie.douban.com/");
-                                    m.PosterData = await imgClient.GetByteArrayAsync(info.PosterUrl);
+                                    var posterBytes = await DownloadPosterAsync(info.PosterUrl);
+                                    if (posterBytes != null) m.PosterData = posterBytes;
                                 }
                                 catch (Exception ex) { Log.Error(ex, "MovieListView 操作异常"); }
                             }
