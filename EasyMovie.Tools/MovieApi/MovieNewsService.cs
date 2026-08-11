@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using System.Text.Json;
 using EasyMovie.Core;
 using EasyMovie.Core.Interfaces;
+using Serilog;
 
 namespace EasyMovie.Tools.MovieApi;
 
@@ -203,7 +204,7 @@ public class MovieNewsService
                 }
             }
         }
-        catch { }
+        catch (Exception ex) { Log.Error(ex, "解析影视资讯页面失败"); }
         return results;
     }
 
@@ -279,7 +280,7 @@ public class MovieNewsService
                     }
                 }
             }
-            catch { /* fallback to regex */ }
+            catch (Exception ex) { Log.Error(ex, "解析影视资讯 JSON 失败，回退正则"); }
         }
 
         // 正则兜底: 表格结构
