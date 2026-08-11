@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using System.Web;
 using EasyMovie.Core;
 using EasyMovie.Core.Interfaces;
+using Serilog;
 
 namespace EasyMovie.Tools.MovieApi;
 
@@ -113,7 +114,7 @@ public class BaiduBaikeApiClient : IMovieApiClient
             var results = ParseSearch(html).Take(req.PageSize).ToList();
             return new MovieSearchResponse { Results = results, TotalCount = results.Count };
         }
-        catch { return new MovieSearchResponse(); }
+        catch (Exception ex) { Log.Error(ex, "百度百科搜索解析失败"); return new MovieSearchResponse(); }
     }
 
     public async Task<MovieSearchResult?> GetDetailAsync(string externalId, CancellationToken ct = default)
@@ -123,7 +124,7 @@ public class BaiduBaikeApiClient : IMovieApiClient
             var html = await _http.GetStringAsync($"https://baike.baidu.com/item/{Uri.EscapeDataString(externalId)}", ct);
             return ParseDetail(html, externalId);
         }
-        catch { return null; }
+        catch (Exception ex) { Log.Error(ex, "百度百科获取详情失败"); return null; }
     }
 
     private static List<MovieSearchResult> ParseSearch(string html)

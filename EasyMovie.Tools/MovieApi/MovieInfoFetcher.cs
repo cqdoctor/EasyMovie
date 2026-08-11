@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using EasyMovie.Core;
 using EasyMovie.Core.Interfaces;
 using EasyMovie.Core.Models;
+using Serilog;
 
 namespace EasyMovie.Tools.MovieApi;
 
@@ -58,7 +59,7 @@ public class MovieInfoFetcher
                 }
             }
             catch (OperationCanceledException) { throw; }
-            catch { }
+            catch (Exception ex) { Log.Error(ex, "数据源获取失败，已跳过该源"); }
         }
 
         // 2. OMDb（需 API Key，国内可直连无需代理）—— 提前到 TMDB 之前
@@ -86,7 +87,7 @@ public class MovieInfoFetcher
                     }
                 }
                 catch (OperationCanceledException) { throw; }
-                catch { }
+                catch (Exception ex) { Log.Error(ex, "数据源获取失败，已跳过该源"); }
             }
         }
 
@@ -114,7 +115,7 @@ public class MovieInfoFetcher
                     }
                 }
                 catch (OperationCanceledException) { throw; }
-                catch { }
+                catch (Exception ex) { Log.Error(ex, "数据源获取失败，已跳过该源"); }
             }
         }
 
@@ -140,7 +141,7 @@ public class MovieInfoFetcher
                 }
             }
             catch (OperationCanceledException) { throw; }
-            catch { }
+            catch (Exception ex) { Log.Error(ex, "数据源获取失败，已跳过该源"); }
         }
 
         // 5. 手动搜索兜底 —— 全部失败时让用户输入关键词
@@ -205,7 +206,7 @@ public class MovieInfoFetcher
                 return detail ?? best;
             }
             catch (OperationCanceledException) { throw; }
-            catch { }
+            catch (Exception ex) { Log.Error(ex, "数据源获取失败，已跳过该源"); }
         }
         return null;
     }

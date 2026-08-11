@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Web;
 using EasyMovie.Core.Interfaces;
+using Serilog;
 
 namespace EasyMovie.Tools.MovieApi;
 
@@ -32,7 +33,7 @@ public class TmdbApiClient : IMovieApiClient
                 handler.Proxy = new WebProxy(proxy, true);
                 handler.UseProxy = true;
             }
-            catch { }
+            catch (Exception ex) { Log.Error(ex, "配置代理失败"); }
         }
         _http = http ?? new HttpClient(handler)
         { Timeout = TimeSpan.FromSeconds(10) };
@@ -135,7 +136,7 @@ public class TmdbApiClient : IMovieApiClient
             var results = ParseSearchNew(html);
             return new MovieSearchResponse { Results = results.Take(request.PageSize).ToList(), TotalCount = results.Count, Page = request.Page, PageSize = request.PageSize };
         }
-        catch { return new MovieSearchResponse(); }
+        catch (Exception ex) { Log.Error(ex, "TMDB 网页搜索解析失败"); return new MovieSearchResponse(); }
     }
 
     /// <summary>解析新版 TMDB 搜索页面（comp:media-card 结构）</summary>
@@ -267,7 +268,10 @@ public class TmdbApiClient : IMovieApiClient
                         if (dirNames.Count > 0) director = string.Join("/", dirNames);
                     }
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "解析 JSON-LD 导演失败");
+                }
             }
 
             // HTML fallback: 严格匹配 crew 列表中 character 为 Director 的 li.profile 块
@@ -321,7 +325,10 @@ public class TmdbApiClient : IMovieApiClient
                         else if (co.TryGetProperty("name", out var n)) country = n.GetString() ?? "";
                     }
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "解析 JSON-LD 国家失败");
+                }
             }
             // 从日期行提取国家代码，如 "2023-08-26 (CN)" → "CN"
             if (string.IsNullOrEmpty(country))
@@ -409,7 +416,10 @@ public class TmdbApiClient : IMovieApiClient
                     if (doc2.RootElement.TryGetProperty("image", out var img))
                         posterUrl = img.GetString() ?? "";
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "解析 JSON-LD 海报失败");
+                }
             }
             // 回退到 HTML img 标签
             if (string.IsNullOrEmpty(posterUrl))
@@ -521,9 +531,9 @@ public class TmdbApiClient : IMovieApiClient
                     });
                 }
             }
-            return response;
+                return response;
         }
-        catch { return null; }
+        catch (Exception ex) { Log.Error(ex, "TMDB 官方 API 搜索失败"); return null; }
     }
 
     /// <summary>
@@ -630,6 +640,6 @@ public class TmdbApiClient : IMovieApiClient
                 Source = "tmdb"
             };
         }
-        catch { return null; }
+        catch (Exception ex) { Log.Error(ex, "TMDB 官方 API 获取详情失败"); return null; }
     }
 }

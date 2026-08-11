@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using EasyMovie.Core;
 using EasyMovie.Core.Interfaces;
 using EasyMovie.Core.Models;
+using Serilog;
 
 namespace EasyMovie.Tools.ImportExport;
 
@@ -128,7 +129,7 @@ public class FolderImportService : IFolderImportService
                             }
                         }
                     }
-                    catch { /* API 失败不影响导入 */ }
+                    catch (Exception ex) { Log.Error(ex, "文件夹导入时获取元数据失败，已跳过"); }
                 }
 
                 await movieService.AddAsync(movie);

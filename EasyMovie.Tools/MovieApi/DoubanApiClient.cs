@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using System.Text.Json;
 using EasyMovie.Core;
 using EasyMovie.Core.Interfaces;
+using Serilog;
 
 namespace EasyMovie.Tools.MovieApi;
 
@@ -176,7 +177,7 @@ public class DoubanApiClient : IMovieApiClient
             if (html.Contains("禁止访问")) return new MovieSearchResponse();
             return new MovieSearchResponse { Results = ParseSearch(html).Take(req.PageSize).ToList(), TotalCount = 1 };
         }
-        catch { return new MovieSearchResponse(); }
+        catch (Exception ex) { Log.Error(ex, "豆瓣网页搜索解析失败"); return new MovieSearchResponse(); }
     }
 
     public async Task<MovieSearchResult?> GetDetailAsync(string externalId, CancellationToken ct = default)
@@ -187,7 +188,7 @@ public class DoubanApiClient : IMovieApiClient
             var html = await _http.GetStringAsync($"https://movie.douban.com/subject/{externalId}/", ct);
             return html.Contains("禁止访问") ? null : ParseDetail(html, externalId);
         }
-        catch { return null; }
+        catch (Exception ex) { Log.Error(ex, "豆瓣获取详情失败"); return null; }
     }
 
     private static List<MovieSearchResult> ParseSearch(string html)
@@ -238,7 +239,7 @@ public class DoubanApiClient : IMovieApiClient
                     results.Add(new MovieSearchResult { Title = title, OriginalTitle = engTitle, Year = year, Rating = rating, Country = country, Director = director, Cast = cast, Runtime = runtime > 0 ? runtime : null, PosterUrl = cover, ExternalId = id, Source = "douban" });
                 }
             }
-            catch { }
+            catch (Exception ex) { Log.Error(ex, "豆瓣解析搜索结果失败，已跳过"); }
         }
         if (results.Count == 0)
         {
