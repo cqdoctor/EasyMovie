@@ -225,6 +225,13 @@ public class ImportExportService : IImportExportService
                 return result;
             }
 
+            // 整个还原过程包裹在事务中：分类/标签/电影的分步写入要么全部提交，要么整体回滚，
+            // 避免中途失败时数据库留下"半导入"的脏数据。
+            // InMemory 等测试用 provider 不支持显式事务，此时跳过（await using 对 null 无操作）
+            await using var transaction = _context.Database.IsRelational()
+                ? await _context.Database.BeginTransactionAsync()
+                : null;
+
             // 先导入分类
             var catIdMap = new Dictionary<int, int>();
             if (backup.Categories != null)
@@ -282,6 +289,8 @@ public class ImportExportService : IImportExportService
                     await _context.SaveChangesAsync();
             }
 
+            if (transaction != null)
+                await transaction.CommitAsync();
             return result;
         }
         catch (Exception ex)

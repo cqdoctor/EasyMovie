@@ -50,11 +50,11 @@ public class MovieRepository : IMovieRepository
         {
             var kw = keyword.Trim().ToLower();
             query = query.Where(m =>
-                m.Title.Contains(kw) ||
-                (m.OriginalTitle != null && m.OriginalTitle.Contains(kw)) ||
-                (m.Director != null && m.Director.Contains(kw)) ||
-                (m.Cast != null && m.Cast.Contains(kw)) ||
-                (m.SearchIndex != null && m.SearchIndex.Contains(kw)));
+                (m.Title != null && m.Title.ToLower().Contains(kw)) ||
+                (m.OriginalTitle != null && m.OriginalTitle.ToLower().Contains(kw)) ||
+                (m.Director != null && m.Director.ToLower().Contains(kw)) ||
+                (m.Cast != null && m.Cast.ToLower().Contains(kw)) ||
+                (m.SearchIndex != null && m.SearchIndex.ToLower().Contains(kw)));
         }
 
         // 分类筛选（-1 表示"未分类"，即 CategoryId 为 null）
@@ -144,11 +144,11 @@ public class MovieRepository : IMovieRepository
         {
             var kw = keyword.Trim().ToLower();
             query = query.Where(m =>
-                m.Title.Contains(kw) ||
-                (m.OriginalTitle != null && m.OriginalTitle.Contains(kw)) ||
-                (m.Director != null && m.Director.Contains(kw)) ||
-                (m.Cast != null && m.Cast.Contains(kw)) ||
-                (m.SearchIndex != null && m.SearchIndex.Contains(kw)));
+                (m.Title != null && m.Title.ToLower().Contains(kw)) ||
+                (m.OriginalTitle != null && m.OriginalTitle.ToLower().Contains(kw)) ||
+                (m.Director != null && m.Director.ToLower().Contains(kw)) ||
+                (m.Cast != null && m.Cast.ToLower().Contains(kw)) ||
+                (m.SearchIndex != null && m.SearchIndex.ToLower().Contains(kw)));
         }
 
         if (categoryId.HasValue)

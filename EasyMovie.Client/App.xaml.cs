@@ -9,7 +9,12 @@ using EasyMovie.Core.Models;
 using EasyMovie.Core.Services;
 using EasyMovie.Tools.ImportExport;
 using EasyMovie.Tools.MovieApi;
+using EasyMovie.Client.ViewModels;
+using EasyMovie.Data;
+using EasyMovie.Data.Repositories;
 using MaterialDesignColors;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Serilog;
 
 namespace EasyMovie.Client;
@@ -17,11 +22,25 @@ namespace EasyMovie.Client;
 public partial class App : Application
 {
     public static bool IsDarkTheme => AppSettings.IsDarkTheme;
-    public static readonly FolderWatcherService FolderWatcher = new();
+    public static FolderWatcherService FolderWatcher { get; private set; } = new();
+
+    /// <summary>DI 容器根（由 OnStartup 构建）。供 View/Service 增量迁移时使用。</summary>
+    public static IServiceProvider Services { get; private set; } = null!;
 
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        // 构建 DI 容器；失败不影响启动，FolderWatcher 回退为默认实例
+        try
+        {
+            Services = ConfigureServices();
+            FolderWatcher = Services.GetRequiredService<FolderWatcherService>();
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "DI 容器初始化失败，使用默认 FolderWatcher");
+        }
 
         // 初始化语言
         LanguageManager.Initialize();
@@ -100,6 +119,33 @@ public partial class App : Application
         Log.Information("EasyMovie 退出");
         Log.CloseAndFlush();
         base.OnExit(e);
+    }
+
+    private static IServiceProvider ConfigureServices()
+    {
+        var services = new ServiceCollection();
+
+        // 每次解析得到独立的 DbContext 实例，天然隔离并发写（配合 MovieDbContext 内的写串行化锁）
+        services.AddTransient(sp =>
+            new MovieDbContext(new DbContextOptionsBuilder<MovieDbContext>()
+                .UseSqlite(DbHelper.ConnectionString).Options));
+
+        services.AddTransient<IMovieRepository, MovieRepository>();
+        services.AddTransient<ICategoryRepository, CategoryRepository>();
+        services.AddTransient<ITagRepository, TagRepository>();
+        services.AddTransient<IMovieService, MovieService>();
+        services.AddTransient<ICategoryService, CategoryService>();
+        services.AddTransient<ITagService, TagService>();
+        services.AddTransient<IStatisticsService, StatisticsService>();
+        services.AddTransient<IImportExportService, ImportExportService>();
+        services.AddTransient<CollectionService>();
+        services.AddTransient<WatchLogService>();
+        // FolderImportService 的 IMovieApiClient 参数有多个实现，按现状以 null 注入
+        services.AddTransient<IFolderImportService>(sp => new FolderImportService());
+        services.AddSingleton<FolderWatcherService>();
+        services.AddTransient<CategoryManageViewModel>();
+
+        return services.BuildServiceProvider();
     }
 
     public static void SetTheme(AppThemeMode mode)
