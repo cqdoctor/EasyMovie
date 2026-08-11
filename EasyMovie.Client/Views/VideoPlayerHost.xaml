@@ -12,7 +12,7 @@
              Focusable="True">
 
     <Grid>
-        <!-- 视频画面（WPF Image，由 VLC 帧回调渲染，无 HwndHost，控件可悬浮在其上） -->
+        <!-- 视频画面（WPF Image，由 VLC 帧回调渲染，无 HwndHost，控件可悬浮其上） -->
         <Image x:Name="VideoImage" Stretch="Uniform" />
 
         <!-- 顶部标题/返回栏（悬浮在主窗口内，不遮挡问题） -->

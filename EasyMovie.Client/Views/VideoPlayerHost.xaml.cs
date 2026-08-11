@@ -31,9 +31,9 @@ public partial class VideoPlayerHost : UserControl
 
     // VLC 帧回调渲染到 WriteableBitmap（视频是 WPF Image，控件可直接悬浮其上）
     private WriteableBitmap? _bitmap;
-    private uint _videoWidth;
-    private uint _videoHeight;
-    private bool _frameLocked;
+    // 用 GCHandle 把 bitmap 句柄传入 VLC 回调的 opaque，保证 Format/Lock/Display 始终操作同一个 bitmap，
+    // 避免分辨率重协商时字段被重赋值导致 VLC 写入错误的 buffer（原生越界 → 进程闪退）。
+    private GCHandle _bitmapHandle;
 
     public event EventHandler? Closed;
 
@@ -166,7 +166,7 @@ public partial class VideoPlayerHost : UserControl
         }
     }
 
-    #region VLC 帧回调渲染
+    #region VLC 帧回调渲染（稳健版：bitmap 经 GCHandle 传入 opaque，杜绝重协商时越界崩溃）
 
     /// <summary>配置 VLC 直接输出 BGRA32 (RV32) 帧到 WriteableBitmap，替代 HwndHost 渲染</summary>
     private void SetupVideoCallbacks()
@@ -176,28 +176,26 @@ public partial class VideoPlayerHost : UserControl
         _mediaPlayer.SetVideoCallbacks(OnVideoLock, OnVideoUnlock, OnVideoDisplay);
     }
 
-    /// <summary>VLC 线程：格式协商，创建/调整 WriteableBitmap，强制 RV32 输出</summary>
+    /// <summary>VLC 线程：格式协商，创建 WriteableBitmap 并通过 GCHandle 存入 opaque</summary>
     private uint OnVideoFormatSetup(ref IntPtr opaque, IntPtr chroma, ref uint width, ref uint height, ref uint pitches, ref uint lines)
     {
         try
         {
-            var w = width;
-            var h = height;
-            Dispatcher.Invoke(() =>
-            {
-                _videoWidth = w;
-                _videoHeight = h;
-                if (_bitmap == null || _bitmap.PixelWidth != (int)w || _bitmap.PixelHeight != (int)h)
-                {
-                    _bitmap = new WriteableBitmap((int)w, (int)h, 96, 96, PixelFormats.Bgra32, null);
-                    VideoImage.Source = _bitmap;
-                }
-            });
             // 4CC "RV32" = BGRA32（与 WriteableBitmap Bgra32 布局一致，零拷贝）
             if (chroma != IntPtr.Zero)
                 Marshal.WriteInt32(chroma, 0x32335652);
             pitches = width * 4;
             lines = height;
+
+            var bmp = new WriteableBitmap((int)width, (int)height, 96, 96, PixelFormats.Bgra32, null);
+
+            // 释放旧句柄（若有），避免泄漏；新 bitmap 通过 GCHandle 随 opaque 传递
+            if (_bitmapHandle.IsAllocated) _bitmapHandle.Free();
+            _bitmapHandle = GCHandle.Alloc(bmp);
+            opaque = GCHandle.ToIntPtr(_bitmapHandle);
+            _bitmap = bmp;
+
+            Dispatcher.BeginInvoke(() => VideoImage.Source = bmp);
             return 1; // 分配 1 个 picture buffer
         }
         catch
@@ -208,23 +206,33 @@ public partial class VideoPlayerHost : UserControl
 
     private void OnVideoCleanup(ref IntPtr opaque)
     {
-        // VLC 线程：播放结束/停止时调用
-        if (_frameLocked && _bitmap != null)
+        // VLC 线程：播放结束/停止/格式重协商时调用。释放 GCHandle 并解锁旧 bitmap。
+        if (opaque != IntPtr.Zero)
         {
-            try { _bitmap.Unlock(); } catch (Exception ex) { Log.Error(ex, "VideoPlayerHost 操作异常"); }
-            _frameLocked = false;
+            try
+            {
+                var handle = GCHandle.FromIntPtr(opaque);
+                if (handle.Target is WriteableBitmap old) old.Unlock();
+                handle.Free();
+            }
+            catch (Exception ex) { Log.Error(ex, "VideoPlayerHost 视频清理异常"); }
+            opaque = IntPtr.Zero;
         }
+        // 与 _bitmapHandle 指向同一底层句柄，释放后重置为未分配状态，避免重复 Free
+        _bitmapHandle = default;
+        _bitmap = null;
     }
 
-    /// <summary>VLC 线程：锁定 bitmap 并返回 BackBuffer，VLC 直接写入像素</summary>
+    /// <summary>VLC 线程：从 opaque 取回 bitmap，锁定并返回 BackBuffer</summary>
     private IntPtr OnVideoLock(IntPtr opaque, IntPtr planes)
     {
-        if (_bitmap == null) return IntPtr.Zero;
         try
         {
-            _bitmap.Lock();
-            _frameLocked = true;
-            return _bitmap.BackBuffer;
+            if (opaque == IntPtr.Zero) return IntPtr.Zero;
+            var bmp = (WriteableBitmap)GCHandle.FromIntPtr(opaque).Target;
+            if (bmp == null) return IntPtr.Zero;
+            bmp.Lock();
+            return bmp.BackBuffer;
         }
         catch
         {
@@ -237,18 +245,18 @@ public partial class VideoPlayerHost : UserControl
         // 在 Display 回调统一解锁（需要 UI 线程 AddDirtyRect）
     }
 
-    /// <summary>VLC 线程：帧就绪，切到 UI 线程刷新画面</summary>
+    /// <summary>VLC 线程：帧就绪，直接在本线程刷新画面（bitmap 全程只由 VLC 线程访问，避免跨线程异常）</summary>
     private void OnVideoDisplay(IntPtr opaque, IntPtr picture)
     {
-        Dispatcher.BeginInvoke(() =>
+        try
         {
-            if (_bitmap != null && _frameLocked)
-            {
-                _bitmap.AddDirtyRect(new Int32Rect(0, 0, (int)_videoWidth, (int)_videoHeight));
-                _bitmap.Unlock();
-                _frameLocked = false;
-            }
-        });
+            if (opaque == IntPtr.Zero) return;
+            var bmp = (WriteableBitmap)GCHandle.FromIntPtr(opaque).Target;
+            if (bmp == null) return;
+            bmp.AddDirtyRect(new Int32Rect(0, 0, bmp.PixelWidth, bmp.PixelHeight));
+            bmp.Unlock();
+        }
+        catch (Exception ex) { Log.Error(ex, "VideoPlayerHost 视频显示异常"); }
     }
 
     #endregion
@@ -265,11 +273,12 @@ public partial class VideoPlayerHost : UserControl
         _mediaPlayer?.Stop();
         _mediaPlayer?.Dispose();
         _mediaPlayer = null;
-        if (_frameLocked && _bitmap != null)
+        if (_bitmapHandle.IsAllocated)
         {
-            try { _bitmap.Unlock(); } catch (Exception ex) { Log.Error(ex, "VideoPlayerHost 操作异常"); }
-            _frameLocked = false;
+            try { if (_bitmap != null) _bitmap.Unlock(); } catch (Exception ex) { Log.Error(ex, "VideoPlayerHost 操作异常"); }
+            _bitmapHandle.Free();
         }
+        _bitmapHandle = default;
         _bitmap = null;
         VideoImage.Source = null;
     }
