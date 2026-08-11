@@ -149,7 +149,10 @@ public class FolderWatcherService : IDisposable
                         });
                     }
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "[FolderWatcher] 扫描目录异常: {Folder}", folder);
+                }
             }
             if (found > 0)
                 Log.Information("[FolderWatcher] 轮询本轮发现 {Count} 个新文件", found);

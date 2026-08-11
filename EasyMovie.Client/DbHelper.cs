@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using EasyMovie.Data;
+using Serilog;
 
 namespace EasyMovie.Client;
 
@@ -142,31 +143,46 @@ public static class DbHelper
 
                 ctx.Database.CloseConnection();
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "数据库 Schema 升级失败");
+            }
 
             try
             {
                 CleanHtmlInExistingData();
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "清洗历史 HTML 脏数据失败");
+            }
 
             try
             {
                 CleanDirtyPersonData();
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "清洗脏人名数据失败");
+            }
 
             try
             {
                 MigrateDefaultWatchStatus();
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "迁移默认观看状态失败");
+            }
 
             try
             {
                 SeedDefaultTags();
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "种子默认标签失败");
+            }
 
             _initialized = true;
         }
@@ -187,7 +203,10 @@ public static class DbHelper
             if (File.Exists(oldSettings) && !File.Exists(newSettings))
                 File.Copy(oldSettings, newSettings, overwrite: false);
         }
-        catch { }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "从旧版本迁移数据库/配置失败");
+        }
     }
 
     private static readonly string HtmlCleanFlagPath = Path.Combine(
