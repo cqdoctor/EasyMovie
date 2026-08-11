@@ -21,7 +21,7 @@ public static class DbHelper
     private static readonly object _lock = new();
     private static bool _initialized;
 
-    public static string ConnectionString => $"Data Source={DbPath}";
+    public static string ConnectionString => $"Data Source={DbPath};BusyTimeout=3000";
 
     public static MovieDbContext CreateContext()
     {
@@ -222,26 +222,53 @@ public static class DbHelper
         var options = new DbContextOptionsBuilder<MovieDbContext>().UseSqlite(ConnectionString).Options;
         using var ctx = new MovieDbContext(options);
 
-        var movies = ctx.Movies.ToList();
+        // 只投影需要的文本字段，避免把 PosterData 等大 BLOB 整行加载进内存
+        var rows = ctx.Movies
+            .Select(m => new { m.Id, m.Synopsis, m.Director, m.Cast, m.Country, m.Notes })
+            .AsNoTracking()
+            .ToList();
         var changed = false;
-        foreach (var m in movies)
+        foreach (var row in rows)
         {
-            var cleanSynopsis = StripHtml(m.Synopsis);
-            var cleanDirector = StripHtml(m.Director);
-            var cleanCast = StripHtml(m.Cast);
-            var cleanCountry = StripHtml(m.Country);
-            var cleanNotes = StripHtml(m.Notes);
+            var cleanSynopsis = StripHtml(row.Synopsis);
+            var cleanDirector = StripHtml(row.Director);
+            var cleanCast = StripHtml(row.Cast);
+            var cleanCountry = StripHtml(row.Country);
+            var cleanNotes = StripHtml(row.Notes);
 
-            if (cleanSynopsis != m.Synopsis || cleanDirector != m.Director ||
-                cleanCast != m.Cast || cleanCountry != m.Country || cleanNotes != m.Notes)
+            if (cleanSynopsis == row.Synopsis && cleanDirector == row.Director &&
+                cleanCast == row.Cast && cleanCountry == row.Country && cleanNotes == row.Notes)
+                continue;
+
+            // 仅附载主键，按列标脏回写变化字段，绝不触碰 PosterData 等其它列
+            var tracked = new Movie { Id = row.Id };
+            ctx.Attach(tracked);
+            if (cleanSynopsis != row.Synopsis)
             {
-                m.Synopsis = cleanSynopsis;
-                m.Director = cleanDirector;
-                m.Cast = cleanCast;
-                m.Country = cleanCountry;
-                m.Notes = cleanNotes;
-                changed = true;
+                ctx.Entry(tracked).Property(x => x.Synopsis).CurrentValue = cleanSynopsis;
+                ctx.Entry(tracked).Property(x => x.Synopsis).IsModified = true;
             }
+            if (cleanDirector != row.Director)
+            {
+                ctx.Entry(tracked).Property(x => x.Director).CurrentValue = cleanDirector;
+                ctx.Entry(tracked).Property(x => x.Director).IsModified = true;
+            }
+            if (cleanCast != row.Cast)
+            {
+                ctx.Entry(tracked).Property(x => x.Cast).CurrentValue = cleanCast;
+                ctx.Entry(tracked).Property(x => x.Cast).IsModified = true;
+            }
+            if (cleanCountry != row.Country)
+            {
+                ctx.Entry(tracked).Property(x => x.Country).CurrentValue = cleanCountry;
+                ctx.Entry(tracked).Property(x => x.Country).IsModified = true;
+            }
+            if (cleanNotes != row.Notes)
+            {
+                ctx.Entry(tracked).Property(x => x.Notes).CurrentValue = cleanNotes;
+                ctx.Entry(tracked).Property(x => x.Notes).IsModified = true;
+            }
+            changed = true;
         }
         if (changed) ctx.SaveChanges();
 
@@ -286,19 +313,33 @@ public static class DbHelper
         var options = new DbContextOptionsBuilder<MovieDbContext>().UseSqlite(ConnectionString).Options;
         using var ctx = new MovieDbContext(options);
 
-        var movies = ctx.Movies.ToList();
+        // 只投影需要的字段，避免加载 PosterData 等大 BLOB
+        var rows = ctx.Movies
+            .Select(m => new { m.Id, m.Director, m.Cast })
+            .AsNoTracking()
+            .ToList();
         var changed = false;
-        foreach (var m in movies)
+        foreach (var row in rows)
         {
-            var cleanDirector = CleanPersonField(m.Director);
-            var cleanCast = CleanPersonField(m.Cast);
+            var cleanDirector = CleanPersonField(row.Director);
+            var cleanCast = CleanPersonField(row.Cast);
 
-            if (cleanDirector != m.Director || cleanCast != m.Cast)
+            if (cleanDirector == row.Director && cleanCast == row.Cast) continue;
+
+            // 仅附载主键，按列标脏回写变化字段，绝不触碰 PosterData 等其它列
+            var tracked = new Movie { Id = row.Id };
+            ctx.Attach(tracked);
+            if (cleanDirector != row.Director)
             {
-                m.Director = cleanDirector;
-                m.Cast = cleanCast;
-                changed = true;
+                ctx.Entry(tracked).Property(x => x.Director).CurrentValue = cleanDirector;
+                ctx.Entry(tracked).Property(x => x.Director).IsModified = true;
             }
+            if (cleanCast != row.Cast)
+            {
+                ctx.Entry(tracked).Property(x => x.Cast).CurrentValue = cleanCast;
+                ctx.Entry(tracked).Property(x => x.Cast).IsModified = true;
+            }
+            changed = true;
         }
         if (changed) ctx.SaveChanges();
 
