@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
+using EasyMovie.Core.Models;
 using EasyMovie.Data;
 using Serilog;
 

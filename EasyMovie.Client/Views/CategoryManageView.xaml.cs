@@ -9,6 +9,8 @@ using EasyMovie.Core.Models;
 using EasyMovie.Core.Services;
 using EasyMovie.Data;
 using EasyMovie.Data.Repositories;
+using EasyMovie.Client.ViewModels;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace EasyMovie.Client.Views;
 

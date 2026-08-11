@@ -144,6 +144,14 @@ public partial class App : Application
         services.AddTransient<IFolderImportService>(sp => new FolderImportService());
         services.AddSingleton<FolderWatcherService>();
         services.AddTransient<CategoryManageViewModel>();
+        services.AddTransient<TagManageViewModel>();
+        services.AddTransient<CategoryTagManageViewModel>();
+        services.AddTransient<SettingsViewModel>();
+        services.AddTransient<StatisticsViewModel>();
+        services.AddTransient<OnlineSearchViewModel>();
+        services.AddTransient<WatchCalendarViewModel>();
+        services.AddTransient<ImportExportViewModel>();
+        services.AddTransient<MovieRelationViewModel>();
 
         return services.BuildServiceProvider();
     }
