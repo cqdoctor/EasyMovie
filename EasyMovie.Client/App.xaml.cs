@@ -127,9 +127,7 @@ public partial class App : Application
         var services = new ServiceCollection();
 
         // 每次解析得到独立的 DbContext 实例，天然隔离并发写（配合 MovieDbContext 内的写串行化锁）
-        services.AddTransient(sp =>
-            new MovieDbContext(new DbContextOptionsBuilder<MovieDbContext>()
-                .UseSqlite(DbHelper.ConnectionString).Options));
+        services.AddTransient(sp => new MovieDbContext(DbHelper.CreateOptions()));
 
         services.AddTransient<IMovieRepository, MovieRepository>();
         services.AddTransient<ICategoryRepository, CategoryRepository>();
