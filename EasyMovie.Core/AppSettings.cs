@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
+using Serilog;
 
 namespace EasyMovie.Core;
 
@@ -159,7 +160,11 @@ public static class AppSettings
                 _current = JsonSerializer.Deserialize<SettingsData>(json) ?? new();
             }
         }
-        catch { _current = new(); }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "加载设置失败，已回退到默认值");
+            _current = new();
+        }
     }
 
     private static void Save()
@@ -171,7 +176,10 @@ public static class AppSettings
                 Directory.CreateDirectory(dir);
             File.WriteAllText(SettingsPath, JsonSerializer.Serialize(_current));
         }
-        catch { }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "保存设置失败");
+        }
     }
 
     /// <summary>从旧版 MovieManager 自动迁移设置文件</summary>
@@ -186,7 +194,10 @@ public static class AppSettings
                 Directory.CreateDirectory(dir);
             File.Copy(OldSettingsPath, SettingsPath, overwrite: false);
         }
-        catch { }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "迁移旧版设置失败");
+        }
     }
 
     private class SettingsData

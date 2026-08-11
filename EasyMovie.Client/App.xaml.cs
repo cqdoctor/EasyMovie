@@ -84,7 +84,7 @@ public partial class App : Application
 
                 return dbPaths;
             }
-            catch { return new HashSet<string>(StringComparer.OrdinalIgnoreCase); }
+            catch (Exception ex) { Log.Error(ex, "获取已入库路径失败"); return new HashSet<string>(StringComparer.OrdinalIgnoreCase); }
         };
 
         if (AppSettings.FolderMonitorEnabled && AppSettings.MonitoredFolders.Count > 0)
@@ -242,7 +242,10 @@ public partial class App : Application
                                     movie.Country ??= detail.Country;
                                 }
                             }
-                            catch { }
+                            catch (Exception ex)
+                            {
+                                Log.Error(ex, "处理新文件自动入库失败");
+                            }
                         }
                     }
                 }
