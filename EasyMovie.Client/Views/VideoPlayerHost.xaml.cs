@@ -29,9 +29,6 @@ public partial class VideoPlayerHost : UserControl
     private readonly DispatcherTimer _cursorTimer;
     private Point _lastCursorPos = new(double.NaN, double.NaN);
 
-    // VLC 帧回调渲染到 WriteableBitmap（视频是 WPF Image，控件可直接悬浮其上）
-    private WriteableBitmap? _bitmap;
-
     public event EventHandler? Closed;
 
     public VideoPlayerHost()
@@ -110,7 +107,7 @@ public partial class VideoPlayerHost : UserControl
         try
         {
             _mediaPlayer = new MediaPlayer(_libVLC);
-            SetupVideoCallbacks();
+            VideoView.MediaPlayer = _mediaPlayer;
             var media = new Media(_libVLC, new Uri(_movie.FilePath!));
             _mediaPlayer.Playing += (s, args) =>
             {
@@ -163,86 +160,10 @@ public partial class VideoPlayerHost : UserControl
         }
     }
 
-    #region VLC 帧回调渲染（官方 LibVLCSharp 标准写法）
+    #region VLC 视频渲染（使用官方 LibVLCSharp.Wpf VideoView 硬件渲染，无需手写帧回调）
 
-    /// <summary>配置 VLC 直接输出 BGRA32 (RV32) 帧到 WriteableBitmap，替代 HwndHost 渲染</summary>
-    private void SetupVideoCallbacks()
-    {
-        if (_mediaPlayer == null) return;
-        _mediaPlayer.SetVideoFormatCallbacks(OnVideoFormatSetup, OnVideoCleanup);
-        _mediaPlayer.SetVideoCallbacks(OnVideoLock, OnVideoUnlock, OnVideoDisplay);
-    }
-
-    /// <summary>VLC 线程：格式协商。WriteableBitmap 必须在 UI 线程创建（Image.Source 归属 UI 线程）；
-    /// 但 Lock/AddDirtyRect/Unlock 可在 VLC 解码线程安全调用（这是 WriteableBitmap 的设计用途）。</summary>
-    private uint OnVideoFormatSetup(ref IntPtr opaque, IntPtr chroma, ref uint width, ref uint height, ref uint pitches, ref uint lines)
-    {
-        try
-        {
-            // 4CC "RV32" = BGRA32（与 WriteableBitmap Bgra32 布局一致，零拷贝）
-            if (chroma != IntPtr.Zero)
-                Marshal.WriteInt32(chroma, 0x32335652);
-            pitches = width * 4;
-            lines = height;
-
-            var w = (int)width;
-            var h = (int)height;
-            WriteableBitmap? bmp = null;
-            // 在 UI 线程创建 bitmap 并挂到 Image.Source（两者必须同一线程，保证所有权一致）
-            Dispatcher.Invoke(() =>
-            {
-                bmp = new WriteableBitmap(w, h, 96, 96, PixelFormats.Bgra32, null);
-                VideoImage.Source = bmp;
-            });
-
-            if (bmp == null) return 0;
-            _bitmap = bmp;
-            opaque = IntPtr.Zero; // 不使用 opaque，直接读字段（官方示例做法）
-            return 1; // 分配 1 个 picture buffer
-        }
-        catch
-        {
-            return 0;
-        }
-    }
-
-    private void OnVideoCleanup(ref IntPtr opaque)
-    {
-        // VLC 线程：播放结束/停止/格式重协商时调用。bitmap 由 Display 每帧解锁，这里仅清空引用。
-        _bitmap = null;
-    }
-
-    /// <summary>VLC 线程：锁定 bitmap 并返回 BackBuffer（WriteableBitmap 的 Lock 跨线程安全）</summary>
-    private IntPtr OnVideoLock(IntPtr opaque, IntPtr planes)
-    {
-        try
-        {
-            if (_bitmap == null) return IntPtr.Zero;
-            _bitmap.Lock();
-            return _bitmap.BackBuffer;
-        }
-        catch
-        {
-            return IntPtr.Zero;
-        }
-    }
-
-    private void OnVideoUnlock(IntPtr opaque, IntPtr picture, IntPtr planes)
-    {
-        // 在 Display 回调统一解锁（需要 AddDirtyRect 标记脏区）
-    }
-
-    /// <summary>VLC 线程：帧就绪，标记脏区并解锁；Source 赋值已在 Setup 完成</summary>
-    private void OnVideoDisplay(IntPtr opaque, IntPtr picture)
-    {
-        try
-        {
-            if (_bitmap == null) return;
-            _bitmap.AddDirtyRect(new Int32Rect(0, 0, _bitmap.PixelWidth, _bitmap.PixelHeight));
-            _bitmap.Unlock();
-        }
-        catch (Exception ex) { Log.Error(ex, "VideoPlayerHost 视频显示异常"); }
-    }
+    // VideoView 通过 VideoHwndHost(HWND) 由 libVLC 直接渲染，覆盖控件作为 VideoView.Content
+    // 经 ForegroundWindow 自动悬浮于画面上方。彻底避免手写 WriteableBitmap 帧缓冲的跨线程/越界崩溃。
 
     #endregion
 
@@ -255,11 +176,10 @@ public partial class VideoPlayerHost : UserControl
     {
         _cursorTimer.Stop();
         SavePosition();
+        VideoView.MediaPlayer = null;
         _mediaPlayer?.Stop();
         _mediaPlayer?.Dispose();
         _mediaPlayer = null;
-        _bitmap = null;
-        VideoImage.Source = null;
     }
 
     public void Close()
