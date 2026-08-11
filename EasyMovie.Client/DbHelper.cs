@@ -22,7 +22,7 @@ public static class DbHelper
     private static readonly object _lock = new();
     private static bool _initialized;
 
-    public static string ConnectionString => $"Data Source={DbPath};BusyTimeout=3000";
+    public static string ConnectionString => $"Data Source={DbPath};Busy Timeout=3000";
 
     public static MovieDbContext CreateContext()
     {
