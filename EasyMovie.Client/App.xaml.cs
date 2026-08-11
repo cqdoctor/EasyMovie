@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Media;
@@ -67,14 +68,16 @@ public partial class App : Application
         AppDomain.CurrentDomain.UnhandledException += (s, args) =>
         {
             var ex = args.ExceptionObject as Exception;
+            DumpCrash("AppDomain.UnhandledException", ex);
             Log.Fatal(ex, "未处理的异常");
-            AppMessageBox.ShowError($"严重错误: {ex?.Message}", "错误");
+            try { AppMessageBox.ShowError($"严重错误: {ex?.Message}", "错误"); } catch { }
         };
 
         DispatcherUnhandledException += (s, args) =>
         {
+            DumpCrash("DispatcherUnhandledException", args.Exception);
             Log.Error(args.Exception, "UI线程异常");
-            AppMessageBox.ShowWarning(args.Exception.Message, "错误");
+            try { AppMessageBox.ShowWarning(args.Exception.Message, "错误"); } catch { }
             args.Handled = true;
         };
 
@@ -344,5 +347,35 @@ public partial class App : Application
         {
             FolderWatcher.Start(AppSettings.MonitoredFolders);
         }
+    }
+
+    private static readonly object _crashLock = new();
+    /// <summary>把任何未处理异常（含原生崩溃尽可能）同步落盘到 logs/crash.log，便于无界面环境定位闪退根因</summary>
+    private static void DumpCrash(string source, Exception? ex)
+    {
+        try
+        {
+            var dir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs");
+            Directory.CreateDirectory(dir);
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] {source}");
+            sb.AppendLine($"ExceptionType: {ex?.GetType().FullName}");
+            sb.AppendLine($"Message: {ex?.Message}");
+            sb.AppendLine("StackTrace:");
+            sb.AppendLine(ex?.StackTrace);
+            var inner = ex?.InnerException;
+            while (inner != null)
+            {
+                sb.AppendLine($"--- Inner: {inner.GetType().FullName}: {inner.Message}");
+                sb.AppendLine(inner.StackTrace);
+                inner = inner.InnerException;
+            }
+            sb.AppendLine(new string('=', 60));
+            lock (_crashLock)
+            {
+                File.AppendAllText(Path.Combine(dir, "crash.log"), sb.ToString());
+            }
+        }
+        catch { /* 尽力而为 */ }
     }
 }
