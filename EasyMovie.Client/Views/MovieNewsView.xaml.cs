@@ -9,6 +9,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using EasyMovie.Client.ViewModels;
 using EasyMovie.Core;
 using EasyMovie.Core.Interfaces;
 using EasyMovie.Core.Models;
@@ -17,6 +18,7 @@ using EasyMovie.Data;
 using EasyMovie.Data.Repositories;
 using EasyMovie.Tools.MovieApi;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 using Serilog;
 
@@ -24,6 +26,7 @@ namespace EasyMovie.Client.Views;
 
 public partial class MovieNewsView : UserControl
 {
+    private readonly MovieNewsViewModel _vm;
     private readonly MovieNewsService _newsService;
     private readonly Dictionary<string, List<MovieNewsItem>> _cache = new();
     private readonly Dictionary<string, bool> _loaded = new()
@@ -38,7 +41,9 @@ public partial class MovieNewsView : UserControl
     public MovieNewsView()
     {
         InitializeComponent();
-        _newsService = new MovieNewsService();
+        _vm = App.Services?.GetService<MovieNewsViewModel>()
+              ?? new MovieNewsViewModel(new MovieNewsService());
+        _newsService = _vm.NewsService;
         Loaded += async (_, _) => await InitializeAsync();
         IsVisibleChanged += async (_, e) =>
         {

@@ -2,8 +2,10 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using EasyMovie.Client.ViewModels;
 using EasyMovie.Core.Models;
 using EasyMovie.Data;
+using Microsoft.Extensions.DependencyInjection;
 
 using Serilog;
 
@@ -11,7 +13,7 @@ namespace EasyMovie.Client.Views;
 
 public partial class WatchDiaryView : UserControl
 {
-    private WatchLogService? _svc;
+    private readonly WatchLogService _svc;
     private int _currentPage;
     private const int PageSize = 50;
     private int _totalCount;
@@ -20,19 +22,19 @@ public partial class WatchDiaryView : UserControl
     public WatchDiaryView()
     {
         InitializeComponent();
+        var vm = App.Services?.GetService<WatchDiaryViewModel>();
+        _svc = vm?.WatchLogService ?? new WatchLogService(DbHelper.CreateContext());
         Loaded += async (_, _) => { await InitializeAsync(); await LoadAsync(); };
         IsVisibleChanged += async (_, e) =>
         {
-            if (e.NewValue is true && _svc != null)
+            if (e.NewValue is true)
                 await LoadAsync();
         };
     }
 
     public async Task InitializeAsync()
     {
-        if (_svc != null) return;
-        var ctx = DbHelper.CreateContext();
-        _svc = new WatchLogService(ctx);
+        await Task.CompletedTask;
     }
 
     private async Task LoadAsync(DateTime? filterDate = null)

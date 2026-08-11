@@ -25,6 +25,7 @@ using System.Windows.Media.Imaging;
 using EasyMovie.Data.Repositories;
 using EasyMovie.Tools.ImportExport;
 using EasyMovie.Tools.MovieApi;
+using Microsoft.Extensions.DependencyInjection;
 using EasyMovie.Client.Controls;
 
 using Serilog;
@@ -57,7 +58,8 @@ public partial class MovieListView : UserControl
     {
         InitializeComponent();
         _mainWindow = mainWindow;
-        _context = DbHelper.CreateContext();
+        // 优先从 DI 容器解析 DbContext（与全项目 DI 方向一致）；DI 不可用时回退手工创建，行为等价
+        _context = App.Services?.GetService<MovieDbContext>() ?? DbHelper.CreateContext();
         var movieRepo = new MovieRepository(_context);
         var categoryRepo = new CategoryRepository(_context);
         var tagRepo = new TagRepository(_context);
