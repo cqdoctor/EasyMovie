@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using Moq;
 using Moq.Protected;
+using EasyMovie.Core;
 using EasyMovie.Core.Interfaces;
 using EasyMovie.Tools.MovieApi;
 using Xunit;
@@ -105,19 +106,8 @@ public class DoubanApiClientTests
     [Fact]
     public async Task SearchAsync_ShouldParseResults()
     {
-        var json = @"{
-            ""total"": 1,
-            ""subjects"": [{
-                ""id"": ""1889243"",
-                ""title"": ""星际穿越"",
-                ""original_title"": ""Interstellar"",
-                ""year"": ""2014"",
-                ""directors"": [{""name"": ""克里斯托弗·诺兰""}],
-                ""casts"": [{""name"": ""马修·麦康纳""}, {""name"": ""安妮·海瑟薇""}],
-                ""images"": {""large"": ""https://img.douban.com/poster.jpg""},
-                ""rating"": {""average"": 9.4}
-            }]
-        }";
+        // 模拟豆瓣新版搜索页的 window.__DATA__ 数据格式
+        var json = @"window.__DATA__ = {""items"":[{""id"":1889243,""title"":""星际穿越 (2014)"",""abstract"":""美国 / 2014 / 剧情 科幻"",""abstract_2"":""克里斯托弗·诺兰 / 马修·麦康纳 / 安妮·海瑟薇"",""rating"":{""value"":9.4},""cover_url"":""https://img.douban.com/poster.jpg""}]}";
 
         var client = new DoubanApiClient(CreateMockHttpClient(json));
         var response = await client.SearchAsync(new MovieSearchRequest { Keyword = "星际穿越" });
@@ -176,6 +166,22 @@ public class DoubanApiClientTests
 
 public class TmdbApiClientTests
 {
+    private static HttpClient CreateMockHttpClient(string responseBody)
+    {
+        var handler = new Mock<HttpMessageHandler>();
+        handler.Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>())
+            .ReturnsAsync(new HttpResponseMessage
+            {
+                StatusCode = HttpStatusCode.OK,
+                Content = new StringContent(responseBody)
+            });
+        return new HttpClient(handler.Object);
+    }
+
     [Fact]
     public void SourceName_ShouldBeTmdb()
     {
@@ -185,19 +191,21 @@ public class TmdbApiClientTests
     [Fact]
     public async Task SearchAsync_ShouldReturnEmpty_WhenApiKeyIsEmpty()
     {
-        var client = new TmdbApiClient("");
+        // 无 API Key 时走网站爬取路径，不应调用官方 API；空页面返回空结果
+        var client = new TmdbApiClient("", CreateMockHttpClient("<html><body>no results</body></html>"));
         var response = await client.SearchAsync(new MovieSearchRequest { Keyword = "test" });
 
         response.Results.Should().BeEmpty();
     }
 
     [Fact]
-    public async Task GetDetailAsync_ShouldReturnNull_WhenApiKeyIsEmpty()
+    public async Task GetDetailAsync_ShouldFallbackToScraping_WhenApiKeyIsEmpty()
     {
-        var client = new TmdbApiClient("");
+        // 无 API Key 时走网站爬取路径，不应调用官方 API；返回对象而非抛异常
+        var client = new TmdbApiClient("", CreateMockHttpClient("<html><body>no detail</body></html>"));
         var result = await client.GetDetailAsync("123");
 
-        result.Should().BeNull();
+        result.Should().NotBeNull();
     }
 
     [Fact]
@@ -231,45 +239,25 @@ public class TmdbApiClientTests
                 Content = new StringContent(json)
             });
 
-        // 详情 mock
-        var detailJson = @"{
-            ""title"": ""星际穿越"",
-            ""original_title"": ""Interstellar"",
-            ""release_date"": ""2014-11-07"",
-            ""overview"": ""探索宇宙与亲情"",
-            ""poster_path"": ""/poster.jpg"",
-            ""runtime"": 169,
-            ""vote_average"": 8.4,
-            ""vote_count"": 30000,
-            ""credits"": {
-                ""cast"": [{""name"": ""马修·麦康纳""}, {""name"": ""安妮·海瑟薇""}],
-                ""crew"": [{""name"": ""克里斯托弗·诺兰"", ""job"": ""Director""}]
-            },
-            ""production_countries"": [{""name"": ""美国""}]
-        }";
+        // 官方 API 分支需要 API Key + 代理（API 在国内被墙），这里模拟已配置代理
+        var oldProxy = AppSettings.HttpProxy;
+        AppSettings.HttpProxy = "http://127.0.0.1:8080";
+        try
+        {
+            var client = new TmdbApiClient("fake_key", new HttpClient(handler.Object));
+            var response = await client.SearchAsync(new MovieSearchRequest { Keyword = "Interstellar" });
 
-        handler.Protected()
-            .Setup<Task<HttpResponseMessage>>(
-                "SendAsync",
-                ItExpr.Is<HttpRequestMessage>(req =>
-                    req.RequestUri!.ToString().Contains("/movie/157336")),
-                ItExpr.IsAny<CancellationToken>())
-            .ReturnsAsync(new HttpResponseMessage
-            {
-                StatusCode = HttpStatusCode.OK,
-                Content = new StringContent(detailJson)
-            });
-
-        var client = new TmdbApiClient("fake_key", new HttpClient(handler.Object));
-        var response = await client.SearchAsync(new MovieSearchRequest { Keyword = "Interstellar" });
-
-        response.TotalCount.Should().Be(1);
-        response.Results.Should().HaveCount(1);
-        response.Results[0].Title.Should().Be("星际穿越");
-        response.Results[0].Year.Should().Be(2014);
-        response.Results[0].Director.Should().Be("克里斯托弗·诺兰");
-        response.Results[0].Runtime.Should().Be(169);
-        response.Results[0].Source.Should().Be("tmdb");
+            response.TotalCount.Should().Be(1);
+            response.Results.Should().HaveCount(1);
+            response.Results[0].Title.Should().Be("星际穿越");
+            response.Results[0].Year.Should().Be(2014);
+            response.Results[0].ExternalId.Should().Be("157336");
+            response.Results[0].Source.Should().Be("tmdb");
+        }
+        finally
+        {
+            AppSettings.HttpProxy = oldProxy;
+        }
     }
 }
 

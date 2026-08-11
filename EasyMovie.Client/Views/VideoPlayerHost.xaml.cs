@@ -1,9 +1,12 @@
 using System;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using EasyMovie.Core.Models;
 using EasyMovie.Data;
@@ -17,11 +20,18 @@ public partial class VideoPlayerHost : UserControl
     private static LibVLC? _libVLC;
     private MediaPlayer? _mediaPlayer;
     private Movie? _movie;
-    private readonly DispatcherTimer _timer;
     private bool _isSeeking;
     private bool _isPlaying;
-    private CancellationTokenSource? _hideCts;
     private bool _isFullscreen;
+    private CancellationTokenSource? _hideCts;
+    private readonly DispatcherTimer _cursorTimer;
+    private Point _lastCursorPos = new(double.NaN, double.NaN);
+
+    // VLC 帧回调渲染到 WriteableBitmap（视频是 WPF Image，控件可直接悬浮其上）
+    private WriteableBitmap? _bitmap;
+    private uint _videoWidth;
+    private uint _videoHeight;
+    private bool _frameLocked;
 
     public event EventHandler? Closed;
 
@@ -29,14 +39,52 @@ public partial class VideoPlayerHost : UserControl
     {
         InitializeComponent();
 
-        _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
-        _timer.Tick += Timer_Tick;
+        // 视频区域是 WPF Image，但鼠标在 Image 上移动仍走 WPF 事件；
+        // 用轮询统一检测（对嵌入/全屏一致），唤出控制栏
+        _cursorTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
+        _cursorTimer.Tick += CursorTimer_Tick;
 
         if (_libVLC == null)
         {
             LibVLCSharp.Shared.Core.Initialize();
-            _libVLC = new LibVLC();
+            // no-avcodec-corrupted：不显示 seek 到非关键帧时的损坏帧（色块/马赛克）
+            _libVLC = new LibVLC("--no-avcodec-corrupted", "--no-video-title-show");
         }
+    }
+
+    private void CursorTimer_Tick(object? sender, EventArgs e)
+    {
+        var pos = Mouse.GetPosition(this);
+        if (pos.X >= 0 && pos.Y >= 0 && pos.X <= ActualWidth && pos.Y <= ActualHeight)
+        {
+            if (pos != _lastCursorPos)
+            {
+                _lastCursorPos = pos;
+                ShowControls();
+            }
+        }
+    }
+
+    private void ShowControls()
+    {
+        TitleBar.Visibility = Visibility.Visible;
+        ControlBar.Visibility = Visibility.Visible;
+
+        _hideCts?.Cancel();
+        _hideCts = new CancellationTokenSource();
+        var token = _hideCts.Token;
+        Task.Delay(3000, token).ContinueWith(t =>
+        {
+            if (!t.IsCanceled)
+                Dispatcher.BeginInvoke(() => HideControls());
+        }, token);
+    }
+
+    private void HideControls()
+    {
+        if (!_isPlaying) return;
+        TitleBar.Visibility = Visibility.Collapsed;
+        ControlBar.Visibility = Visibility.Collapsed;
     }
 
     public void LoadMovie(Movie movie)
@@ -49,7 +97,6 @@ public partial class VideoPlayerHost : UserControl
 
     private void Host_Loaded(object sender, RoutedEventArgs e)
     {
-        // 控件首次加载时若已有电影则开始播放（通常由 LoadMovie 触发）
         if (_movie != null && _mediaPlayer == null)
             StartPlayback();
     }
@@ -64,6 +111,7 @@ public partial class VideoPlayerHost : UserControl
         try
         {
             _mediaPlayer = new MediaPlayer(_libVLC);
+            SetupVideoCallbacks();
             var media = new Media(_libVLC, new Uri(_movie.FilePath!));
             _mediaPlayer.Playing += (s, args) =>
             {
@@ -97,20 +145,16 @@ public partial class VideoPlayerHost : UserControl
                 }
             };
 
-            VideoView.MediaPlayer = _mediaPlayer;
             _mediaPlayer.Play(media);
 
-            _timer.Start();
+            _cursorTimer.Start();
+            ShowControls();
 
             if (_movie.PlaybackPosition > 0)
             {
                 var ts = TimeSpan.FromMilliseconds(_movie.PlaybackPosition);
                 ResumeTimeText.Text = ts.ToString(@"hh\:mm\:ss");
                 ResumePanel.Visibility = Visibility.Visible;
-            }
-            else
-            {
-                StartAutoHide();
             }
         }
         catch (Exception ex)
@@ -120,6 +164,93 @@ public partial class VideoPlayerHost : UserControl
         }
     }
 
+    #region VLC 帧回调渲染
+
+    /// <summary>配置 VLC 直接输出 BGRA32 (RV32) 帧到 WriteableBitmap，替代 HwndHost 渲染</summary>
+    private void SetupVideoCallbacks()
+    {
+        if (_mediaPlayer == null) return;
+        _mediaPlayer.SetVideoFormatCallbacks(OnVideoFormatSetup, OnVideoCleanup);
+        _mediaPlayer.SetVideoCallbacks(OnVideoLock, OnVideoUnlock, OnVideoDisplay);
+    }
+
+    /// <summary>VLC 线程：格式协商，创建/调整 WriteableBitmap，强制 RV32 输出</summary>
+    private uint OnVideoFormatSetup(ref IntPtr opaque, IntPtr chroma, ref uint width, ref uint height, ref uint pitches, ref uint lines)
+    {
+        try
+        {
+            var w = width;
+            var h = height;
+            Dispatcher.Invoke(() =>
+            {
+                _videoWidth = w;
+                _videoHeight = h;
+                if (_bitmap == null || _bitmap.PixelWidth != (int)w || _bitmap.PixelHeight != (int)h)
+                {
+                    _bitmap = new WriteableBitmap((int)w, (int)h, 96, 96, PixelFormats.Bgra32, null);
+                    VideoImage.Source = _bitmap;
+                }
+            });
+            // 4CC "RV32" = BGRA32（与 WriteableBitmap Bgra32 布局一致，零拷贝）
+            if (chroma != IntPtr.Zero)
+                Marshal.WriteInt32(chroma, 0x32335652);
+            pitches = width * 4;
+            lines = height;
+            return 1; // 分配 1 个 picture buffer
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    private void OnVideoCleanup(ref IntPtr opaque)
+    {
+        // VLC 线程：播放结束/停止时调用
+        if (_frameLocked && _bitmap != null)
+        {
+            try { _bitmap.Unlock(); } catch { }
+            _frameLocked = false;
+        }
+    }
+
+    /// <summary>VLC 线程：锁定 bitmap 并返回 BackBuffer，VLC 直接写入像素</summary>
+    private IntPtr OnVideoLock(IntPtr opaque, IntPtr planes)
+    {
+        if (_bitmap == null) return IntPtr.Zero;
+        try
+        {
+            _bitmap.Lock();
+            _frameLocked = true;
+            return _bitmap.BackBuffer;
+        }
+        catch
+        {
+            return IntPtr.Zero;
+        }
+    }
+
+    private void OnVideoUnlock(IntPtr opaque, IntPtr picture, IntPtr planes)
+    {
+        // 在 Display 回调统一解锁（需要 UI 线程 AddDirtyRect）
+    }
+
+    /// <summary>VLC 线程：帧就绪，切到 UI 线程刷新画面</summary>
+    private void OnVideoDisplay(IntPtr opaque, IntPtr picture)
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (_bitmap != null && _frameLocked)
+            {
+                _bitmap.AddDirtyRect(new Int32Rect(0, 0, (int)_videoWidth, (int)_videoHeight));
+                _bitmap.Unlock();
+                _frameLocked = false;
+            }
+        });
+    }
+
+    #endregion
+
     private void Host_Unloaded(object sender, RoutedEventArgs e)
     {
         Cleanup();
@@ -127,23 +258,24 @@ public partial class VideoPlayerHost : UserControl
 
     public void Cleanup()
     {
+        _cursorTimer.Stop();
         SavePosition();
-        _timer.Stop();
         _mediaPlayer?.Stop();
         _mediaPlayer?.Dispose();
         _mediaPlayer = null;
-        VideoView.MediaPlayer = null;
+        if (_frameLocked && _bitmap != null)
+        {
+            try { _bitmap.Unlock(); } catch { }
+            _frameLocked = false;
+        }
+        _bitmap = null;
+        VideoImage.Source = null;
     }
 
     public void Close()
     {
         Cleanup();
         Closed?.Invoke(this, EventArgs.Empty);
-    }
-
-    private void Timer_Tick(object? sender, EventArgs e)
-    {
-        if (_mediaPlayer == null || !_isPlaying) return;
     }
 
     private void UpdateSeekBar()
@@ -209,7 +341,7 @@ public partial class VideoPlayerHost : UserControl
         {
             _mediaPlayer.Time = _movie.PlaybackPosition;
         }
-        StartAutoHide();
+        ShowControls();
     }
 
     private void ResumeNo_Click(object sender, RoutedEventArgs e)
@@ -220,17 +352,12 @@ public partial class VideoPlayerHost : UserControl
             _movie.PlaybackPosition = 0;
             SavePositionToDb(0);
         }
-        StartAutoHide();
+        ShowControls();
     }
 
     private void ResumePanel_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
         ResumeYes_Click(sender, e);
-    }
-
-    private void Host_MouseMove(object sender, MouseEventArgs e)
-    {
-        ShowControls();
     }
 
     private void Host_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -269,44 +396,6 @@ public partial class VideoPlayerHost : UserControl
             FullscreenIcon.Kind = MaterialDesignThemes.Wpf.PackIconKind.FullscreenExit;
         }
         _isFullscreen = !_isFullscreen;
-    }
-
-    private void ShowControls()
-    {
-        if (ResumePanel.Visibility == Visibility.Visible) return;
-
-        ControlBar.Visibility = Visibility.Visible;
-        TitleBar.Visibility = Visibility.Visible;
-
-        _hideCts?.Cancel();
-        _hideCts = new CancellationTokenSource();
-        var token = _hideCts.Token;
-        Task.Delay(3000, token).ContinueWith(t =>
-        {
-            if (!t.IsCanceled)
-            {
-                Dispatcher.BeginInvoke(() => HideControls());
-            }
-        }, token);
-    }
-
-    private void HideControls()
-    {
-        if (!_isPlaying) return;
-        ControlBar.Visibility = Visibility.Collapsed;
-        TitleBar.Visibility = Visibility.Collapsed;
-    }
-
-    private void StartAutoHide()
-    {
-        Task.Delay(3000).ContinueWith(t =>
-        {
-            Dispatcher.BeginInvoke(() =>
-            {
-                if (_isPlaying)
-                    HideControls();
-            });
-        });
     }
 
     private void Host_KeyDown(object sender, KeyEventArgs e)
@@ -355,8 +444,6 @@ public partial class VideoPlayerHost : UserControl
                 e.Handled = true;
                 break;
         }
-
-        ShowControls();
     }
 
     private void SavePositionAndClose()

@@ -187,11 +187,11 @@ public class EdgeCaseTests
             await repo.AddAsync(new Movie { Title = $"F{i}", Year = 2020 });
 
         // PageSize > Total
-        var results = await repo.SearchAsync(null, null, null, null, null, null, null, null, false, 0, 100);
+        var results = await repo.SearchAsync(null, null, null, null, null, null, null, null, null, null, null, null, null, null, false, 0, 100);
         results.Should().HaveCount(5);
 
         // Skip > Total
-        results = await repo.SearchAsync(null, null, null, null, null, null, null, null, false, 100, 10);
+        results = await repo.SearchAsync(null, null, null, null, null, null, null, null, null, null, null, null, null, null, false, 100, 10);
         results.Should().BeEmpty();
     }
 
@@ -243,7 +243,7 @@ public class EdgeCaseTests
         await service.AddAsync(new Movie { Title = "A", Year = 2020 });
         await service.AddAsync(new Movie { Title = "B", Year = 2021 });
 
-        var (results, total) = await service.SearchAsync(null, null, null, null, null, null, null, null, false, 1, 10);
+        var (results, total) = await service.SearchAsync(null, null, null, null, null, null, null, null, null, null, null, null, null, null, false, 1, 10);
         results.Should().HaveCount(2);
         total.Should().Be(2);
     }
@@ -257,7 +257,7 @@ public class EdgeCaseTests
 
         data.TotalMovies.Should().Be(0);
         data.WantToWatch.Should().Be(0);
-        data.Watching.Should().Be(0);
+        data.NotWatched.Should().Be(0);
         data.Watched.Should().Be(0);
         data.Favorites.Should().Be(0);
         data.RatedCount.Should().Be(0);
@@ -348,7 +348,7 @@ public class EdgeCaseTests
     {
         var movie = new Movie();
         movie.Title.Should().BeEmpty();
-        movie.WatchStatus.Should().Be(WatchStatus.WantToWatch);
+        movie.WatchStatus.Should().Be(WatchStatus.NotWatched);
         movie.IsFavorite.Should().BeFalse();
         movie.MovieTags.Should().NotBeNull();
         movie.MovieTags.Should().BeEmpty();

@@ -49,3 +49,6 @@ Desktop.ini
 settings.json
 appsettings*.json
 *.env
+
+## WPF build temp files
+*_wpftmp.csproj
