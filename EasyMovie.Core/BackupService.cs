@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Serilog;
 
 namespace EasyMovie.Core;
 
@@ -35,7 +36,10 @@ public static class BackupService
             if ((DateTime.Now - lastBackup).TotalDays >= intervalDays)
                 CreateBackup();
         }
-        catch { }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "自动备份失败");
+        }
     }
 
     public static BackupInfo CreateBackup()
@@ -114,7 +118,8 @@ public static class BackupService
 
         foreach (var old in backups.Skip(maxBackups))
         {
-            try { File.Delete(old.FilePath); } catch { }
+            try { File.Delete(old.FilePath); }
+            catch (Exception ex) { Log.Error(ex, "删除旧备份失败: {Path}", old.FilePath); }
         }
     }
 }
