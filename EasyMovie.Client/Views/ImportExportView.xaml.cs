@@ -19,6 +19,7 @@ namespace EasyMovie.Client.Views;
 public partial class ImportExportView : UserControl
 {
     private readonly MovieDbContext _context;
+    private bool _disposed;
     private readonly IImportExportService _importExportService;
 
     public ImportExportView()
@@ -26,7 +27,15 @@ public partial class ImportExportView : UserControl
         InitializeComponent();
         _context = DbHelper.CreateContext();
         _importExportService = new ImportExportService(_context);
-        Unloaded += (s, e) => _context.Dispose();
+        Unloaded += OnUnloaded;
+    }
+
+    private void OnUnloaded(object sender, RoutedEventArgs e)
+    {
+        if (_disposed) return;
+        _disposed = true;
+        Unloaded -= OnUnloaded;
+        _context.Dispose();
     }
 
     private void Log(string m) => LogBox.Dispatcher.Invoke(() => { LogBox.Text += $"[{DateTime.Now:HH:mm:ss}] {m}\n"; LogBox.ScrollToEnd(); });

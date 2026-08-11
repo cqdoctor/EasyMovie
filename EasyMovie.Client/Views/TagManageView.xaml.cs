@@ -19,6 +19,7 @@ namespace EasyMovie.Client.Views;
 public partial class TagManageView : UserControl
 {
     private readonly MovieDbContext _context;
+    private bool _disposed;
     private readonly ITagService _tagService;
     private Tag? _selectedTag;
     private string _selectedColor = "#5C6BC0";
@@ -29,7 +30,15 @@ public partial class TagManageView : UserControl
         _context = DbHelper.CreateContext();
         _tagService = new TagService(new TagRepository(_context));
         Loaded += async (s, e) => await InitAsync();
-        Unloaded += (s, e) => _context.Dispose();
+        Unloaded += OnUnloaded;
+    }
+
+    private void OnUnloaded(object sender, RoutedEventArgs e)
+    {
+        if (_disposed) return;
+        _disposed = true;
+        Unloaded -= OnUnloaded;
+        _context.Dispose();
     }
 
     private async Task InitAsync() { BuildColorPicker(); await LoadTagsAsync(); DeleteBtn.Visibility = Visibility.Collapsed; }

@@ -16,6 +16,7 @@ namespace EasyMovie.Client.Views;
 public partial class OnlineSearchView : UserControl
 {
     private readonly MovieDbContext _context;
+    private bool _disposed;
     private readonly MovieApiService _apiService;
     private readonly IMovieService _movieService;
     private readonly ICategoryService _categoryService;
@@ -31,7 +32,15 @@ public partial class OnlineSearchView : UserControl
         var tmdb = new TmdbApiClient(tmdbApiKey ?? "");
         _apiService = new MovieApiService(douban, tmdb);
         SourceLabel.Text = LanguageManager.GetString("OnlineSearch_SourceLabel");
-        Unloaded += (s, e) => _context.Dispose();
+        Unloaded += OnUnloaded;
+    }
+
+    private void OnUnloaded(object sender, RoutedEventArgs e)
+    {
+        if (_disposed) return;
+        _disposed = true;
+        Unloaded -= OnUnloaded;
+        _context.Dispose();
     }
 
     private async Task DoSearchAsync()
