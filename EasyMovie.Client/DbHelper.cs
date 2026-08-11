@@ -1,13 +1,46 @@
 using System;
+using System.Data.Common;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using EasyMovie.Core.Models;
 using EasyMovie.Data;
 using Serilog;
 
 namespace EasyMovie.Client;
+
+/// <summary>连接打开后执行 PRAGMA busy_timeout，缓解并发读写时的 "database is locked"。
+/// 注意：Microsoft.Data.Sqlite 9.x 的连接串不支持 BusyTimeout/Busy Timeout 关键字，必须通过 PRAGMA 设置。</summary>
+public sealed class BusyTimeoutInterceptor : DbConnectionInterceptor
+{
+    public static readonly BusyTimeoutInterceptor Instance = new();
+    private const string Pragma = "PRAGMA busy_timeout=3000;";
+
+    public override void ConnectionOpened(DbConnection connection, ConnectionEndEventData eventData)
+        => Execute(connection);
+
+    public override async Task ConnectionOpenedAsync(DbConnection connection, ConnectionEndEventData eventData, CancellationToken cancellationToken = default)
+        => Execute(connection);
+
+    private static void Execute(DbConnection connection)
+    {
+        try
+        {
+            if (connection is SqliteConnection sqlite)
+            {
+                using var cmd = sqlite.CreateCommand();
+                cmd.CommandText = Pragma;
+                cmd.ExecuteNonQuery();
+            }
+        }
+        catch (Exception ex) { Log.Warning(ex, "设置 busy_timeout PRAGMA 失败"); }
+    }
+}
 
 public static class DbHelper
 {
@@ -22,15 +55,22 @@ public static class DbHelper
     private static readonly object _lock = new();
     private static bool _initialized;
 
-    public static string ConnectionString => $"Data Source={DbPath};Busy Timeout=3000";
+    /// <summary>连接串：仅指定数据源。busy_timeout 由 BusyTimeoutInterceptor 在连接打开后通过 PRAGMA 设置。</summary>
+    public static string ConnectionString => $"Data Source={DbPath}";
+
+    /// <summary>构建带 BusyTimeout 拦截器的 DbContextOptions（统一所有 MovieDbContext 创建入口）。</summary>
+    public static DbContextOptions<MovieDbContext> CreateOptions()
+        => new DbContextOptionsBuilder<MovieDbContext>()
+            .UseSqlite(ConnectionString)
+            .AddInterceptors(BusyTimeoutInterceptor.Instance)
+            .Options;
 
     public static MovieDbContext CreateContext()
     {
         EnsureInitialized();
 
         if (!Directory.Exists(DbDir)) Directory.CreateDirectory(DbDir);
-        var options = new DbContextOptionsBuilder<MovieDbContext>().UseSqlite(ConnectionString).Options;
-        var context = new MovieDbContext(options);
+        var context = new MovieDbContext(CreateOptions());
         context.Database.EnsureCreated();
         return context;
     }
@@ -46,7 +86,7 @@ public static class DbHelper
 
             MigrateFromOldVersion();
 
-            var options = new DbContextOptionsBuilder<MovieDbContext>().UseSqlite(ConnectionString).Options;
+            var options = DbHelper.CreateOptions();
             using var ctx = new MovieDbContext(options);
             ctx.Database.EnsureCreated();
 
@@ -220,7 +260,7 @@ public static class DbHelper
     {
         if (File.Exists(HtmlCleanFlagPath)) return;
 
-        var options = new DbContextOptionsBuilder<MovieDbContext>().UseSqlite(ConnectionString).Options;
+        var options = DbHelper.CreateOptions();
         using var ctx = new MovieDbContext(options);
 
         // 只投影需要的文本字段，避免把 PosterData 等大 BLOB 整行加载进内存
@@ -311,7 +351,7 @@ public static class DbHelper
     {
         if (File.Exists(DirtyDataFlagPath)) return;
 
-        var options = new DbContextOptionsBuilder<MovieDbContext>().UseSqlite(ConnectionString).Options;
+        var options = DbHelper.CreateOptions();
         using var ctx = new MovieDbContext(options);
 
         // 只投影需要的字段，避免加载 PosterData 等大 BLOB
@@ -354,7 +394,7 @@ public static class DbHelper
     {
         if (File.Exists(WatchStatusMigratedPath)) return;
 
-        var options = new DbContextOptionsBuilder<MovieDbContext>().UseSqlite(ConnectionString).Options;
+        var options = DbHelper.CreateOptions();
         using var ctx = new MovieDbContext(options);
 
         ctx.Database.OpenConnection();
@@ -388,7 +428,7 @@ public static class DbHelper
             "音乐", "家庭", "西部", "短片", "武侠", "古装", "灾难", "黑色幽默"
         };
 
-        var options = new DbContextOptionsBuilder<MovieDbContext>().UseSqlite(ConnectionString).Options;
+        var options = DbHelper.CreateOptions();
         using var ctx = new MovieDbContext(options);
 
         // 添加缺失的类型标签（支持已有标签的情况）

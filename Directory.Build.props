@@ -1,5 +1,13 @@
 <Project>
   <PropertyGroup>
     <AllowMissingPrunePackageData>true</AllowMissingPrunePackageData>
+    <!-- 测试时使用 -p:BaseIntermediateOutputPath=obj_verify/ 规避 OneDrive/Defender 文件锁，
+         但该目录位于项目树内，会被默认编译项当作源码 glob 进来，与 obj/ 的生成文件冲突。
+         显式排除 obj_verify，避免重复程序集特性编译错误。 -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);**/obj_verify/**</DefaultItemExcludes>
+    <!-- .NET 10 RC SDK 在干净重建中间输出目录时会重复生成程序集特性（CS0579）。
+         关闭 SDK 自动生成程序集元数据（桌面应用不需要），消除重复定义。 -->
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
   </PropertyGroup>
 </Project>
