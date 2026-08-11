@@ -52,3 +52,6 @@ appsettings*.json
 
 ## WPF build temp files
 *_wpftmp.csproj
+
+## Tool cache
+.reasonix/
