@@ -2,6 +2,8 @@ using System.IO;
 using System.Text.Json;
 using System.Windows.Input;
 
+using Serilog;
+
 namespace EasyMovie.Client;
 
 public class ShortcutConfig
@@ -38,7 +40,7 @@ public class ShortcutConfig
             var json = File.ReadAllText(SavePath);
             return JsonSerializer.Deserialize<List<ShortcutConfig>>(json) ?? GetDefaults();
         }
-        catch { return GetDefaults(); }
+        catch (Exception ex) { Log.Error(ex, "加载快捷键失败，使用默认值"); return GetDefaults(); }
     }
 
     public static List<ShortcutConfig> GetDefaults()
@@ -55,13 +57,13 @@ public class ShortcutConfig
             var json = JsonSerializer.Serialize(configs, new JsonSerializerOptions { WriteIndented = true });
             File.WriteAllText(SavePath, json);
         }
-        catch { }
+        catch (Exception ex) { Log.Error(ex, "快捷键加载异常"); }
     }
 
     public static KeyGesture? ParseGesture(string gesture)
     {
         try { return (KeyGesture?)KeyGestureConverter.ConvertFromString(gesture); }
-        catch { return null; }
+        catch (Exception ex) { Log.Error(ex, "读取快捷键失败"); return null; }
     }
 
     private static readonly KeyGestureConverter KeyGestureConverter = new();

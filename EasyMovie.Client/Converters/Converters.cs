@@ -9,6 +9,8 @@ using System.Windows.Data;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
+using Serilog;
+
 namespace EasyMovie.Client.Converters;
 
 /// <summary>
@@ -194,7 +196,7 @@ public class PosterImageConverter : IValueConverter
 
                 return image;
             }
-            catch { }
+            catch (Exception ex) { Log.Error(ex, "Converters 转换异常"); }
         }
         return DependencyProperty.UnsetValue;
     }
@@ -226,7 +228,7 @@ public class StringToBrushConverter : IValueConverter
         if (value is string colorStr && !string.IsNullOrEmpty(colorStr))
         {
             try { return new SolidColorBrush((Color)ColorConverter.ConvertFromString(colorStr)); }
-            catch { }
+            catch (Exception ex) { Log.Error(ex, "Converters 转换异常"); }
         }
         // null 或空字符串时返回靛蓝色
         return new SolidColorBrush((Color)ColorConverter.ConvertFromString("#5C6BC0"));

@@ -12,6 +12,8 @@ using EasyMovie.Core.Models;
 using EasyMovie.Data;
 using Microsoft.EntityFrameworkCore;
 
+using Serilog;
+
 namespace EasyMovie.Client.Views;
 
 public partial class MovieRelationView : UserControl
@@ -432,7 +434,7 @@ public partial class MovieRelationView : UserControl
                     Canvas.SetTop(img, 2);
                     nodeGroup.Children.Add(img);
                 }
-                catch { }
+                catch (Exception ex) { Log.Error(ex, "MovieRelationView 渲染异常"); }
             }
             else
             {

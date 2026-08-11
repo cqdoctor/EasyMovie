@@ -18,6 +18,8 @@ using EasyMovie.Data.Repositories;
 using EasyMovie.Tools.MovieApi;
 using Microsoft.EntityFrameworkCore;
 
+using Serilog;
+
 namespace EasyMovie.Client.Views;
 
 public partial class MovieNewsView : UserControl
@@ -396,7 +398,7 @@ public partial class MovieNewsView : UserControl
                     return;
                 }
             }
-            catch { }
+            catch (Exception ex) { Log.Error(ex, "MovieNewsView 操作异常"); }
         }
 
         // 不在库中，弹出添加确认
@@ -496,7 +498,7 @@ public partial class MovieNewsView : UserControl
                 img.Source = bmp;
             });
         }
-        catch { }
+        catch (Exception ex) { Log.Error(ex, "MovieNewsView 操作异常"); }
     }
 
     private static Brush SafeFindBrush(string resourceKey, Color fallback)

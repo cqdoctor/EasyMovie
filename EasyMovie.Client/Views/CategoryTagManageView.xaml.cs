@@ -11,6 +11,8 @@ using EasyMovie.Core.Services;
 using EasyMovie.Data;
 using EasyMovie.Data.Repositories;
 
+using Serilog;
+
 namespace EasyMovie.Client.Views;
 
 public partial class CategoryTagManageView : UserControl
@@ -170,7 +172,7 @@ public partial class CategoryTagManageView : UserControl
         }
     }
 
-    private void UpdatePreview() { try { ColorPreview.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(_selectedColor)); } catch { ColorPreview.Background = Brushes.Gray; } }
+    private void UpdatePreview() { try { ColorPreview.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(_selectedColor)); } catch (Exception ex) { Log.Error(ex, "颜色预览转换失败"); ColorPreview.Background = Brushes.Gray; } }
 
     private void TagListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
@@ -229,7 +231,7 @@ public partial class CategoryTagManageView : UserControl
             satSlider.Value = s;
             valSlider.Value = v;
         }
-        catch { }
+        catch (Exception ex) { Log.Error(ex, "分类标签视图操作异常"); }
 
         var hueLabel = new TextBlock { Text = "H", FontSize = 12, Margin = new Thickness(0, 0, 0, 2) };
         var satLabel = new TextBlock { Text = "S", FontSize = 12, Margin = new Thickness(0, 0, 0, 2) };

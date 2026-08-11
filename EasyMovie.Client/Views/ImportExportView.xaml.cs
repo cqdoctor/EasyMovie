@@ -12,6 +12,8 @@ using EasyMovie.Data.Repositories;
 using EasyMovie.Tools.ImportExport;
 using EasyMovie.Tools.MovieApi;
 
+using Serilog;
+
 namespace EasyMovie.Client.Views;
 
 public partial class ImportExportView : UserControl
@@ -34,7 +36,7 @@ public partial class ImportExportView : UserControl
         try
         {
             var path = FolderPathBox.Text?.Trim();
-            try { var dlg = new OpenFolderDialog { Title = LanguageManager.GetString("Msg_SelectFolder") }; if (dlg.ShowDialog() == true) path = dlg.FolderName; } catch { }
+            try { var dlg = new OpenFolderDialog { Title = LanguageManager.GetString("Msg_SelectFolder") }; if (dlg.ShowDialog() == true) path = dlg.FolderName; } catch (Exception ex) { Serilog.Log.Error(ex, "ImportExportView 操作异常"); }
             if (string.IsNullOrEmpty(path) || !Directory.Exists(path)) { AppMessageBox.ShowInfo(LanguageManager.GetString("Msg_InvalidFolder")); return; }
             Log(string.Format(LanguageManager.GetString("ImportExport_Scanning"), path));
             using var ctx = DbHelper.CreateContext();

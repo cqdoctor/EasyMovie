@@ -13,6 +13,8 @@ using EasyMovie.Data.Repositories;
 using EasyMovie.Tools.ImportExport;
 using EasyMovie.Tools.MovieApi;
 
+using Serilog;
+
 namespace EasyMovie.Client.Views;
 
 public partial class SettingsView : UserControl
@@ -125,7 +127,7 @@ public partial class SettingsView : UserControl
         try
         {
             var path = FolderPathBox.Text?.Trim();
-            try { var dlg = new OpenFolderDialog { Title = LanguageManager.GetString("Msg_SelectFolder") }; if (dlg.ShowDialog() == true) { path = dlg.FolderName; FolderPathBox.Text = path; } } catch { }
+            try { var dlg = new OpenFolderDialog { Title = LanguageManager.GetString("Msg_SelectFolder") }; if (dlg.ShowDialog() == true) { path = dlg.FolderName; FolderPathBox.Text = path; } } catch (Exception ex) { Log.Error(ex, "SettingsView 操作异常"); }
             if (string.IsNullOrEmpty(path) || !Directory.Exists(path)) { AppMessageBox.ShowInfo(LanguageManager.GetString("Msg_InvalidFolder")); return; }
             using var ctx = DbHelper.CreateContext();
             var ms = new MovieService(new MovieRepository(ctx), new TagRepository(ctx));
@@ -458,7 +460,7 @@ public partial class SettingsView : UserControl
                 UpdateFolderMonitorStatus();
             }
         }
-        catch { }
+        catch (Exception ex) { Log.Error(ex, "SettingsView 操作异常"); }
     }
 
     private void RemoveMonitoredFolder_Click(object sender, RoutedEventArgs e)
@@ -495,7 +497,7 @@ public partial class SettingsView : UserControl
                     .ToList();
                 foundFiles.AddRange(files);
             }
-            catch { }
+            catch (Exception ex) { Log.Error(ex, "SettingsView 操作异常"); }
         }
 
         if (foundFiles.Count == 0)
@@ -552,7 +554,7 @@ public partial class SettingsView : UserControl
                     await ms.AddAsync(movie);
                     imported++;
                 }
-                catch { }
+                catch (Exception ex) { Log.Error(ex, "SettingsView 操作异常"); }
             }
 
             if (Application.Current.MainWindow is MainWindow mw)
