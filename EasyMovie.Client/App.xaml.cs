@@ -7,6 +7,7 @@ using System.Windows.Threading;
 using EasyMovie.Core.Interfaces;
 using EasyMovie.Core.Models;
 using EasyMovie.Core.Services;
+using EasyMovie.Tools.AIChat;
 using EasyMovie.Tools.ImportExport;
 using EasyMovie.Tools.MovieApi;
 using EasyMovie.Client.ViewModels;
@@ -152,6 +153,14 @@ public partial class App : Application
         services.AddTransient<WatchCalendarViewModel>();
         services.AddTransient<ImportExportViewModel>();
         services.AddTransient<MovieRelationViewModel>();
+        // 复杂 View 的 ViewModel（持有服务/上下文，由 DI 解析，视图内兜底手工 new）
+        services.AddTransient<WatchDiaryViewModel>();
+        services.AddTransient<WatchHeatmapViewModel>();
+        services.AddTransient<AIChatService>();
+        services.AddTransient<AIRecommendationViewModel>();
+        services.AddTransient<DashboardViewModel>();
+        services.AddTransient<MovieNewsService>();
+        services.AddTransient<MovieNewsViewModel>();
 
         return services.BuildServiceProvider();
     }

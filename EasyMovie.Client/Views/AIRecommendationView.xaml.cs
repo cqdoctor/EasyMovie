@@ -8,17 +8,20 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using EasyMovie.Client.ViewModels;
 using EasyMovie.Core;
 using EasyMovie.Core.Enums;
 using EasyMovie.Data;
 using EasyMovie.Tools.AIChat;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace EasyMovie.Client.Views;
 
 public partial class AIRecommendationView : UserControl
 {
-    private readonly AIChatService _aiService = new();
+    private readonly AIRecommendationViewModel _vm;
+    private readonly AIChatService _aiService;
     private readonly List<ChatMessage> _chatHistory = new();
     private bool _isStreaming;
     private string? _cachedSystemPrompt;
@@ -27,6 +30,9 @@ public partial class AIRecommendationView : UserControl
     public AIRecommendationView()
     {
         InitializeComponent();
+        _vm = App.Services?.GetService<AIRecommendationViewModel>()
+              ?? new AIRecommendationViewModel(DbHelper.CreateContext(), new AIChatService());
+        _aiService = _vm.AiService;
         Loaded += async (_, _) =>
         {
             await PreBuildSystemPromptAsync();
@@ -47,7 +53,7 @@ public partial class AIRecommendationView : UserControl
     {
         try
         {
-            using var ctx = DbHelper.CreateContext();
+            var ctx = _vm.Context;
             var movies = await ctx.Movies
                 .Include(m => m.Category)
                 .Include(m => m.MovieTags).ThenInclude(mt => mt.Tag)

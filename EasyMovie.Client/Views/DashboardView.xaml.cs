@@ -7,14 +7,17 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using EasyMovie.Client.ViewModels;
 using EasyMovie.Core.Models;
 using EasyMovie.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace EasyMovie.Client.Views;
 
 public partial class DashboardView : UserControl
 {
+    private readonly DashboardViewModel _vm;
     private readonly MovieDbContext _context;
     private bool _isInitialized;
     private bool _isLoading;
@@ -36,7 +39,9 @@ public partial class DashboardView : UserControl
     public DashboardView()
     {
         InitializeComponent();
-        _context = DbHelper.CreateContext();
+        _vm = App.Services?.GetService<DashboardViewModel>()
+              ?? new DashboardViewModel(DbHelper.CreateContext());
+        _context = _vm.Context;
         SetGreeting();
         Loaded += async (s, e) =>
         {

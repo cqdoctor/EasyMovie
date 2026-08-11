@@ -2,13 +2,16 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using EasyMovie.Client.ViewModels;
 using EasyMovie.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace EasyMovie.Client.Views;
 
 public partial class WatchHeatmapView : UserControl
 {
+    private readonly WatchHeatmapViewModel _vm;
     private const int CellSize = 14;
     private const int CellGap = 2;
     private const int WeeksToShow = 53;
@@ -25,6 +28,8 @@ public partial class WatchHeatmapView : UserControl
     public WatchHeatmapView()
     {
         InitializeComponent();
+        _vm = App.Services?.GetService<WatchHeatmapViewModel>()
+              ?? new WatchHeatmapViewModel(DbHelper.CreateContext());
     }
 
     private async void UserControl_Loaded(object sender, RoutedEventArgs e)
@@ -45,7 +50,7 @@ public partial class WatchHeatmapView : UserControl
 
     private async Task LoadHeatmapAsync()
     {
-        using var ctx = DbHelper.CreateContext();
+        var ctx = _vm.Context;
         var endDate = DateTime.Today;
         var startDate = endDate.AddDays(-(WeeksToShow * 7 - 1));
 
