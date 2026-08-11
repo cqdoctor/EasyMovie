@@ -55,3 +55,9 @@ appsettings*.json
 
 ## Tool cache
 .reasonix/
+
+## WorkBuddy memory / agent artifacts
+.workbuddy/
+
+## Verification build output
+obj_verify/
