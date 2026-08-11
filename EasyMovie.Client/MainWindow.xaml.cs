@@ -18,6 +18,8 @@ using EasyMovie.Data;
 using MaterialDesignThemes.Wpf;
 using Microsoft.EntityFrameworkCore;
 
+using Serilog;
+
 namespace EasyMovie.Client;
 
 public partial class MainWindow : Window
@@ -102,7 +104,7 @@ public partial class MainWindow : Window
                 await ctx.SaveChangesAsync();
             }
         }
-        catch { }
+        catch (Exception ex) { Log.Error(ex, "MainWindow 操作异常"); }
     }
 
     private static HttpClient GetImageClient(string? url = null)
@@ -165,7 +167,7 @@ public partial class MainWindow : Window
             }
             // 最大化不覆盖任务栏的 WM_GETMINMAXINFO 处理已在 SourceInitialized 注册
         }
-        catch { }
+        catch (Exception ex) { Log.Error(ex, "MainWindow 操作异常"); }
 
         RegisterNavButtons();
         Dispatcher.BeginInvoke(new Action(PreWarmViews), System.Windows.Threading.DispatcherPriority.Background);
@@ -457,7 +459,7 @@ public partial class MainWindow : Window
                 DetailPoster.Source = bmp;
                 posterLoaded = true;
             }
-            catch { }
+            catch (Exception ex) { Log.Error(ex, "MainWindow 操作异常"); }
         }
 
         if (!posterLoaded && !string.IsNullOrEmpty(movie.PosterUrl))
@@ -475,7 +477,7 @@ public partial class MainWindow : Window
 
                 _ = SavePosterToDb(movie, bytes);
             }
-            catch { }
+            catch (Exception ex) { Log.Error(ex, "MainWindow 操作异常"); }
         }
         else if (!posterLoaded && !string.IsNullOrEmpty(movie.CoverImagePath) && File.Exists(movie.CoverImagePath))
         {
@@ -485,7 +487,7 @@ public partial class MainWindow : Window
                 bmp.Freeze();
                 DetailPoster.Source = bmp;
             }
-            catch { }
+            catch (Exception ex) { Log.Error(ex, "MainWindow 操作异常"); }
         }
 
         await LoadWatchLogsAsync(movie.Id);
@@ -545,7 +547,7 @@ public partial class MainWindow : Window
                 DetailTags.Children.Add(border);
             }
         }
-        catch { }
+        catch (Exception ex) { Log.Error(ex, "MainWindow 操作异常"); }
     }
 
     private static Brush TryCreateBrush(string? color)
@@ -553,7 +555,7 @@ public partial class MainWindow : Window
         if (!string.IsNullOrEmpty(color))
         {
             try { return new SolidColorBrush((Color)ColorConverter.ConvertFromString(color)); }
-            catch { }
+            catch (Exception ex) { Log.Error(ex, "MainWindow 操作异常"); }
         }
         return new SolidColorBrush((Color)ColorConverter.ConvertFromString("#5C6BC0"));
     }
@@ -627,7 +629,7 @@ public partial class MainWindow : Window
                 WatchLogList.Children.Add(border);
             }
         }
-        catch { }
+        catch (Exception ex) { Log.Error(ex, "MainWindow 操作异常"); }
     }
 
     private async void AddWatchLog_Click(object sender, RoutedEventArgs e)

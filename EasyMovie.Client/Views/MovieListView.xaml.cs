@@ -27,6 +27,8 @@ using EasyMovie.Tools.ImportExport;
 using EasyMovie.Tools.MovieApi;
 using EasyMovie.Client.Controls;
 
+using Serilog;
+
 namespace EasyMovie.Client.Views;
 
 public partial class MovieListView : UserControl
@@ -551,7 +553,7 @@ public partial class MovieListView : UserControl
                 var json = File.ReadAllText(SavePath);
                 return System.Text.Json.JsonSerializer.Deserialize<List<SavedFilter>>(json) ?? new List<SavedFilter>();
             }
-            catch { return new List<SavedFilter>(); }
+            catch (Exception ex) { Log.Error(ex, "加载已保存筛选失败"); return new List<SavedFilter>(); }
         }
 
         public static void SaveAll(List<SavedFilter> filters)
@@ -563,7 +565,7 @@ public partial class MovieListView : UserControl
                 var json = System.Text.Json.JsonSerializer.Serialize(filters, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
                 File.WriteAllText(SavePath, json);
             }
-            catch { }
+            catch (Exception ex) { Log.Error(ex, "MovieListView 操作异常"); }
         }
     }
 
@@ -736,7 +738,7 @@ public partial class MovieListView : UserControl
             dlg.Content = root;
             dlg.ShowDialog();
         }
-        catch { }
+        catch (Exception ex) { Log.Error(ex, "MovieListView 操作异常"); }
     }
 
     private Border BuildPosterCard(RecommendedMovie rec)
@@ -774,7 +776,7 @@ public partial class MovieListView : UserControl
                 bitmap.BeginInit(); bitmap.CacheOption = BitmapCacheOption.OnLoad; bitmap.StreamSource = ms; bitmap.EndInit(); bitmap.Freeze();
                 img.Source = bitmap;
             }
-            catch { }
+            catch (Exception ex) { Log.Error(ex, "MovieListView 操作异常"); }
         }
 
         if (img.Source != null)
@@ -924,7 +926,7 @@ public partial class MovieListView : UserControl
             img.Source = bmp;
             if (posterBorder.Child is not Image) posterBorder.Child = img;
         }
-        catch { }
+        catch (Exception ex) { Log.Error(ex, "MovieListView 操作异常"); }
     }
 
     private static Brush SafeFindBrush(string resourceKey, Color fallback)
@@ -987,7 +989,7 @@ public partial class MovieListView : UserControl
                         posterBorder.Background = System.Windows.Media.Brushes.Gray;
                     }
                 }
-                catch { posterBorder.Background = System.Windows.Media.Brushes.Gray; }
+                catch (Exception ex) { Log.Error(ex, "海报加载失败，使用占位图"); posterBorder.Background = System.Windows.Media.Brushes.Gray; }
             }
             else
             {
@@ -1185,7 +1187,7 @@ public partial class MovieListView : UserControl
                             imgClient.DefaultRequestHeaders.Add("Referer", "https://movie.douban.com/");
                         m.PosterData = await imgClient.GetByteArrayAsync(info.PosterUrl);
                     }
-                    catch { }
+                    catch (Exception ex) { Log.Error(ex, "MovieListView 操作异常"); }
                 }
                 if (info.Runtime.HasValue && !m.Runtime.HasValue) m.Runtime = info.Runtime;
                 if (info.Year > 0 && m.Year == 0) m.Year = info.Year;
@@ -1198,7 +1200,7 @@ public partial class MovieListView : UserControl
                     var firstCountry = info.Country.Split('/', '·').FirstOrDefault(c => IsValidCategoryName(c.Trim()))?.Trim();
                     if (!string.IsNullOrEmpty(firstCountry) && IsValidCategoryName(firstCountry))
                     {
-                        try { var category = await _categoryService.GetOrCreateByNameAsync(firstCountry); m.CategoryId = category.Id; } catch { }
+                        try { var category = await _categoryService.GetOrCreateByNameAsync(firstCountry); m.CategoryId = category.Id; } catch (Exception ex) { Log.Error(ex, "MovieListView 操作异常"); }
                     }
                 }
 
@@ -1206,7 +1208,7 @@ public partial class MovieListView : UserControl
                 _mainWindow?.ShowMovieDetail(m);
             }
         }
-        catch { }
+        catch (Exception ex) { Log.Error(ex, "MovieListView 操作异常"); }
         finally
         {
             await LoadMoviesAsync();
@@ -1487,7 +1489,7 @@ public partial class MovieListView : UserControl
                         var posterBytes = await imgClient.GetByteArrayAsync(info.PosterUrl);
                         m.PosterData = posterBytes;
                     }
-                    catch { }
+                    catch (Exception ex) { Log.Error(ex, "MovieListView 操作异常"); }
                 }
                 if (info.Runtime.HasValue && info.Runtime != m.Runtime) { m.Runtime = info.Runtime; updated = true; }
                 if (info.Year > 0 && info.Year != m.Year) { m.Year = info.Year; updated = true; }
@@ -1509,7 +1511,7 @@ public partial class MovieListView : UserControl
                                 updated = true;
                             }
                         }
-                        catch { }
+                        catch (Exception ex) { Log.Error(ex, "MovieListView 操作异常"); }
                     }
                 }
 
@@ -1589,7 +1591,7 @@ public partial class MovieListView : UserControl
                         info = await TryFetchFromDoubanAsync(douban, m, engHint);
                         if (info != null) source = "douban";
                     }
-                    catch { }
+                    catch (Exception ex) { Log.Error(ex, "MovieListView 操作异常"); }
                 }
 
                 // 无中文或豆瓣无结果：走 TMDB
@@ -1601,7 +1603,7 @@ public partial class MovieListView : UserControl
                         info = await TryFetchFromTmdbAsync(tmdb, engHint, kw, m.Title);
                         if (info != null) source = "tmdb";
                     }
-                    catch { }
+                    catch (Exception ex) { Log.Error(ex, "MovieListView 操作异常"); }
                 }
 
                 // 最终兜底：TMDB 失败且有 Cookie 时，再试一次豆瓣
@@ -1613,10 +1615,10 @@ public partial class MovieListView : UserControl
                         info = await TryFetchFromDoubanAsync(douban, m, engHint);
                         if (info != null) source = "douban";
                     }
-                    catch { }
+                    catch (Exception ex) { Log.Error(ex, "MovieListView 操作异常"); }
                 }
             }
-            catch { }
+            catch (Exception ex) { Log.Error(ex, "MovieListView 操作异常"); }
             finally { semaphore.Release(); }
 
             if (info == null) { Interlocked.Increment(ref failed); return; }
@@ -1647,7 +1649,7 @@ public partial class MovieListView : UserControl
                         imgClient.DefaultRequestHeaders.Referrer = new Uri("https://movie.douban.com/");
                     m.PosterData = await imgClient.GetByteArrayAsync(info.PosterUrl);
                 }
-                catch { }
+                catch (Exception ex) { Log.Error(ex, "MovieListView 操作异常"); }
             }
             if (info.Runtime.HasValue && info.Runtime != m.Runtime) m.Runtime = info.Runtime;
             if (info.Year > 0 && info.Year != m.Year) m.Year = info.Year;
@@ -1664,7 +1666,7 @@ public partial class MovieListView : UserControl
                         var category = await _categoryService.GetOrCreateByNameAsync(firstCountry);
                         m.CategoryId = category.Id;
                     }
-                    catch { }
+                    catch (Exception ex) { Log.Error(ex, "MovieListView 操作异常"); }
                 }
             }
 
@@ -1800,7 +1802,7 @@ public partial class MovieListView : UserControl
             return null;
         }
         catch (OperationCanceledException) { throw; }
-        catch { return null; }
+        catch (Exception ex) { Log.Error(ex, "TMDB 获取详情失败"); return null; }
     }
 
     private static async Task<MovieSearchResult?> TryFetchFromTmdbAsync(TmdbApiClient tmdb, string? engHint, string? kw, string title)
@@ -1846,7 +1848,7 @@ public partial class MovieListView : UserControl
             }
             return null;
         }
-        catch { return null; }
+        catch (Exception ex) { Log.Error(ex, "TMDB 获取详情失败"); return null; }
     }
     private async void FirstPage_Click(object sender, RoutedEventArgs e) { if (_currentPage > 1) { _currentPage = 1; await LoadMoviesAsync(); } }
     private async void PrevPage_Click(object sender, RoutedEventArgs e) { if (_currentPage > 1) { _currentPage--; await LoadMoviesAsync(); } }
@@ -1886,7 +1888,7 @@ public partial class MovieListView : UserControl
         {
             var dlg = new Microsoft.Win32.OpenFolderDialog { Title = "选择包含视频文件的文件夹" };
             string? path = null;
-            try { if (dlg.ShowDialog() == true) path = dlg.FolderName; } catch { }
+            try { if (dlg.ShowDialog() == true) path = dlg.FolderName; } catch (Exception ex) { Log.Error(ex, "MovieListView 操作异常"); }
             if (string.IsNullOrEmpty(path) || !Directory.Exists(path)) { AppMessageBox.ShowInfo("请选择有效文件夹"); return; }
 
             _mainWindow?.SetStatus("批量获取中...", true);
@@ -1907,7 +1909,7 @@ public partial class MovieListView : UserControl
                     // 从黑名单中移除（用户手动导入）
                     AppSettings.DeletedFilePaths.Remove(files[i]);
                 }
-                catch { }
+                catch (Exception ex) { Log.Error(ex, "MovieListView 操作异常"); }
             }
 
             // 刷新列表让用户看到
@@ -1952,7 +1954,7 @@ public partial class MovieListView : UserControl
                                         imgClient.DefaultRequestHeaders.Add("Referer", "https://movie.douban.com/");
                                     m.PosterData = await imgClient.GetByteArrayAsync(info.PosterUrl);
                                 }
-                                catch { }
+                                catch (Exception ex) { Log.Error(ex, "MovieListView 操作异常"); }
                             }
                             if (info.Runtime.HasValue) m.Runtime = info.Runtime;
                             if (info.Year > 0 && m.Year == 0) m.Year = info.Year;
@@ -1964,7 +1966,7 @@ public partial class MovieListView : UserControl
                                 var firstCountry = info.Country.Split('/', '·').FirstOrDefault(c => IsValidCategoryName(c.Trim()))?.Trim();
                                 if (!string.IsNullOrEmpty(firstCountry) && IsValidCategoryName(firstCountry))
                                 {
-                                    try { var category = await _categoryService.GetOrCreateByNameAsync(firstCountry); m.CategoryId = category.Id; } catch { }
+                                    try { var category = await _categoryService.GetOrCreateByNameAsync(firstCountry); m.CategoryId = category.Id; } catch (Exception ex) { Log.Error(ex, "MovieListView 操作异常"); }
                                 }
                             }
 
@@ -1972,7 +1974,7 @@ public partial class MovieListView : UserControl
                             await LoadMoviesAsync(); // 每部更新后立即刷新列表
                         }
                     }
-                    catch { }
+                    catch (Exception ex) { Log.Error(ex, "MovieListView 操作异常"); }
                     await Task.Delay(600);
                 }
             }
@@ -2154,7 +2156,7 @@ public partial class MovieListView : UserControl
                 SearchBox.Text = movie.Title;
             }
         }
-        catch { }
+        catch (Exception ex) { Log.Error(ex, "MovieListView 操作异常"); }
     }
 
     public void AddNewMovie() => OpenDetailView(0);
@@ -2384,7 +2386,7 @@ public partial class MovieListView : UserControl
                 RenderOptions.SetBitmapScalingMode(img, BitmapScalingMode.HighQuality);
                 grid.Children.Add(img);
             }
-            catch { }
+            catch (Exception ex) { Log.Error(ex, "MovieListView 操作异常"); }
         }
 
         if (grid.Children.Count == 0)

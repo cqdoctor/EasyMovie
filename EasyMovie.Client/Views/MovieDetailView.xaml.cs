@@ -13,6 +13,8 @@ using EasyMovie.Core.Interfaces;
 using EasyMovie.Core.Models;
 using EasyMovie.Tools.MovieApi;
 
+using Serilog;
+
 namespace EasyMovie.Client.Views;
 
 public partial class MovieDetailView : UserControl
@@ -56,7 +58,7 @@ public partial class MovieDetailView : UserControl
         foreach (var t in _allTags)
         {
             var cb = new CheckBox { Content = t.Name, Tag = t.Id, Margin = new Thickness(0, 0, 16, 6), IsChecked = _selectedTagIds.Contains(t.Id) };
-            if (!string.IsNullOrEmpty(t.Color)) try { cb.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(t.Color)); } catch { }
+            if (!string.IsNullOrEmpty(t.Color)) try { cb.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(t.Color)); } catch (Exception ex) { Log.Error(ex, "MovieDetailView 操作异常"); }
             cb.Checked += (s, e) => _selectedTagIds.Add(t.Id);
             cb.Unchecked += (s, e) => _selectedTagIds.Remove(t.Id);
             TagPanel.Children.Add(cb);
@@ -116,7 +118,7 @@ public partial class MovieDetailView : UserControl
                             imgClient.DefaultRequestHeaders.Add("Referer", "https://movie.douban.com/");
                         m.PosterData = await imgClient.GetByteArrayAsync(_fetchedInfo.PosterUrl);
                     }
-                    catch { }
+                    catch (Exception ex) { Log.Error(ex, "MovieDetailView 操作异常"); }
                 }
                 if (_fetchedSource.Contains("douban") && !string.IsNullOrEmpty(_fetchedInfo.ExternalId))
                     m.DoubanId = _fetchedInfo.ExternalId;

@@ -13,6 +13,8 @@ using EasyMovie.Data;
 using LibVLCSharp.Shared;
 using MediaPlayer = LibVLCSharp.Shared.MediaPlayer;
 
+using Serilog;
+
 namespace EasyMovie.Client.Views;
 
 public partial class VideoPlayerHost : UserControl
@@ -209,7 +211,7 @@ public partial class VideoPlayerHost : UserControl
         // VLC 线程：播放结束/停止时调用
         if (_frameLocked && _bitmap != null)
         {
-            try { _bitmap.Unlock(); } catch { }
+            try { _bitmap.Unlock(); } catch (Exception ex) { Log.Error(ex, "VideoPlayerHost 操作异常"); }
             _frameLocked = false;
         }
     }
@@ -265,7 +267,7 @@ public partial class VideoPlayerHost : UserControl
         _mediaPlayer = null;
         if (_frameLocked && _bitmap != null)
         {
-            try { _bitmap.Unlock(); } catch { }
+            try { _bitmap.Unlock(); } catch (Exception ex) { Log.Error(ex, "VideoPlayerHost 操作异常"); }
             _frameLocked = false;
         }
         _bitmap = null;
@@ -477,7 +479,7 @@ public partial class VideoPlayerHost : UserControl
                 ctx.SaveChanges();
             }
         }
-        catch { }
+        catch (Exception ex) { Log.Error(ex, "VideoPlayerHost 操作异常"); }
     }
 
     private static string FormatTime(long ms)

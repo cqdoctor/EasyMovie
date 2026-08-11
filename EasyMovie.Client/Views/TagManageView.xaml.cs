@@ -12,6 +12,8 @@ using EasyMovie.Core.Services;
 using EasyMovie.Data;
 using EasyMovie.Data.Repositories;
 
+using Serilog;
+
 namespace EasyMovie.Client.Views;
 
 public partial class TagManageView : UserControl
@@ -51,7 +53,7 @@ public partial class TagManageView : UserControl
         }
     }
 
-    private void UpdatePreview() { try { ColorPreview.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(_selectedColor)); } catch { ColorPreview.Background = Brushes.Gray; } }
+    private void UpdatePreview() { try { ColorPreview.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(_selectedColor)); } catch (Exception ex) { Log.Error(ex, "颜色预览转换失败"); ColorPreview.Background = Brushes.Gray; } }
 
     private async Task LoadTagsAsync() { try { TagListBox.ItemsSource = await _tagService.GetAllAsync(); } catch (Exception ex) { AppMessageBox.ShowError(ex.Message); } }
 

@@ -13,6 +13,8 @@ using EasyMovie.Data;
 using LibVLCSharp.Shared;
 using MediaPlayer = LibVLCSharp.Shared.MediaPlayer;
 
+using Serilog;
+
 namespace EasyMovie.Client.Views;
 
 public partial class VideoPlayerWindow : Window
@@ -193,7 +195,7 @@ public partial class VideoPlayerWindow : Window
         // VLC 线程：播放结束/停止时调用
         if (_frameLocked && _bitmap != null)
         {
-            try { _bitmap.Unlock(); } catch { }
+            try { _bitmap.Unlock(); } catch (Exception ex) { Log.Error(ex, "解锁帧缓冲失败"); }
             _frameLocked = false;
         }
     }
@@ -400,7 +402,7 @@ public partial class VideoPlayerWindow : Window
         _mediaPlayer = null;
         if (_frameLocked && _bitmap != null)
         {
-            try { _bitmap.Unlock(); } catch { }
+            try { _bitmap.Unlock(); } catch (Exception ex) { Log.Error(ex, "解锁帧缓冲失败"); }
             _frameLocked = false;
         }
         _bitmap = null;
@@ -438,7 +440,7 @@ public partial class VideoPlayerWindow : Window
                 ctx.SaveChanges();
             }
         }
-        catch { }
+        catch (Exception ex) { Log.Error(ex, "VideoPlayerWindow 操作异常"); }
     }
 
     private static string FormatTime(long ms)

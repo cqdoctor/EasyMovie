@@ -5,6 +5,8 @@ using System.Windows.Media.Imaging;
 using EasyMovie.Core.Models;
 using EasyMovie.Data;
 
+using Serilog;
+
 namespace EasyMovie.Client.Views;
 
 public partial class WatchDiaryView : UserControl
@@ -136,7 +138,7 @@ public partial class WatchDiaryView : UserControl
                     Grid.SetColumn(poster, 0);
                     grid.Children.Add(poster);
                 }
-                catch { }
+                catch (Exception ex) { Log.Error(ex, "WatchDiaryView 渲染异常"); }
             }
 
             var info = new StackPanel();
