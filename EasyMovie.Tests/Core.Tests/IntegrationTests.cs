@@ -69,7 +69,7 @@ public class IntegrationTests
 
         // 搜索验证
         var (results, total) = await movieSvc.SearchAsync(
-            "星际", cat.Id, null, null, null, null, null, null, false, 1, 10);
+            "星际", cat.Id, null, null, null, null, null, null, null, null, null, null, null, null, false, 1, 10);
 
         results.Should().HaveCount(1);
         total.Should().Be(1);
@@ -140,12 +140,12 @@ public class IntegrationTests
 
         // 按旧分类搜索不应找到
         var (results, _) = await movieSvc.SearchAsync(
-            null, cat1.Id, null, null, null, null, null, null, false, 1, 10);
+            null, cat1.Id, null, null, null, null, null, null, null, null, null, null, null, null, false, 1, 10);
         results.Should().BeEmpty();
 
         // 按新分类搜索应找到
         (results, _) = await movieSvc.SearchAsync(
-            null, cat2.Id, null, null, null, null, null, null, false, 1, 10);
+            null, cat2.Id, null, null, null, null, null, null, null, null, null, null, null, null, false, 1, 10);
         results.Should().HaveCount(1);
     }
 
@@ -254,7 +254,7 @@ public class IntegrationTests
 
         // 筛选：2020年之后 + 评分≥7 + 已看
         var (results, total) = await movieSvc.SearchAsync(
-            null, null, null, 2020, null, 7, WatchStatus.Watched, null, false, 1, 10);
+            null, null, null, 2020, null, 7, null,  WatchStatus.Watched, null, null, null, null, null, null, false, 1, 10);
 
         results.Should().HaveCount(1);
         total.Should().Be(1);
@@ -281,7 +281,7 @@ public class IntegrationTests
         // 搜索有"科幻"标签的
         var searchParams = new { page = 1, pageSize = 10 };
         var (results, _) = await movieSvc.SearchAsync(
-            null, null, new List<int> { tag1.Id }, null, null, null, null, null, false, 1, 10);
+            null, null, new List<int> { tag1.Id }, null, null, null, null, null, null, null, null, null, null, null, false, 1, 10);
 
         results.Should().HaveCount(2);
         results.Select(m => m.Title).Should().Contain(["科幻片A", "科幻动作片C"]);
@@ -299,7 +299,7 @@ public class IntegrationTests
 
         // 搜索"莱昂纳多"应该匹配主演字段
         var (results, _) = await movieSvc.SearchAsync(
-            "莱昂纳多", null, null, null, null, null, null, null, false, 1, 10);
+            "莱昂纳多", null, null, null, null, null, null, null, null, null, null, null, null, null, false, 1, 10);
 
         results.Should().HaveCount(2);
     }
@@ -330,7 +330,7 @@ public class IntegrationTests
         await movieSvc.AddAsync(new Movie { Title = "唯一的电影", Year = 2020 });
 
         var (results, total) = await movieSvc.SearchAsync(
-            null, null, null, null, null, null, null, null, false, 5, 10);
+            null, null, null, null, null, null, null, null, null, null, null, null, null, null, false, 5, 10);
 
         results.Should().BeEmpty();
         total.Should().Be(1);
@@ -450,12 +450,12 @@ public class IntegrationTests
 
         // 分类1应该有2部
         var (results1, count1) = await movieSvc.SearchAsync(
-            null, cat1.Id, null, null, null, null, null, null, false, 1, 10);
+            null, cat1.Id, null, null, null, null, null, null, null, null, null, null, null, null, false, 1, 10);
         count1.Should().Be(2);
 
         // 分类2应该有1部
         var (results2, count2) = await movieSvc.SearchAsync(
-            null, cat2.Id, null, null, null, null, null, null, false, 1, 10);
+            null, cat2.Id, null, null, null, null, null, null, null, null, null, null, null, null, false, 1, 10);
         count2.Should().Be(1);
     }
 
@@ -472,11 +472,11 @@ public class IntegrationTests
         await movieSvc.AddAsync(m3);
 
         var (_, countWant) = await movieSvc.SearchAsync(
-            null, null, null, null, null, null, WatchStatus.WantToWatch, null, false, 1, 10);
+            null, null, null, null, null, null, null,  WatchStatus.WantToWatch, null, null, null, null, null, null, false, 1, 10);
         var (_, countNotWatched) = await movieSvc.SearchAsync(
-            null, null, null, null, null, null, WatchStatus.NotWatched, null, false, 1, 10);
+            null, null, null, null, null, null, null,  WatchStatus.NotWatched, null, null, null, null, null, null, false, 1, 10);
         var (_, countWatched) = await movieSvc.SearchAsync(
-            null, null, null, null, null, null, WatchStatus.Watched, null, false, 1, 10);
+            null, null, null, null, null, null, null,  WatchStatus.Watched, null, null, null, null, null, null, false, 1, 10);
 
         countWant.Should().Be(1);
         countNotWatched.Should().Be(1);

@@ -1,7 +1,6 @@
 <UserControl x:Class="EasyMovie.Client.Views.VideoPlayerHost"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:wpf="clr-namespace:LibVLCSharp.WPF;assembly=LibVLCSharp.WPF"
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
              Background="Black"
              SnapsToDevicePixels="True"
@@ -9,15 +8,14 @@
              Loaded="Host_Loaded"
              Unloaded="Host_Unloaded"
              KeyDown="Host_KeyDown"
-             MouseMove="Host_MouseMove"
              MouseLeftButtonDown="Host_MouseLeftButtonDown"
              Focusable="True">
 
     <Grid>
-        <!-- VLC 视频播放区域 -->
-        <wpf:VideoView x:Name="VideoView" />
+        <!-- 视频画面（WPF Image，由 VLC 帧回调渲染，无 HwndHost，控件可悬浮在其上） -->
+        <Image x:Name="VideoImage" Stretch="Uniform" />
 
-        <!-- 顶部标题/返回栏 -->
+        <!-- 顶部标题/返回栏（悬浮在主窗口内，不遮挡问题） -->
         <Border x:Name="TitleBar" VerticalAlignment="Top" Background="#CC000000" Padding="12,8"
                 Visibility="Collapsed" Cursor="Arrow">
             <Grid>
@@ -37,7 +35,7 @@
             </Grid>
         </Border>
 
-        <!-- 续播提示 -->
+        <!-- 续播提示（悬浮居中） -->
         <Border x:Name="ResumePanel" Visibility="Collapsed"
                 VerticalAlignment="Center" HorizontalAlignment="Center"
                 Background="#CC1E1E2E" CornerRadius="12" Padding="24,16"
@@ -52,15 +50,16 @@
                             Style="{StaticResource MaterialDesignRaisedButton}"
                             Foreground="White" Background="#7C4DFF" Margin="0,0,8,0"
                             Click="ResumeYes_Click" Cursor="Hand" />
-                    <Button x:Name="ResumeNoBtn" Content="{DynamicResource Player_ResumeNo}"
+                    <Button x:Name="ResumeNoBtn"
                             Style="{StaticResource MaterialDesignFlatButton}"
-                            Foreground="#AAFFFFFF"
-                            Click="ResumeNo_Click" Cursor="Hand" />
+                            Click="ResumeNo_Click" Cursor="Hand">
+                        <TextBlock Text="{DynamicResource Player_ResumeNo}" Foreground="White" FontSize="14" />
+                    </Button>
                 </StackPanel>
             </StackPanel>
         </Border>
 
-        <!-- 底部控制栏 -->
+        <!-- 底部控制栏（悬浮在主窗口内） -->
         <Border x:Name="ControlBar" VerticalAlignment="Bottom"
                 Background="#CC000000" Padding="16,8"
                 Visibility="Collapsed" Cursor="Arrow">

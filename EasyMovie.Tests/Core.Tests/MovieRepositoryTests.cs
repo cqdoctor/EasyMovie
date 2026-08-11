@@ -216,7 +216,7 @@ public class MovieRepositoryTests
         await repo.AddAsync(CreateTestMovie("教父", 1972));
 
         // Act
-        var results = await repo.SearchAsync("肖申克", null, null, null, null, null, null, null, false, 0, 10);
+        var results = await repo.SearchAsync("肖申克", null, null, null, null, null, null, null, null, null, null, null, null, null, false, 0, 10);
 
         // Assert
         results.Should().HaveCount(1);
@@ -233,7 +233,7 @@ public class MovieRepositoryTests
         await repo.AddAsync(CreateTestMovie("电影B", 2021, "陈凯歌"));
 
         // Act
-        var results = await repo.SearchAsync("张艺谋", null, null, null, null, null, null, null, false, 0, 10);
+        var results = await repo.SearchAsync("张艺谋", null, null, null, null, null, null, null, null, null, null, null, null, null, false, 0, 10);
 
         // Assert
         results.Should().HaveCount(1);
@@ -259,7 +259,7 @@ public class MovieRepositoryTests
         await repo.AddAsync(m2);
 
         // Act
-        var results = await repo.SearchAsync(null, cat1.Id, null, null, null, null, null, null, false, 0, 10);
+        var results = await repo.SearchAsync(null, cat1.Id, null, null, null, null, null, null, null, null, null, null, null, null, false, 0, 10);
 
         // Assert
         results.Should().HaveCount(1);
@@ -277,7 +277,7 @@ public class MovieRepositoryTests
         await repo.AddAsync(CreateTestMovie("新片", 2024));
 
         // Act
-        var results = await repo.SearchAsync(null, null, null, 2000, 2020, null, null, null, false, 0, 10);
+        var results = await repo.SearchAsync(null, null, null, 2000, 2020, null, null, null, null, null, null, null, null, null, false, 0, 10);
 
         // Assert
         results.Should().HaveCount(1);
@@ -298,7 +298,7 @@ public class MovieRepositoryTests
         await repo.AddAsync(m2);
 
         // Act
-        var results = await repo.SearchAsync(null, null, null, null, null, 7, null, null, false, 0, 10);
+        var results = await repo.SearchAsync(null, null, null, null, null, 7, null, null, null, null, null, null, null, null, false, 0, 10);
 
         // Assert
         results.Should().HaveCount(1);
@@ -319,7 +319,7 @@ public class MovieRepositoryTests
         await repo.AddAsync(m2);
 
         // Act
-        var results = await repo.SearchAsync(null, null, null, null, null, null, WatchStatus.WantToWatch, null, false, 0, 10);
+        var results = await repo.SearchAsync(null, null, null, null, null, null, null,  WatchStatus.WantToWatch, null, null, null, null, null, null, false, 0, 10);
 
         // Assert
         results.Should().HaveCount(1);
@@ -337,7 +337,7 @@ public class MovieRepositoryTests
         await repo.AddAsync(CreateTestMovie("B", 2015));
 
         // Act
-        var results = await repo.SearchAsync(null, null, null, null, null, null, null, "year", false, 0, 10);
+        var results = await repo.SearchAsync(null, null, null, null, null, null, null, null, null, null, null, null, null, "year", false, 0, 10);
 
         // Assert
         results[0].Year.Should().Be(2010);
@@ -362,7 +362,7 @@ public class MovieRepositoryTests
         await repo.AddAsync(m3);
 
         // Act
-        var results = await repo.SearchAsync(null, null, null, null, null, null, null, "rating", true, 0, 10);
+        var results = await repo.SearchAsync(null, null, null, null, null, null, null, null, null, null, null, null, null, "rating", true, 0, 10);
 
         // Assert
         results[0].Rating.Should().Be(9);
@@ -380,10 +380,10 @@ public class MovieRepositoryTests
             await repo.AddAsync(CreateTestMovie($"电影{i}"));
 
         // Act - 第一页
-        var page1 = await repo.SearchAsync(null, null, null, null, null, null, null, null, false, 0, 3);
+        var page1 = await repo.SearchAsync(null, null, null, null, null, null, null, null, null, null, null, null, null, null, false, 0, 3);
 
         // Act - 第二页
-        var page2 = await repo.SearchAsync(null, null, null, null, null, null, null, null, false, 3, 3);
+        var page2 = await repo.SearchAsync(null, null, null, null, null, null, null, null, null, null, null, null, null, null, false, 3, 3);
 
         // Assert
         page1.Should().HaveCount(3);
@@ -464,8 +464,8 @@ public class MovieRepositoryTests
         await repo.AddAsync(CreateTestMovie("C", 2022));
 
         // Act
-        var total = await repo.CountAsync(null, null, null, null, null, null, null);
-        var filtered = await repo.CountAsync(null, null, null, 2020, 2020, null, null);
+        var total = await repo.CountAsync(null, null, null, null, null, null, null, null, null, null, null, null, null);
+        var filtered = await repo.CountAsync(null, null, null, 2020, 2020, null, null, null, null, null, null, null, null);
 
         // Assert
         total.Should().Be(3);
@@ -529,7 +529,7 @@ public class MovieRepositoryTests
         await context.SaveChangesAsync();
 
         // Act
-        var results = await repo.SearchAsync(null, null, new List<int> { tag1.Id }, null, null, null, null, null, false, 0, 10);
+        var results = await repo.SearchAsync(null, null, new List<int> { tag1.Id }, null, null, null, null, null, null, null, null, null, null, null, false, 0, 10);
 
         // Assert
         results.Should().HaveCount(1);

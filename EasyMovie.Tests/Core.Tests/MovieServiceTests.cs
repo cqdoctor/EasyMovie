@@ -443,7 +443,7 @@ public class MovieServiceTests
             await service.AddAsync(new Movie { Title = $"电影{i}", Year = 2020 });
 
         var (movies, total) = await service.SearchAsync(
-            null, null, null, null, null, null, null, null, false, 1, 10);
+            null, null, null, null, null, null, null, null, null, null, null, null, null, null, false, 1, 10);
 
         movies.Should().HaveCount(10);
         total.Should().Be(25);
@@ -457,7 +457,7 @@ public class MovieServiceTests
             await service.AddAsync(new Movie { Title = $"电影{i}", Year = 2020 });
 
         var (movies, total) = await service.SearchAsync(
-            null, null, null, null, null, null, null, null, false, 2, 10);
+            null, null, null, null, null, null, null, null, null, null, null, null, null, null, false, 2, 10);
 
         movies.Should().HaveCount(5);
         total.Should().Be(15);

@@ -64,6 +64,14 @@ public partial class MainWindow : Window
     [DllImport("user32.dll")]
     private static extern int GetSystemMetrics(int nIndex);
 
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
+
+    private const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
+    private const int DWMWA_SYSTEMBACKDROP_TYPE = 38;
+    private const int DWMSBT_MAINWINDOW = 2;
+    private const int DWMSBT_TRANSIENTWINDOW = 3;
+
     private const uint IMAGE_ICON = 1;
     private const uint LR_DEFAULTSIZE = 0x00000040;
     private const uint LR_SHARED = 0x00008000;
@@ -130,6 +138,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         LoadInputBindings();
+        SourceInitialized += (_, _) => VideoPlayerHelper.RestrictMaximizeToWorkArea(this);
         Loaded += OnLoaded;
         StateChanged += OnStateChanged;
         PlayerHost.Closed += PlayerHost_Closed;
@@ -146,7 +155,6 @@ public partial class MainWindow : Window
     {
         Loaded -= OnLoaded;
 
-        // 去掉标题栏图标（只保留任务栏图标）
         try
         {
             var hwnd = new WindowInteropHelper(this).Handle;
@@ -155,6 +163,7 @@ public partial class MainWindow : Window
                 SendMessage(hwnd, WM_SETICON, ICON_SMALL, IntPtr.Zero);
                 SendMessage(hwnd, WM_SETICON, ICON_BIG, IntPtr.Zero);
             }
+            // 最大化不覆盖任务栏的 WM_GETMINMAXINFO 处理已在 SourceInitialized 注册
         }
         catch { }
 

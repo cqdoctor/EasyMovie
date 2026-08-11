@@ -88,7 +88,7 @@ public class RegressionTests
         await movieSvc.AddAsync(new Movie { Title = "C", Year = 2023, Rating = 3, WatchStatus = WatchStatus.WantToWatch, CategoryId = cat.Id });
 
         var (results, total) = await movieSvc.SearchAsync(
-            null, cat.Id, null, 2023, null, 7, WatchStatus.Watched, null, false, 1, 10);
+            null, cat.Id, null, 2023, null, 7, null,  WatchStatus.Watched, null, null, null, null, null, null, false, 1, 10);
 
         total.Should().Be(1);
         results[0].Title.Should().Be("A");
@@ -102,11 +102,11 @@ public class RegressionTests
         for (var i = 1; i <= 50; i++)
             await movieSvc.AddAsync(new Movie { Title = $"P{i:D3}", Year = 2020 + i % 10 });
 
-        var (page1, total) = await movieSvc.SearchAsync(null, null, null, null, null, null, null, "title", false, 1, 15);
+        var (page1, total) = await movieSvc.SearchAsync(null, null, null, null, null, null, null, null, null, null, null, null, null, "title", false, 1, 15);
         page1.Should().HaveCount(15);
         total.Should().Be(50);
 
-        var (page4, _) = await movieSvc.SearchAsync(null, null, null, null, null, null, null, "title", false, 4, 15);
+        var (page4, _) = await movieSvc.SearchAsync(null, null, null, null, null, null, null, null, null, null, null, null, null, "title", false, 4, 15);
         page4.Should().HaveCount(5);
     }
 
@@ -201,11 +201,11 @@ public class RegressionTests
         await movieSvc.AddAsync(new Movie { Title = "The Matrix", Year = 1999, Director = "Wachowski" });
         await movieSvc.AddAsync(new Movie { Title = "黑客帝国", Year = 1999, Director = "沃卓斯基" });
 
-        var (en, _) = await movieSvc.SearchAsync("Matrix", null, null, null, null, null, null, null, false, 1, 10);
+        var (en, _) = await movieSvc.SearchAsync("Matrix", null, null, null, null, null, null, null, null, null, null, null, null, null, false, 1, 10);
         en.Should().HaveCount(1);
         en[0].Title.Should().Be("The Matrix");
 
-        var (cn, _) = await movieSvc.SearchAsync("黑客", null, null, null, null, null, null, null, false, 1, 10);
+        var (cn, _) = await movieSvc.SearchAsync("黑客", null, null, null, null, null, null, null, null, null, null, null, null, null, false, 1, 10);
         cn.Should().HaveCount(1);
         cn[0].Title.Should().Be("黑客帝国");
     }
@@ -247,11 +247,11 @@ public class RegressionTests
         await movieSvc.AddAsync(new Movie { Title = "最新", Year = DateTime.Now.Year + 5 });
         await movieSvc.AddAsync(new Movie { Title = "中间", Year = 2000 });
 
-        var (old, _) = await movieSvc.SearchAsync(null, null, null, 1888, 1888, null, null, null, false, 1, 10);
+        var (old, _) = await movieSvc.SearchAsync(null, null, null, 1888, 1888, null, null, null, null, null, null, null, null, null, false, 1, 10);
         old.Should().HaveCount(1);
         old[0].Title.Should().Be("最老");
 
-        var (new_, _) = await movieSvc.SearchAsync(null, null, null, DateTime.Now.Year, null, null, null, null, false, 1, 10);
+        var (new_, _) = await movieSvc.SearchAsync(null, null, null, DateTime.Now.Year, null, null, null, null, null, null, null, null, null, null, false, 1, 10);
         new_.Should().HaveCount(1);
         new_[0].Title.Should().Be("最新");
     }
@@ -263,7 +263,7 @@ public class RegressionTests
 
         var movie = await movieSvc.AddAsync(new Movie { Title = "默认值", Year = 2020 });
 
-        movie.WatchStatus.Should().Be(WatchStatus.WantToWatch);
+        movie.WatchStatus.Should().Be(WatchStatus.NotWatched);
         movie.IsFavorite.Should().BeFalse();
         movie.WatchDate.Should().BeNull();
         movie.Rating.Should().BeNull();

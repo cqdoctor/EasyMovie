@@ -53,6 +53,8 @@ public class MovieService : IMovieService
             throw new ArgumentException("电影标题不能为空");
         if (movie.Year != 0 && movie.Year < 1888)
             throw new ArgumentOutOfRangeException(nameof(movie.Year), "电影年份不合理");
+        if (movie.Year != 0 && movie.Year > DateTime.Now.Year + 5)
+            throw new ArgumentOutOfRangeException(nameof(movie.Year), "电影年份不合理");
 
         // 自动生成搜索索引
         movie.SearchIndex = PinyinIndexHelper.BuildSearchIndex(movie.Title, movie.OriginalTitle, movie.Director, movie.Cast);
@@ -67,6 +69,9 @@ public class MovieService : IMovieService
 
         if (string.IsNullOrWhiteSpace(movie.Title))
             throw new ArgumentException("电影标题不能为空");
+
+        if (movie.Year != 0 && (movie.Year < 1888 || movie.Year > DateTime.Now.Year + 5))
+            throw new ArgumentOutOfRangeException(nameof(movie.Year), "电影年份不合理");
 
         // 自动更新搜索索引
         movie.SearchIndex = PinyinIndexHelper.BuildSearchIndex(movie.Title, movie.OriginalTitle, movie.Director, movie.Cast);

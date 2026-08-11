@@ -242,7 +242,7 @@ public class DoubanApiClient : IMovieApiClient
         }
         if (results.Count == 0)
         {
-            foreach (Match m in Regex.Matches(html, @"href=""https://movie\.douban\.com/subject/(\d+)/""[^>]*>\s*<img[^>]*alt=""([^""]+)"")"))
+            foreach (Match m in Regex.Matches(html, @"href=""https://movie\.douban\.com/subject/(\d+)/""[^>]*>\s*<img[^>]*alt=""([^""]+)"""))
             { var id = m.Groups[1].Value; var t = WebUtility.HtmlDecode(m.Groups[2].Value).Trim(); if (!results.Any(x => x.ExternalId == id)) results.Add(new MovieSearchResult { Title = t, ExternalId = id, Source = "douban" }); }
         }
         return results;
