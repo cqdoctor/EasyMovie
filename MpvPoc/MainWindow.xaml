@@ -1,0 +1,42 @@
+﻿<Window x:Class="MpvPoc.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:mpv="clr-namespace:LibMPVSharp.WPF;assembly=LibMPVSharp.WPF"
+        Title="mpv POC 验证" Height="600" Width="960">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- mpv 渲染控件：vo_gpu(D3D11) 正确清屏，无 VLC 那种信箱白块 -->
+        <mpv:VideoView x:Name="VideoView" Grid.Row="0"/>
+
+        <StackPanel Grid.Row="1" Orientation="Vertical" Background="#222">
+            <Slider x:Name="SeekSlider" Minimum="0" Maximum="100" Value="0" Margin="8,4"
+                    ValueChanged="Seek_ValueChanged"/>
+            <StackPanel Orientation="Horizontal" Margin="8,2">
+                <Button x:Name="OpenBtn" Content="打开" Width="60" Margin="2" Click="Open_Click"/>
+                <Button x:Name="PlayPauseBtn" Content="播放/暂停" Width="80" Margin="2" Click="PlayPause_Click"/>
+                <Button x:Name="StopBtn" Content="停止" Width="60" Margin="2" Click="Stop_Click"/>
+                <ComboBox x:Name="RateCombo" Width="80" Margin="2" SelectionChanged="Rate_SelectionChanged">
+                    <ComboBoxItem Content="0.5x" Tag="0.5"/>
+                    <ComboBoxItem Content="1.0x" Tag="1.0" IsSelected="True"/>
+                    <ComboBoxItem Content="1.25x" Tag="1.25"/>
+                    <ComboBoxItem Content="1.5x" Tag="1.5"/>
+                    <ComboBoxItem Content="2.0x" Tag="2.0"/>
+                </ComboBox>
+                <Label Content="音量" Foreground="White" VerticalAlignment="Center"/>
+                <Slider x:Name="VolumeSlider" Minimum="0" Maximum="100" Value="80" Width="120"
+                        VerticalAlignment="Center" ValueChanged="Volume_ValueChanged"/>
+                <Button x:Name="SnapshotBtn" Content="截图" Width="60" Margin="2" Click="Snapshot_Click"/>
+                <Button x:Name="SubDelayMinus" Content="字幕-" Width="60" Margin="2" Click="SubDelay_Click"/>
+                <Button x:Name="SubDelayPlus" Content="字幕+" Width="60" Margin="2" Click="SubDelay_Click"/>
+                <TextBlock x:Name="TimeLabel" Text="00:00:00 / 00:00:00" Foreground="White"
+                           VerticalAlignment="Center" Margin="6,0"/>
+            </StackPanel>
+            <TextBlock x:Name="StatusLabel" Text="打开一个视频文件开始验证（硬件解码 hwdec=auto）"
+                       Foreground="Yellow" Margin="8,2"/>
+        </StackPanel>
+    </Grid>
+</Window>
