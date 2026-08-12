@@ -31,6 +31,16 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        // 启动里程碑：写到 logs/startup.log，便于跨会话验证窗口是否真正建出（不依赖 Serilog 初始化时机）
+        try
+        {
+            var dir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs");
+            Directory.CreateDirectory(dir);
+            File.AppendAllText(Path.Combine(dir, "startup.log"),
+                $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] OnStartup 开始 (PID={Environment.ProcessId}, Session={Environment.ProcessId})\n");
+        }
+        catch { }
+
         base.OnStartup(e);
 
         // 构建 DI 容器；失败不影响启动，FolderWatcher 回退为默认实例

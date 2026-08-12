@@ -171,6 +171,16 @@ public partial class MainWindow : Window
 
         RegisterNavButtons();
         Dispatcher.BeginInvoke(new Action(PreWarmViews), System.Windows.Threading.DispatcherPriority.Background);
+
+        // 启动里程碑：窗口已加载（OnLoaded 触发说明 WPF 已成功创建并显示主窗口）
+        try
+        {
+            var dir = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs");
+            System.IO.Directory.CreateDirectory(dir);
+            System.IO.File.AppendAllText(System.IO.Path.Combine(dir, "startup.log"),
+                $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] MainWindow.OnLoaded 触发（主窗口已创建并显示）\n");
+        }
+        catch { }
     }
 
     private void PreWarmViews()
@@ -503,14 +513,21 @@ public partial class MainWindow : Window
     {
         // 在电影详情面板中展示基础信息，右侧 ContentArea 进入播放器
         _lastSelectedMovie = movie;
-        PlayerHost.LoadMovie(movie);
+        // 播放时隐藏底部状态栏：播放区（含底部控制栏）需占满整高，
+        // 否则控制栏会被 Row2 的底栏遮挡、位置偏低。
+        StatusBar.Visibility = Visibility.Collapsed;
+        // 先让播放器可见并完成布局，再 LoadMovie（否则 EnsureOverlay 时 ActualWidth/Height 还是 0，
+        // 覆盖窗口位置和尺寸会错，导致返回栏偏移或顶部露出灰条）。
         PlayerHost.Visibility = Visibility.Visible;
+        PlayerHost.UpdateLayout();
+        PlayerHost.LoadMovie(movie);
         PlayerHost.Focus();
     }
 
     private void PlayerHost_Closed(object? sender, EventArgs e)
     {
         PlayerHost.Visibility = Visibility.Collapsed;
+        StatusBar.Visibility = Visibility.Visible;
         // 刷新电影列表以更新观影状态/进度
         _ = Dispatcher.BeginInvoke(new Action(async () =>
         {
