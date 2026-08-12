@@ -12,7 +12,10 @@
          点击会“穿透”到下层视频 HWND，导致画面区域点击收不到（按钮能点、画面点击失效）。
          alpha=1 几乎不可见，但能让该区域正常命中测试，单击暂停/双击全屏即可生效。 -->
     <Grid x:Name="Root" Background="#01000000" Cursor="Arrow"
-          MouseLeftButtonDown="Root_MouseLeftButtonDown">
+          MouseLeftButtonDown="Root_MouseLeftButtonDown"
+          MouseLeftButtonUp="Root_MouseLeftButtonUp"
+          MouseMove="Root_MouseMove"
+          MouseWheel="Root_MouseWheel">
         <!-- 顶部标题/返回栏 -->
         <Border x:Name="TitleBar" VerticalAlignment="Top" Background="#CC000000" Padding="12,8"
                 Visibility="Collapsed" Cursor="Arrow">
@@ -167,7 +170,7 @@
                         <materialDesign:PackIcon x:Name="VolumeIcon" Kind="VolumeHigh"
                                                   Width="16" Height="16" Foreground="White"
                                                   VerticalAlignment="Center" Margin="0,0,6,0" />
-                        <Slider x:Name="VolumeSlider" Width="80" Minimum="0" Maximum="100" Value="80"
+                        <Slider x:Name="VolumeSlider" Width="80" Minimum="0" Maximum="200" Value="80"
                                 Style="{StaticResource MaterialDesignSlider}"
                                 VerticalAlignment="Center"
                                 ValueChanged="VolumeSlider_ValueChanged" />
@@ -191,6 +194,17 @@
                             Style="{StaticResource MaterialDesignFlatButton}" Foreground="White"
                             Click="SubDelayPlus_Click" Cursor="Hand" />
                     <TextBlock x:Name="SubDelayLabel" Text="0.0s" Foreground="White" FontSize="11"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,6,0,0" VerticalAlignment="Center">
+                    <TextBlock Text="音画同步" Foreground="White" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
+                    <Button Content="-0.5s" Width="56" Height="26" FontSize="11" Margin="0,0,6,0"
+                            Style="{StaticResource MaterialDesignFlatButton}" Foreground="White"
+                            Click="AudioDelayMinus_Click" Cursor="Hand" />
+                    <Button Content="+0.5s" Width="56" Height="26" FontSize="11" Margin="0,0,6,0"
+                            Style="{StaticResource MaterialDesignFlatButton}" Foreground="White"
+                            Click="AudioDelayPlus_Click" Cursor="Hand" />
+                    <TextBlock x:Name="AudioDelayLabel" Text="0.0s" Foreground="White" FontSize="11"
                                VerticalAlignment="Center" />
                 </StackPanel>
             </StackPanel>

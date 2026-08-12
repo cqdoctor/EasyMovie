@@ -180,6 +180,13 @@ public partial class VideoPlayerHost : UserControl
     private static readonly double[] _rates = { 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0 };
     private int _rateIndex = 2; // 默认 1.0x
     private long _subtitleDelay; // 字幕延迟，单位微秒
+    private long _audioDelay;    // 音画同步延迟，单位微秒
+
+    // 跨电影记忆的播放偏好（同一会话内沿用）
+    private static readonly string[] _videoExts = { ".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".ts", ".m2ts", ".mpg", ".mpeg", ".webm", ".vob" };
+    private static int _lastVolume = 80;
+    private static int _lastRateIndex = 2;
+    private static string _lastAspectMode = "fill";
 
     /// <summary>读取视频原始尺寸（播放后才有效）。</summary>
     private bool TryGetVideoSize(out int w, out int h)
@@ -209,6 +216,7 @@ public partial class VideoPlayerHost : UserControl
             "169" => "43",
             _ => "fill"
         };
+        _lastAspectMode = _aspectMode;
         ApplyAspectMode();
         return AspectModeLabel(_aspectMode);
     }
@@ -336,6 +344,11 @@ public partial class VideoPlayerHost : UserControl
         {
             _mediaPlayer = new MediaPlayer(_libVLC);
             VideoView.MediaPlayer = _mediaPlayer;
+            // 应用跨电影记忆的偏好
+            _aspectMode = _lastAspectMode;
+            _rateIndex = _lastRateIndex;
+            try { _mediaPlayer.Volume = _lastVolume; } catch { }
+            _overlay?.SetVolumeDisplay(_lastVolume);
             var media = new Media(_libVLC, new Uri(_movie.FilePath!));
             ApplyExternalSubtitle(media);
 
@@ -352,6 +365,7 @@ public partial class VideoPlayerHost : UserControl
                 Dispatcher.BeginInvoke(() =>
                 {
                     ApplyAspectMode();
+                    ApplyRate();
                     _overlay?.SetPlaying(true);
                     // 视频原始尺寸在播放瞬间可能未就绪，延迟校正一次，确保布局/裁剪按真实比例生效
                     var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
@@ -376,6 +390,7 @@ public partial class VideoPlayerHost : UserControl
                 {
                     _overlay?.SetPlaying(false);
                     SavePosition(0);
+                    PlayNext();
                 });
             };
             _mediaPlayer.TimeChanged += (s, args) =>
@@ -417,7 +432,15 @@ public partial class VideoPlayerHost : UserControl
     {
         if (_mediaPlayer == null) return;
         _mediaPlayer.Volume = v;
+        _lastVolume = v;
         _overlay?.SetVolumeDisplay(v);
+    }
+
+    public void AdjustVolume(int delta)
+    {
+        if (_mediaPlayer == null) return;
+        var v = Math.Clamp(_mediaPlayer.Volume + delta, 0, 200);
+        SetVolume(v);
     }
 
     public void BeginSeek() => _isSeeking = true;
@@ -430,6 +453,7 @@ public partial class VideoPlayerHost : UserControl
     }
 
     public long GetLength() => _mediaPlayer?.Length ?? 0;
+    public long GetCurrentTime() => _mediaPlayer?.Time ?? 0;
 
     public void ResumeContinue()
     {
@@ -781,6 +805,7 @@ public partial class VideoPlayerHost : UserControl
         if (_mediaPlayer == null) return;
         var r = _rates[_rateIndex];
         _mediaPlayer.SetRate((float)r);
+        _lastRateIndex = _rateIndex;
         _overlay?.SetRateDisplay(r);
     }
 
@@ -833,7 +858,44 @@ public partial class VideoPlayerHost : UserControl
         _overlay?.ShowSubtitleTracks(tracks, _mediaPlayer.Spu, _subtitleDelay);
     }
 
+    public void AdjustAudioDelay(int deltaMs)
+    {
+        if (_mediaPlayer == null) return;
+        _audioDelay += deltaMs * 1000L; // SetAudioDelay 单位为微秒
+        try { _mediaPlayer.SetAudioDelay(_audioDelay); } catch { }
+        _overlay?.SetAudioDelayDisplay(_audioDelay);
+    }
+
     public void SetAudioTrack(int id) => _mediaPlayer?.SetAudioTrack(id);
+
+    #endregion
+
+    #region P1 体验增强：手势/记忆/连播
+
+    /// <summary>当前影片播放结束后，自动续播同目录按文件名排序的下一部视频。</summary>
+    private void PlayNext()
+    {
+        if (_movie?.FilePath == null) return;
+        try
+        {
+            var dir = Path.GetDirectoryName(_movie.FilePath);
+            if (dir == null) return;
+            var list = Directory.EnumerateFiles(dir)
+                .Where(f => _videoExts.Contains(Path.GetExtension(f), StringComparer.OrdinalIgnoreCase))
+                .OrderBy(f => f, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            var idx = list.FindIndex(f => f.Equals(_movie.FilePath, StringComparison.OrdinalIgnoreCase));
+            if (idx < 0 || idx + 1 >= list.Count) return;
+            var next = list[idx + 1];
+            Movie? nextMovie = null;
+            try { using var ctx = DbHelper.CreateContext(); nextMovie = ctx.Movies.FirstOrDefault(m => m.FilePath == next); }
+            catch { }
+            _movie = nextMovie ?? new Movie { FilePath = next, Title = Path.GetFileNameWithoutExtension(next) };
+            _overlay?.SetTitle(_movie.Title ?? Path.GetFileNameWithoutExtension(next));
+            StartPlayback();
+        }
+        catch { }
+    }
 
     #endregion
 }
