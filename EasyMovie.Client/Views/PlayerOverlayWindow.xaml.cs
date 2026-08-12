@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using MaterialDesignThemes.Wpf;
 
 namespace EasyMovie.Client.Views;
@@ -38,10 +39,15 @@ public partial class PlayerOverlayWindow : Window
         // 点到控件时不触发画面播放/暂停（避免误暂停）
         var src = e.OriginalSource as DependencyObject;
         if (src != null &&
-            (IsDescendantOf(src, TitleBar) || IsDescendantOf(src, ControlBar) || IsDescendantOf(src, ResumePanel)))
+            (IsDescendantOf(src, TitleBar) || IsDescendantOf(src, ControlBar) || IsDescendantOf(src, ResumePanel)
+             || IsDescendantOf(src, SubtitlePanel) || IsDescendantOf(src, AudioPanel)))
         {
             return;
         }
+
+        // 点击画面空白处：收起已打开的字幕/音轨面板
+        SubtitlePanel.Visibility = Visibility.Collapsed;
+        AudioPanel.Visibility = Visibility.Collapsed;
 
         if (e.ClickCount == 2)
             _host.RequestFullscreen();
@@ -70,6 +76,23 @@ public partial class PlayerOverlayWindow : Window
         timer.Tick += (s, ev) => { AspectTooltip.Visibility = Visibility.Collapsed; timer.Stop(); };
         timer.Start();
     }
+
+    private void Subtitle_Click(object sender, RoutedEventArgs e)
+    {
+        AudioPanel.Visibility = Visibility.Collapsed;
+        _host.RequestSubtitlePanel();
+    }
+
+    private void Audio_Click(object sender, RoutedEventArgs e)
+    {
+        SubtitlePanel.Visibility = Visibility.Collapsed;
+        _host.RequestAudioPanel();
+    }
+
+    private void Rate_Click(object sender, RoutedEventArgs e) => _host.RequestCycleRate();
+    private void Snapshot_Click(object sender, RoutedEventArgs e) => _host.RequestSnapshot();
+    private void SubDelayMinus_Click(object sender, RoutedEventArgs e) => _host.AdjustSubtitleDelay(-500);
+    private void SubDelayPlus_Click(object sender, RoutedEventArgs e) => _host.AdjustSubtitleDelay(500);
 
     private void VolumeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
@@ -141,6 +164,8 @@ public partial class PlayerOverlayWindow : Window
     {
         TitleBar.Visibility = Visibility.Collapsed;
         ControlBar.Visibility = Visibility.Collapsed;
+        SubtitlePanel.Visibility = Visibility.Collapsed;
+        AudioPanel.Visibility = Visibility.Collapsed;
     }
 
     public void SetVolumeDisplay(int v)
@@ -157,6 +182,56 @@ public partial class PlayerOverlayWindow : Window
         SeekBar.Maximum = len > 0 ? len : 1;
         SeekBar.Value = pos;
         TimeLabel.Text = $"{FormatTime(pos)} / {FormatTime(len)}";
+    }
+
+    public void SetRateDisplay(double rate)
+        => RateLabel.Text = $"{rate:0.00}x";
+
+    public void ShowSubtitleTracks((int Id, string Name)[] tracks, int currentId, long delayUs)
+    {
+        SubtitleTrackList.Children.Clear();
+        SubtitleTrackList.Children.Add(MakeTrackRadio("关闭字幕", -1, currentId == -1,
+            id => _host.SetSubtitleTrack(id)));
+        foreach (var t in tracks)
+            SubtitleTrackList.Children.Add(MakeTrackRadio(t.Name, t.Id, t.Id == currentId,
+                id => _host.SetSubtitleTrack(id)));
+        SubDelayLabel.Text = $"{delayUs / 1000.0:0.0}s";
+        SubtitlePanel.Visibility = Visibility.Visible;
+    }
+
+    public void ShowAudioTracks((int Id, string Name)[] tracks, int currentId)
+    {
+        AudioTrackList.Children.Clear();
+        foreach (var t in tracks)
+            AudioTrackList.Children.Add(MakeTrackRadio(t.Name, t.Id, t.Id == currentId,
+                id => _host.SetAudioTrack(id)));
+        AudioPanel.Visibility = Visibility.Visible;
+    }
+
+    private RadioButton MakeTrackRadio(string name, int id, bool isChecked, Action<int> onSelect)
+    {
+        var rb = new RadioButton
+        {
+            Content = name,
+            Foreground = Brushes.White,
+            FontSize = 12,
+            Margin = new Thickness(0, 2, 0, 2),
+            IsChecked = isChecked,
+            Tag = id
+        };
+        rb.Checked += (s, e) => onSelect(id);
+        return rb;
+    }
+
+    private DispatcherTimer? _toastTimer;
+    public void ShowToast(string msg)
+    {
+        ToastText.Text = msg;
+        Toast.Visibility = Visibility.Visible;
+        _toastTimer?.Stop();
+        _toastTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
+        _toastTimer.Tick += (s, e) => { Toast.Visibility = Visibility.Collapsed; _toastTimer?.Stop(); };
+        _toastTimer.Start();
     }
 
     #endregion

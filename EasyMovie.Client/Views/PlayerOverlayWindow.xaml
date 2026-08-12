@@ -93,7 +93,10 @@
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
@@ -112,22 +115,54 @@
                         <materialDesign:PackIcon Kind="Stop" Width="18" Height="18" />
                     </Button>
 
+                    <!-- 字幕 -->
+                    <Button Grid.Column="2" Width="36" Height="36"
+                            Style="{StaticResource MaterialDesignIconForegroundButton}"
+                            Foreground="White" Click="Subtitle_Click" Cursor="Hand"
+                            ToolTip="字幕 (S截图 / C倍速 / ,.，调延迟)">
+                        <materialDesign:PackIcon Kind="Subtitles" Width="18" Height="18" />
+                    </Button>
+
+                    <!-- 音轨 -->
+                    <Button Grid.Column="3" Width="36" Height="36"
+                            Style="{StaticResource MaterialDesignIconForegroundButton}"
+                            Foreground="White" Click="Audio_Click" Cursor="Hand"
+                            ToolTip="音轨">
+                        <materialDesign:PackIcon Kind="PlaylistMusic" Width="18" Height="18" />
+                    </Button>
+
+                    <!-- 倍速 -->
+                    <Button Grid.Column="4" x:Name="RateBtn" Width="48" Height="36"
+                            Style="{StaticResource MaterialDesignIconForegroundButton}"
+                            Foreground="White" Click="Rate_Click" Cursor="Hand"
+                            ToolTip="倍速 (C)">
+                        <TextBlock x:Name="RateLabel" Text="1.0x" FontSize="12" Foreground="White"
+                                   VerticalAlignment="Center" />
+                    </Button>
+
                     <!-- 时间显示 -->
-                    <TextBlock Grid.Column="2" x:Name="TimeLabel" Text="00:00 / 00:00"
+                    <TextBlock Grid.Column="5" x:Name="TimeLabel" Text="00:00 / 00:00"
                                Foreground="White" FontSize="12" VerticalAlignment="Center"
-                               Margin="8,0,0,0" />
+                               HorizontalAlignment="Center" Margin="8,0" />
+
+                    <!-- 截图 -->
+                    <Button Grid.Column="6" Width="36" Height="36"
+                            Style="{StaticResource MaterialDesignIconForegroundButton}"
+                            Foreground="White" Click="Snapshot_Click" Cursor="Hand"
+                            ToolTip="截图 (S)">
+                        <materialDesign:PackIcon Kind="Camera" Width="18" Height="18" />
+                    </Button>
 
                     <!-- 画面比例切换：原始比例 / 铺满 / 16:9 / 4:3 循环 -->
-                    <Button Grid.Column="3" Width="36" Height="36"
-                            HorizontalAlignment="Right"
+                    <Button Grid.Column="7" Width="36" Height="36"
                             Style="{StaticResource MaterialDesignIconForegroundButton}"
                             Foreground="White" Click="Aspect_Click" Cursor="Hand"
                             ToolTip="画面比例">
                         <materialDesign:PackIcon Kind="AspectRatio" Width="18" Height="18" />
                     </Button>
 
-                    <!-- 音量：图标与滑块并排居中，避免 MaterialDesign 滑块内边距导致滑块偏上、与图标错位 -->
-                    <StackPanel Grid.Column="4" Grid.ColumnSpan="2" Orientation="Horizontal"
+                    <!-- 音量：图标与滑块并排 -->
+                    <StackPanel Grid.Column="8" Orientation="Horizontal"
                                 VerticalAlignment="Center" Margin="8,0,0,0">
                         <materialDesign:PackIcon x:Name="VolumeIcon" Kind="VolumeHigh"
                                                   Width="16" Height="16" Foreground="White"
@@ -139,6 +174,44 @@
                     </StackPanel>
                 </Grid>
             </Grid>
+        </Border>
+
+        <!-- 字幕面板（轨列表 + 延迟微调） -->
+        <Border x:Name="SubtitlePanel" Visibility="Collapsed"
+                VerticalAlignment="Bottom" HorizontalAlignment="Left" Margin="16,0,0,64"
+                Background="#CC000000" CornerRadius="8" Padding="12,10" Cursor="Arrow">
+            <StackPanel>
+                <TextBlock Text="字幕" Foreground="White" FontSize="13" Margin="0,0,0,6" />
+                <StackPanel x:Name="SubtitleTrackList" Orientation="Vertical" />
+                <StackPanel Orientation="Horizontal" Margin="0,8,0,0" VerticalAlignment="Center">
+                    <Button Content="-0.5s" Width="56" Height="26" FontSize="11" Margin="0,0,6,0"
+                            Style="{StaticResource MaterialDesignFlatButton}" Foreground="White"
+                            Click="SubDelayMinus_Click" Cursor="Hand" />
+                    <Button Content="+0.5s" Width="56" Height="26" FontSize="11" Margin="0,0,6,0"
+                            Style="{StaticResource MaterialDesignFlatButton}" Foreground="White"
+                            Click="SubDelayPlus_Click" Cursor="Hand" />
+                    <TextBlock x:Name="SubDelayLabel" Text="0.0s" Foreground="White" FontSize="11"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- 音轨面板 -->
+        <Border x:Name="AudioPanel" Visibility="Collapsed"
+                VerticalAlignment="Bottom" HorizontalAlignment="Left" Margin="16,0,0,64"
+                Background="#CC000000" CornerRadius="8" Padding="12,10" Cursor="Arrow">
+            <StackPanel>
+                <TextBlock Text="音轨" Foreground="White" FontSize="13" Margin="0,0,0,6" />
+                <StackPanel x:Name="AudioTrackList" Orientation="Vertical" />
+            </StackPanel>
+        </Border>
+
+        <!-- 通用提示（截图路径 / 字幕延迟等） -->
+        <Border x:Name="Toast" Visibility="Collapsed"
+                VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,120"
+                Background="#CC000000" CornerRadius="6" Padding="12,6" Cursor="Arrow">
+            <TextBlock x:Name="ToastText" Text="" FontSize="12" Foreground="White"
+                       TextWrapping="Wrap" MaxWidth="520" />
         </Border>
     </Grid>
 </Window>
