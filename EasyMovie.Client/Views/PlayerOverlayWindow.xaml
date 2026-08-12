@@ -258,6 +258,20 @@
                         HorizontalAlignment="Stretch" Margin="2" Click="MiniMenu_Click" Cursor="Hand" />
                 <Button Content="快捷键" Style="{StaticResource MaterialDesignFlatButton}" Foreground="White"
                         HorizontalAlignment="Stretch" Margin="2" Click="ShortcutsMenu_Click" Cursor="Hand" />
+                <Separator Margin="2,4" Background="#55FFFFFF" />
+                <TextBlock Text="解码模式（重新播放后生效）" Foreground="#BBFFFFFF" FontSize="10"
+                           Margin="4,2,4,0" TextWrapping="Wrap" />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                    <Button x:Name="DecodeSoftBtn" Content="软件" Width="56" Margin="2" FontSize="11"
+                            Style="{StaticResource MaterialDesignFlatButton}" Foreground="White"
+                            Click="DecodeSoft_Click" Cursor="Hand" />
+                    <Button x:Name="DecodeHardBtn" Content="硬件" Width="56" Margin="2" FontSize="11"
+                            Style="{StaticResource MaterialDesignFlatButton}" Foreground="White"
+                            Click="DecodeHard_Click" Cursor="Hand" />
+                    <Button x:Name="DecodeAutoBtn" Content="自动" Width="56" Margin="2" FontSize="11"
+                            Style="{StaticResource MaterialDesignFlatButton}" Foreground="White"
+                            Click="DecodeAuto_Click" Cursor="Hand" />
+                </StackPanel>
             </StackPanel>
         </Border>
 
