@@ -102,6 +102,7 @@
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
                     <!-- 播放/暂停 -->
@@ -175,6 +176,14 @@
                                 VerticalAlignment="Center"
                                 ValueChanged="VolumeSlider_ValueChanged" />
                     </StackPanel>
+
+                    <!-- 更多（进阶功能：画面增强/编码信息/逐帧/AB/迷你） -->
+                    <Button Grid.Column="9" Width="36" Height="36"
+                            Style="{StaticResource MaterialDesignIconForegroundButton}"
+                            Foreground="White" Click="More_Click" Cursor="Hand"
+                            ToolTip="更多功能">
+                        <materialDesign:PackIcon Kind="DotsHorizontal" Width="18" Height="18" />
+                    </Button>
                 </Grid>
             </Grid>
         </Border>
@@ -226,6 +235,111 @@
                 Background="#CC000000" CornerRadius="6" Padding="12,6" Cursor="Arrow">
             <TextBlock x:Name="ToastText" Text="" FontSize="12" Foreground="White"
                        TextWrapping="Wrap" MaxWidth="520" />
+        </Border>
+
+        <!-- 更多功能面板 -->
+        <Border x:Name="MorePanel" Visibility="Collapsed"
+                VerticalAlignment="Bottom" HorizontalAlignment="Right" Margin="0,0,16,64"
+                Background="#CC000000" CornerRadius="8" Padding="8" Cursor="Arrow">
+            <StackPanel>
+                <Button Content="画面增强" Style="{StaticResource MaterialDesignFlatButton}" Foreground="White"
+                        HorizontalAlignment="Stretch" Margin="2" Click="PictureMenu_Click" Cursor="Hand" />
+                <Button Content="编码信息" Style="{StaticResource MaterialDesignFlatButton}" Foreground="White"
+                        HorizontalAlignment="Stretch" Margin="2" Click="InfoMenu_Click" Cursor="Hand" />
+                <Button Content="逐帧播放" Style="{StaticResource MaterialDesignFlatButton}" Foreground="White"
+                        HorizontalAlignment="Stretch" Margin="2" Click="StepMenu_Click" Cursor="Hand" />
+                <Button Content="设 A 点" Style="{StaticResource MaterialDesignFlatButton}" Foreground="White"
+                        HorizontalAlignment="Stretch" Margin="2" Click="AbAMenu_Click" Cursor="Hand" />
+                <Button Content="设 B 点" Style="{StaticResource MaterialDesignFlatButton}" Foreground="White"
+                        HorizontalAlignment="Stretch" Margin="2" Click="AbBMenu_Click" Cursor="Hand" />
+                <Button Content="清除 AB" Style="{StaticResource MaterialDesignFlatButton}" Foreground="White"
+                        HorizontalAlignment="Stretch" Margin="2" Click="AbClearMenu_Click" Cursor="Hand" />
+                <Button Content="迷你模式" Style="{StaticResource MaterialDesignFlatButton}" Foreground="White"
+                        HorizontalAlignment="Stretch" Margin="2" Click="MiniMenu_Click" Cursor="Hand" />
+                <Button Content="快捷键" Style="{StaticResource MaterialDesignFlatButton}" Foreground="White"
+                        HorizontalAlignment="Stretch" Margin="2" Click="ShortcutsMenu_Click" Cursor="Hand" />
+            </StackPanel>
+        </Border>
+
+        <!-- 快捷键面板 -->
+        <Border x:Name="ShortcutsPanel" Visibility="Collapsed"
+                VerticalAlignment="Center" HorizontalAlignment="Center"
+                Background="#CC000000" CornerRadius="8" Padding="16,12" Cursor="Arrow">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" MaxHeight="360" />
+                </Grid.RowDefinitions>
+                <TextBlock Grid.Row="0" Text="自定义快捷键（点击右侧按键后按下新键）" Foreground="White"
+                           FontSize="12" Margin="0,0,0,8" TextWrapping="Wrap" MaxWidth="300" />
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                    <StackPanel x:Name="ShortcutList" Orientation="Vertical" />
+                </ScrollViewer>
+            </Grid>
+        </Border>
+
+        <!-- 画面增强面板 -->
+        <Border x:Name="PicturePanel" Visibility="Collapsed"
+                VerticalAlignment="Bottom" HorizontalAlignment="Left" Margin="16,0,0,64"
+                Background="#CC000000" CornerRadius="8" Padding="14,10" Cursor="Arrow">
+            <StackPanel Width="240">
+                <TextBlock Text="画面增强" Foreground="White" FontSize="13" Margin="0,0,0,8" />
+                <Grid Margin="0,2">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="48" /><ColumnDefinition Width="*" /><ColumnDefinition Width="40" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="亮度" Foreground="White" FontSize="11" VerticalAlignment="Center" />
+                    <Slider x:Name="BrightnessSlider" Grid.Column="1" Minimum="0" Maximum="2" Value="1" SmallChange="0.05" LargeChange="0.1"
+                            Style="{StaticResource MaterialDesignSlider}" ValueChanged="BrightnessSlider_ValueChanged" />
+                    <TextBlock x:Name="BrightnessVal" Grid.Column="2" Text="1.00" Foreground="White" FontSize="10" VerticalAlignment="Center" HorizontalAlignment="Right" />
+                </Grid>
+                <Grid Margin="0,2">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="48" /><ColumnDefinition Width="*" /><ColumnDefinition Width="40" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="对比" Foreground="White" FontSize="11" VerticalAlignment="Center" />
+                    <Slider x:Name="ContrastSlider" Grid.Column="1" Minimum="0" Maximum="2" Value="1" SmallChange="0.05" LargeChange="0.1"
+                            Style="{StaticResource MaterialDesignSlider}" ValueChanged="ContrastSlider_ValueChanged" />
+                    <TextBlock x:Name="ContrastVal" Grid.Column="2" Text="1.00" Foreground="White" FontSize="10" VerticalAlignment="Center" HorizontalAlignment="Right" />
+                </Grid>
+                <Grid Margin="0,2">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="48" /><ColumnDefinition Width="*" /><ColumnDefinition Width="40" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="饱和" Foreground="White" FontSize="11" VerticalAlignment="Center" />
+                    <Slider x:Name="SaturationSlider" Grid.Column="1" Minimum="0" Maximum="3" Value="1" SmallChange="0.05" LargeChange="0.1"
+                            Style="{StaticResource MaterialDesignSlider}" ValueChanged="SaturationSlider_ValueChanged" />
+                    <TextBlock x:Name="SaturationVal" Grid.Column="2" Text="1.00" Foreground="White" FontSize="10" VerticalAlignment="Center" HorizontalAlignment="Right" />
+                </Grid>
+                <Grid Margin="0,2">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="48" /><ColumnDefinition Width="*" /><ColumnDefinition Width="40" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="色相" Foreground="White" FontSize="11" VerticalAlignment="Center" />
+                    <Slider x:Name="HueSlider" Grid.Column="1" Minimum="0" Maximum="360" Value="0" SmallChange="1" LargeChange="10"
+                            Style="{StaticResource MaterialDesignSlider}" ValueChanged="HueSlider_ValueChanged" />
+                    <TextBlock x:Name="HueVal" Grid.Column="2" Text="0" Foreground="White" FontSize="10" VerticalAlignment="Center" HorizontalAlignment="Right" />
+                </Grid>
+                <Grid Margin="0,2">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="48" /><ColumnDefinition Width="*" /><ColumnDefinition Width="40" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="伽马" Foreground="White" FontSize="11" VerticalAlignment="Center" />
+                    <Slider x:Name="GammaSlider" Grid.Column="1" Minimum="0" Maximum="2" Value="1" SmallChange="0.05" LargeChange="0.1"
+                            Style="{StaticResource MaterialDesignSlider}" ValueChanged="GammaSlider_ValueChanged" />
+                    <TextBlock x:Name="GammaVal" Grid.Column="2" Text="1.00" Foreground="White" FontSize="10" VerticalAlignment="Center" HorizontalAlignment="Right" />
+                </Grid>
+                <Button Content="重置" Width="64" Height="26" FontSize="11" Margin="0,8,0,0" HorizontalAlignment="Left"
+                        Style="{StaticResource MaterialDesignFlatButton}" Foreground="White"
+                        Click="PictureReset_Click" Cursor="Hand" />
+            </StackPanel>
+        </Border>
+
+        <!-- 编码信息面板 -->
+        <Border x:Name="InfoPanel" Visibility="Collapsed"
+                VerticalAlignment="Center" HorizontalAlignment="Center"
+                Background="#CC000000" CornerRadius="8" Padding="16,12" Cursor="Arrow">
+            <StackPanel x:Name="InfoList" Orientation="Vertical" MinWidth="240" />
         </Border>
     </Grid>
 </Window>

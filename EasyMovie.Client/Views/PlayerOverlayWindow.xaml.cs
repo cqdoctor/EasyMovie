@@ -35,7 +35,7 @@ public partial class PlayerOverlayWindow : Window
         _host = host;
         VolumeSlider.Value = 80;
         // 键盘事件转发给宿主处理（覆盖窗口获得焦点时也能响应快捷键）
-        this.KeyDown += (s, e) => _host.HandleKey(e.Key);
+        this.KeyDown += Overlay_KeyDown;
     }
 
     #region 画面点击：暂停/继续、双击全屏
@@ -49,14 +49,18 @@ public partial class PlayerOverlayWindow : Window
         var src = e.OriginalSource as DependencyObject;
         if (src != null &&
             (IsDescendantOf(src, TitleBar) || IsDescendantOf(src, ControlBar) || IsDescendantOf(src, ResumePanel)
-             || IsDescendantOf(src, SubtitlePanel) || IsDescendantOf(src, AudioPanel)))
+             || IsDescendantOf(src, SubtitlePanel) || IsDescendantOf(src, AudioPanel)
+             || IsDescendantOf(src, MorePanel) || IsDescendantOf(src, PicturePanel) || IsDescendantOf(src, InfoPanel)))
         {
             return;
         }
 
-        // 点击画面空白处：收起已打开的字幕/音轨面板
+        // 点击画面空白处：收起已打开的字幕/音轨/更多/画面/信息面板
         SubtitlePanel.Visibility = Visibility.Collapsed;
         AudioPanel.Visibility = Visibility.Collapsed;
+        MorePanel.Visibility = Visibility.Collapsed;
+        PicturePanel.Visibility = Visibility.Collapsed;
+        InfoPanel.Visibility = Visibility.Collapsed;
 
         // 边缘拖动 seek：落点在左右边缘带内则进入 seek 手势（不触发暂停），否则按普通点击处理
         var pos = e.GetPosition(Root);
@@ -244,6 +248,9 @@ public partial class PlayerOverlayWindow : Window
         ControlBar.Visibility = Visibility.Collapsed;
         SubtitlePanel.Visibility = Visibility.Collapsed;
         AudioPanel.Visibility = Visibility.Collapsed;
+        MorePanel.Visibility = Visibility.Collapsed;
+        PicturePanel.Visibility = Visibility.Collapsed;
+        InfoPanel.Visibility = Visibility.Collapsed;
     }
 
     public void SetVolumeDisplay(int v)
@@ -313,6 +320,169 @@ public partial class PlayerOverlayWindow : Window
         _toastTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
         _toastTimer.Tick += (s, e) => { Toast.Visibility = Visibility.Collapsed; _toastTimer?.Stop(); };
         _toastTimer.Start();
+    }
+
+    #endregion
+
+    #region P2 进阶：更多/画面增强/编码信息
+
+    private void More_Click(object sender, RoutedEventArgs e)
+    {
+        bool open = MorePanel.Visibility != Visibility.Visible;
+        SubtitlePanel.Visibility = Visibility.Collapsed;
+        AudioPanel.Visibility = Visibility.Collapsed;
+        PicturePanel.Visibility = Visibility.Collapsed;
+        InfoPanel.Visibility = Visibility.Collapsed;
+        MorePanel.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void PictureMenu_Click(object s, RoutedEventArgs e) { MorePanel.Visibility = Visibility.Collapsed; _host.RequestPicturePanel(); }
+    private void InfoMenu_Click(object s, RoutedEventArgs e) { MorePanel.Visibility = Visibility.Collapsed; _host.RequestInfoPanel(); }
+    private void StepMenu_Click(object s, RoutedEventArgs e) { MorePanel.Visibility = Visibility.Collapsed; _host.RequestStepFrame(); }
+    private void AbAMenu_Click(object s, RoutedEventArgs e) { MorePanel.Visibility = Visibility.Collapsed; _host.RequestSetAbA(); }
+    private void AbBMenu_Click(object s, RoutedEventArgs e) { MorePanel.Visibility = Visibility.Collapsed; _host.RequestSetAbB(); }
+    private void AbClearMenu_Click(object s, RoutedEventArgs e) { MorePanel.Visibility = Visibility.Collapsed; _host.RequestClearAb(); }
+    private void MiniMenu_Click(object s, RoutedEventArgs e) { MorePanel.Visibility = Visibility.Collapsed; _host.RequestToggleMini(); }
+    private void ShortcutsMenu_Click(object s, RoutedEventArgs e) { MorePanel.Visibility = Visibility.Collapsed; _host.RequestShortcutsPanel(); }
+
+    // 重绑快捷键时的“监听下一按键”状态
+    private PlayerShortcuts.PlayerAction? _listeningAction;
+
+    private void Overlay_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (_listeningAction != null)
+        {
+            // 不接受 Esc（用于退出）与作为结构性键的 F
+            if (e.Key != Key.Escape && e.Key != Key.F)
+            {
+                _host.SetShortcut(_listeningAction.Value, e.Key);
+                _listeningAction = null;
+                ShowShortcuts(_host.GetShortcuts());
+            }
+            e.Handled = true;
+            return;
+        }
+        _host.HandleKey(e.Key);
+    }
+
+    private void BrightnessSlider_ValueChanged(object s, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_host == null) return;
+        _host.SetBrightness(BrightnessSlider.Value);
+        BrightnessVal.Text = BrightnessSlider.Value.ToString("0.00");
+    }
+    private void ContrastSlider_ValueChanged(object s, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_host == null) return;
+        _host.SetContrast(ContrastSlider.Value);
+        ContrastVal.Text = ContrastSlider.Value.ToString("0.00");
+    }
+    private void SaturationSlider_ValueChanged(object s, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_host == null) return;
+        _host.SetSaturation(SaturationSlider.Value);
+        SaturationVal.Text = SaturationSlider.Value.ToString("0.00");
+    }
+    private void GammaSlider_ValueChanged(object s, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_host == null) return;
+        _host.SetGamma(GammaSlider.Value);
+        GammaVal.Text = GammaSlider.Value.ToString("0.00");
+    }
+    private void HueSlider_ValueChanged(object s, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_host == null) return;
+        _host.SetHue((int)HueSlider.Value);
+        HueVal.Text = ((int)HueSlider.Value).ToString();
+    }
+    private void PictureReset_Click(object s, RoutedEventArgs e)
+    {
+        _host.ResetPictureAdjust();
+        BrightnessSlider.Value = 1; ContrastSlider.Value = 1; SaturationSlider.Value = 1;
+        GammaSlider.Value = 1; HueSlider.Value = 0;
+    }
+
+    public void ShowPictureAdjust((float Brightness, float Contrast, float Saturation, float Gamma, int Hue, bool Enabled) adj)
+    {
+        BrightnessSlider.Value = adj.Brightness;
+        ContrastSlider.Value = adj.Contrast;
+        SaturationSlider.Value = adj.Saturation;
+        GammaSlider.Value = adj.Gamma;
+        HueSlider.Value = adj.Hue;
+        PicturePanel.Visibility = Visibility.Visible;
+    }
+
+    public void ShowMediaInfo(System.Collections.Generic.List<(string Label, string Value)> info)
+    {
+        InfoList.Children.Clear();
+        foreach (var (label, value) in info)
+        {
+            var row = new Grid { Margin = new Thickness(0, 3, 0, 3) };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(76) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            var l = new TextBlock
+            {
+                Text = label,
+                Foreground = new SolidColorBrush(Color.FromRgb(0xAA, 0xAA, 0xAA)),
+                FontSize = 12,
+                VerticalAlignment = VerticalAlignment.Top
+            };
+            var v = new TextBlock
+            {
+                Text = value,
+                Foreground = Brushes.White,
+                FontSize = 12,
+                TextWrapping = TextWrapping.Wrap
+            };
+            Grid.SetColumn(l, 0);
+            Grid.SetColumn(v, 1);
+            row.Children.Add(l);
+            row.Children.Add(v);
+            InfoList.Children.Add(row);
+        }
+        InfoPanel.Visibility = Visibility.Visible;
+    }
+
+    public void SetMiniIcon(bool isMini) { /* 迷你模式状态指示（预留） */ }
+
+    public void ShowShortcuts(System.Collections.Generic.Dictionary<PlayerShortcuts.PlayerAction, Key> shortcuts)
+    {
+        ShortcutList.Children.Clear();
+        foreach (var kv in shortcuts)
+        {
+            var action = kv.Key;
+            var row = new Grid { Margin = new Thickness(0, 3, 0, 3) };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(120) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            var label = new TextBlock
+            {
+                Text = PlayerShortcuts.ActionLabel(action),
+                Foreground = Brushes.White,
+                FontSize = 12,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            var btn = new Button
+            {
+                Content = PlayerShortcuts.KeyLabel(kv.Value),
+                Style = (Style)FindResource("MaterialDesignFlatButton"),
+                Foreground = Brushes.White,
+                FontSize = 12,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                Margin = new Thickness(8, 0, 0, 0),
+                Tag = action
+            };
+            btn.Click += (s, e) =>
+            {
+                _listeningAction = action;
+                btn.Content = "按下新键…";
+            };
+            Grid.SetColumn(label, 0);
+            Grid.SetColumn(btn, 1);
+            row.Children.Add(label);
+            row.Children.Add(btn);
+            ShortcutList.Children.Add(row);
+        }
+        ShortcutsPanel.Visibility = Visibility.Visible;
     }
 
     #endregion

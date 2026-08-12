@@ -9,6 +9,8 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using System.IO;
 using System.Linq;
+using System.Collections.Generic;
+using System.Text.Json;
 using EasyMovie.Core.Models;
 using EasyMovie.Data;
 using LibVLCSharp.Shared;
@@ -95,6 +97,9 @@ public partial class VideoPlayerHost : UserControl
     private RECT _previousRect;
     private System.Windows.Media.Brush? _previousBackground;
 
+    // 可重绑的快捷键映射（Key -> Action），由 PlayerShortcuts 持久化
+    private Dictionary<Key, PlayerShortcuts.PlayerAction> _keyMap = new();
+
     public event EventHandler? Closed;
 
     public VideoPlayerHost()
@@ -113,6 +118,10 @@ public partial class VideoPlayerHost : UserControl
             // 默认输出让 VLC 自选最合适的模块，黑边处理往往更正常。
             _libVLC = new LibVLC("--avcodec-hw=none", "--no-video-title-show");
         }
+
+        // 载入用户快捷键（仅首次构造时）
+        PlayerShortcuts.Load();
+        _keyMap = PlayerShortcuts.BuildKeyMap();
     }
 
     #region 覆盖窗口（独立透明顶级窗口，承载控件 + 画面点击）
@@ -482,51 +491,74 @@ public partial class VideoPlayerHost : UserControl
         public void RequestSubtitlePanel() => ShowSubtitlePanel();
         public void RequestAudioPanel() => ShowAudioPanel();
 
+        // ===== P2 进阶：对外接口（供覆盖窗口调用） =====
+        public void RequestStepFrame() => StepFrame();
+        public void RequestSetAbA() => SetAbPointA();
+        public void RequestSetAbB() => SetAbPointB();
+        public void RequestClearAb() => ClearAb();
+        public void RequestToggleMini() => ToggleMiniMode();
+        public void RequestPicturePanel() => ShowPicturePanel();
+        public void RequestInfoPanel() => ShowInfoPanel();
+        public void RequestShortcutsPanel() => _overlay?.ShowShortcuts(GetShortcuts());
+
         /// <summary>供覆盖窗口转发键盘事件（覆盖窗口获得焦点时也能响应快捷键）。</summary>
     public void HandleKey(Key key)
     {
-        switch (key)
+        // 结构性快捷键固定不变
+        if (key == Key.Escape)
         {
-            case Key.Space:
-                RequestTogglePlay();
-                break;
-            case Key.Escape:
-                if (_isFullscreen) ToggleFullscreen();
-                else SavePositionAndClose();
-                break;
-            case Key.Left:
-                if (_mediaPlayer != null)
-                    _mediaPlayer.Time = Math.Max(0, _mediaPlayer.Time - 5000);
-                break;
-            case Key.Right:
-                if (_mediaPlayer != null)
-                    _mediaPlayer.Time = Math.Min(_mediaPlayer.Length, _mediaPlayer.Time + 5000);
-                break;
-            case Key.Up:
-                if (_overlay != null) SetVolume((int)Math.Min(100, _overlayVolume() + 5));
-                break;
-            case Key.Down:
-                if (_overlay != null) SetVolume((int)Math.Max(0, _overlayVolume() - 5));
-                break;
-            case Key.F:
-                ToggleFullscreen();
-                break;
-            case Key.M:
-                SetVolume(_overlayVolume() > 0 ? 0 : 80);
-                break;
-            case Key.S:
-                TakeSnapshot();
-                break;
-            case Key.C:
-                CycleRate();
-                break;
-            case Key.OemComma:
-                AdjustSubtitleDelay(-500);
-                break;
-            case Key.OemPeriod:
-                AdjustSubtitleDelay(500);
-                break;
+            if (_isFullscreen) ToggleFullscreen();
+            else if (_isMini) ToggleMiniMode();
+            else SavePositionAndClose();
+            return;
         }
+        if (key == Key.F) { ToggleFullscreen(); return; }
+
+        // 固定快退/快进（方向键不纳入可重绑范围）
+        if (key == Key.Left && _mediaPlayer != null)
+        {
+            _mediaPlayer.Time = Math.Max(0, _mediaPlayer.Time - 5000);
+            return;
+        }
+        if (key == Key.Right && _mediaPlayer != null)
+        {
+            _mediaPlayer.Time = Math.Min(_mediaPlayer.Length, _mediaPlayer.Time + 5000);
+            return;
+        }
+
+        if (_keyMap.TryGetValue(key, out var action))
+            ExecuteAction(action);
+    }
+
+    private void ExecuteAction(PlayerShortcuts.PlayerAction action)
+    {
+        switch (action)
+        {
+            case PlayerShortcuts.PlayerAction.TogglePlay: RequestTogglePlay(); break;
+            case PlayerShortcuts.PlayerAction.Snapshot: TakeSnapshot(); break;
+            case PlayerShortcuts.PlayerAction.CycleRate: CycleRate(); break;
+            case PlayerShortcuts.PlayerAction.SubtitleDelayMinus: AdjustSubtitleDelay(-500); break;
+            case PlayerShortcuts.PlayerAction.SubtitleDelayPlus: AdjustSubtitleDelay(500); break;
+            case PlayerShortcuts.PlayerAction.VolumeUp: SetVolume((int)Math.Min(200, _overlayVolume() + 5)); break;
+            case PlayerShortcuts.PlayerAction.VolumeDown: SetVolume((int)Math.Max(0, _overlayVolume() - 5)); break;
+            case PlayerShortcuts.PlayerAction.Mute: SetVolume(_overlayVolume() > 0 ? 0 : 80); break;
+            case PlayerShortcuts.PlayerAction.StepFrame: StepFrame(); break;
+            case PlayerShortcuts.PlayerAction.Info: ShowInfoPanel(); break;
+            case PlayerShortcuts.PlayerAction.Picture: ShowPicturePanel(); break;
+            case PlayerShortcuts.PlayerAction.AbA: SetAbPointA(); break;
+            case PlayerShortcuts.PlayerAction.AbB: SetAbPointB(); break;
+            case PlayerShortcuts.PlayerAction.AbClear: ClearAb(); break;
+            case PlayerShortcuts.PlayerAction.AspectCycle: CycleAspectMode(); break;
+        }
+    }
+
+    public Dictionary<PlayerShortcuts.PlayerAction, Key> GetShortcuts() => new(PlayerShortcuts.Current);
+
+    public void SetShortcut(PlayerShortcuts.PlayerAction action, Key key)
+    {
+        PlayerShortcuts.Current[action] = key;
+        PlayerShortcuts.Save();
+        _keyMap = PlayerShortcuts.BuildKeyMap();
     }
 
     private int _overlayVolume() => (int)(_mediaPlayer?.Volume ?? 80);
@@ -603,6 +635,8 @@ public partial class VideoPlayerHost : UserControl
     {
         var window = Window.GetWindow(this) as MainWindow;
         if (window == null) { LogDebug("ToggleFullscreen: window is null"); return; }
+        // 迷你模式下先恢复普通窗口，再进入全屏，避免两套几何状态冲突
+        if (_isMini) ToggleMiniMode();
 
         var hwnd = new System.Windows.Interop.WindowInteropHelper(window).Handle;
         LogDebug($"ToggleFullscreen enter, _isFullscreen={_isFullscreen}, hwnd=0x{hwnd:X}, window L={window.Left},T={window.Top},W={window.Width},H={window.Height},State={window.WindowState}");
@@ -896,6 +930,204 @@ public partial class VideoPlayerHost : UserControl
         }
         catch { }
     }
+
+    #endregion
+
+    #region P2 进阶：画面增强/编码信息/逐帧/AB重复/迷你模式
+
+    // 画面增强（VLC adjust 滤镜）：亮度/对比/饱和/色相/伽马，默认值即关闭状态
+    private float _brightness = 1f, _contrast = 1f, _saturation = 1f, _gamma = 1f;
+    private int _hue;
+    private bool _adjustEnabled;
+
+    // AB 重复
+    private long _abA = -1, _abB = -1;
+    private bool _abHooked;
+    private readonly DispatcherTimer _abTimer = new() { Interval = TimeSpan.FromMilliseconds(150) };
+
+    // 迷你模式
+    private bool _isMini;
+    private System.Windows.Media.Brush? _miniPrevBackground;
+
+    private void EnableAdjust()
+    {
+        if (_mediaPlayer == null || _adjustEnabled) return;
+        _mediaPlayer.SetAdjustInt(VideoAdjustOption.Enable, 1);
+        _adjustEnabled = true;
+    }
+
+    public void SetBrightness(double v) { EnableAdjust(); _brightness = (float)v; _mediaPlayer?.SetAdjustFloat(VideoAdjustOption.Brightness, _brightness); }
+    public void SetContrast(double v) { EnableAdjust(); _contrast = (float)v; _mediaPlayer?.SetAdjustFloat(VideoAdjustOption.Contrast, _contrast); }
+    public void SetSaturation(double v) { EnableAdjust(); _saturation = (float)v; _mediaPlayer?.SetAdjustFloat(VideoAdjustOption.Saturation, _saturation); }
+    public void SetGamma(double v) { EnableAdjust(); _gamma = (float)v; _mediaPlayer?.SetAdjustFloat(VideoAdjustOption.Gamma, _gamma); }
+    public void SetHue(int v) { EnableAdjust(); _hue = v; _mediaPlayer?.SetAdjustInt(VideoAdjustOption.Hue, _hue); }
+
+    public (float Brightness, float Contrast, float Saturation, float Gamma, int Hue, bool Enabled) GetPictureAdjust()
+        => (_brightness, _contrast, _saturation, _gamma, _hue, _adjustEnabled);
+
+    public void ResetPictureAdjust()
+    {
+        _brightness = _contrast = _saturation = _gamma = 1f; _hue = 0;
+        if (_mediaPlayer != null)
+        {
+            _mediaPlayer.SetAdjustFloat(VideoAdjustOption.Brightness, 1f);
+            _mediaPlayer.SetAdjustFloat(VideoAdjustOption.Contrast, 1f);
+            _mediaPlayer.SetAdjustFloat(VideoAdjustOption.Saturation, 1f);
+            _mediaPlayer.SetAdjustFloat(VideoAdjustOption.Gamma, 1f);
+            _mediaPlayer.SetAdjustInt(VideoAdjustOption.Hue, 0);
+            _mediaPlayer.SetAdjustInt(VideoAdjustOption.Enable, 0);
+        }
+        _adjustEnabled = false;
+    }
+
+    public void StepFrame()
+    {
+        if (_mediaPlayer == null) return;
+        if (_mediaPlayer.IsPlaying)
+        {
+            _mediaPlayer.Pause();
+            _isPlaying = false;
+            _overlay?.SetPlaying(false);
+        }
+        try { _mediaPlayer.NextFrame(); } catch { }
+    }
+
+    public void SetAbPointA()
+    {
+        if (_mediaPlayer == null) return;
+        _abA = _mediaPlayer.Time;
+        _overlay?.ShowToast($"A 点：{FormatTimeSafe(_abA)}");
+        TryStartAbLoop();
+    }
+
+    public void SetAbPointB()
+    {
+        if (_mediaPlayer == null) return;
+        _abB = _mediaPlayer.Time;
+        _overlay?.ShowToast($"B 点：{FormatTimeSafe(_abB)}");
+        TryStartAbLoop();
+    }
+
+    public void ClearAb()
+    {
+        _abA = _abB = -1;
+        _abTimer.Stop();
+        _overlay?.ShowToast("已清除 AB 重复");
+    }
+
+    private void TryStartAbLoop()
+    {
+        if (_abA < 0 || _abB < 0 || _abA >= _abB) return;
+        if (!_abHooked) { _abTimer.Tick += (s, e) => AbTick(); _abHooked = true; }
+        _abTimer.Start();
+    }
+
+    private void AbTick()
+    {
+        if (_mediaPlayer == null || _abA < 0 || _abB < 0) return;
+        if (_mediaPlayer.Time >= _abB) _mediaPlayer.Time = _abA;
+    }
+
+    public void ToggleMiniMode()
+    {
+        var window = Window.GetWindow(this) as MainWindow;
+        if (window == null || _isFullscreen) return;
+
+        if (!_isMini)
+        {
+            _previousWindowState = window.WindowState;
+            _previousLeft = window.Left; _previousTop = window.Top;
+            _previousWidth = window.Width; _previousHeight = window.Height;
+            _miniPrevBackground = window.Background;
+
+            window.TitleBarBorder.Visibility = Visibility.Collapsed;
+            window.NavBorder.Visibility = Visibility.Collapsed;
+            window.StatusBar.Visibility = Visibility.Collapsed;
+            window.RootGrid.RowDefinitions[0].Height = new GridLength(0);
+            window.RootGrid.RowDefinitions[2].Height = new GridLength(0);
+
+            var cb = window.ContentBorder;
+            cb.SetValue(Grid.ColumnProperty, 0); cb.SetValue(Grid.ColumnSpanProperty, 2);
+            cb.SetValue(Grid.RowProperty, 0); cb.SetValue(Grid.RowSpanProperty, 3);
+            cb.CornerRadius = new CornerRadius(0); cb.Padding = new Thickness(0);
+
+            Margin = new Thickness(0);
+            window.WindowStyle = WindowStyle.None;
+            window.ResizeMode = ResizeMode.NoResize;
+            window.WindowState = WindowState.Normal;
+            window.Width = 360; window.Height = 240;
+            window.Background = System.Windows.Media.Brushes.Black;
+            _overlay?.SetMiniIcon(true);
+        }
+        else
+        {
+            window.TitleBarBorder.Visibility = Visibility.Visible;
+            window.NavBorder.Visibility = Visibility.Visible;
+            window.StatusBar.Visibility = Visibility.Visible;
+            window.RootGrid.RowDefinitions[0].Height = new GridLength(32);
+            window.RootGrid.RowDefinitions[2].Height = GridLength.Auto;
+
+            var cb = window.ContentBorder;
+            cb.SetValue(Grid.ColumnProperty, 1); cb.SetValue(Grid.ColumnSpanProperty, 1);
+            cb.SetValue(Grid.RowProperty, 1); cb.SetValue(Grid.RowSpanProperty, 2);
+            cb.CornerRadius = new CornerRadius(12, 0, 0, 0); cb.Padding = new Thickness(24);
+
+            Margin = _normalMargin;
+            window.WindowStyle = WindowStyle.SingleBorderWindow;
+            window.ResizeMode = ResizeMode.CanResize;
+            window.WindowState = _previousWindowState;
+            window.Left = _previousLeft; window.Top = _previousTop;
+            window.Width = _previousWidth; window.Height = _previousHeight;
+            if (_miniPrevBackground != null) window.Background = _miniPrevBackground;
+            _overlay?.SetMiniIcon(false);
+        }
+
+        _isMini = !_isMini;
+        for (int i = 0; i < 3; i++)
+            Dispatcher.BeginInvoke(new Action(SyncOverlay), DispatcherPriority.ApplicationIdle);
+    }
+
+    public void ShowPicturePanel() => _overlay?.ShowPictureAdjust(GetPictureAdjust());
+    public void ShowInfoPanel() => _overlay?.ShowMediaInfo(GetMediaInfo());
+
+    public List<(string Label, string Value)> GetMediaInfo()
+    {
+        var list = new List<(string, string)>();
+        if (_mediaPlayer?.Media is Media m)
+        {
+            try
+            {
+                var tracks = m.Tracks;
+                foreach (var t in tracks ?? System.Array.Empty<MediaTrack>())
+                {
+                    if (t.TrackType == TrackType.Video)
+                    {
+                        var v = t.Data.Video;
+                        var codec = m.CodecDescription(TrackType.Video, t.Codec);
+                        double fps = v.FrameRateDen > 0 ? (double)v.FrameRateNum / v.FrameRateDen : 0;
+                        list.Add(("视频", $"{codec} · {v.Width}×{v.Height}" + (fps > 0 ? $" · {fps:0.##} fps" : "")));
+                        if (t.Bitrate > 0) list.Add(("视频码率", $"{t.Bitrate / 1000.0:0.#} kbps"));
+                    }
+                    else if (t.TrackType == TrackType.Audio)
+                    {
+                        var a = t.Data.Audio;
+                        var codec = m.CodecDescription(TrackType.Audio, t.Codec);
+                        list.Add(("音频", $"{codec} · {a.Channels}ch · {a.Rate / 1000.0:0.#} kHz"));
+                    }
+                    else if (t.TrackType == TrackType.Text)
+                    {
+                        list.Add(("字幕轨", t.Language ?? "未知语言"));
+                    }
+                }
+            }
+            catch { }
+        }
+        if (list.Count == 0) list.Add(("提示", "媒体信息解析中，请稍后再试"));
+        return list;
+    }
+
+    private static string FormatTimeSafe(long ms)
+        => TimeSpan.FromMilliseconds(ms).ToString(@"hh\:mm\:ss");
 
     #endregion
 }
