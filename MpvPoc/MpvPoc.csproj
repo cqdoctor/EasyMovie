@@ -7,14 +7,14 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Endpne.LibMPV.Windows" Version="0.41.0" />
-    <PackageReference Include="LibMPVSharp.WPF" Version="0.0.1-beta" />
   </ItemGroup>
 
-  <!-- 从 NuGet 缓存把 libmpv-2.dll 直接复制到输出根目录，供 LibMPVSharp 运行时加载 -->
+  <!-- 从 NuGet 缓存把 libmpv-2.dll 直接复制到输出根目录，供 P/Invoke 运行时加载 -->
   <Target Name="CopyLibMpv" AfterTargets="Build">
     <Copy SourceFiles="$(NuGetPackageRoot)endpne.libmpv.windows\0.41.0\build\x64\libmpv-2.dll"
           DestinationFiles="$(OutDir)libmpv-2.dll"
