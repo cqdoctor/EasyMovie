@@ -112,11 +112,9 @@ public partial class VideoPlayerHost : UserControl
         if (_libVLC == null)
         {
             LibVLCSharp.Shared.Core.Initialize();
-            // 关闭硬件解码（DXVA/D3D）：部分 GPU 上硬件解码帧会合成失败，画面出现白色/花块，
-            // 故用纯软件解码（--avcodec-hw=none）。视频输出不再强指定（去掉 --vout），
-            // 用 VLC 默认输出模块：direct3d11/d3d9/opengl 在信箱黑边处都渲染出白块，
-            // 默认输出让 VLC 自选最合适的模块，黑边处理往往更正常。
-            _libVLC = new LibVLC("--avcodec-hw=none", "--no-video-title-show");
+            // 解码模式由 DecoderSettings 决定（默认 Software 以保留“关硬件解码消除白块”的修复；
+            // 用户可在播放器「更多」面板切到 Hardware/Auto 换取 4K/高码率流畅，遇白块再切回）。
+            _libVLC = new LibVLC(DecoderSettings.ToLibVlcOptions());
         }
 
         // 载入用户快捷键（仅首次构造时）
@@ -500,6 +498,9 @@ public partial class VideoPlayerHost : UserControl
         public void RequestPicturePanel() => ShowPicturePanel();
         public void RequestInfoPanel() => ShowInfoPanel();
         public void RequestShortcutsPanel() => _overlay?.ShowShortcuts(GetShortcuts());
+
+        /// <summary>切换解码模式：写入设置并使缓存的 static LibVLC 失效，下次打开视频时按新模式重建。</summary>
+        public void RequestSetDecoder(DecoderSettings.Mode mode) { DecoderSettings.Set(mode); _libVLC = null; }
 
         /// <summary>供覆盖窗口转发键盘事件（覆盖窗口获得焦点时也能响应快捷键）。</summary>
     public void HandleKey(Key key)

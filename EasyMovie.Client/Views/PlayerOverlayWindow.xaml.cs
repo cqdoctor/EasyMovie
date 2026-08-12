@@ -62,12 +62,13 @@ public partial class PlayerOverlayWindow : Window
         PicturePanel.Visibility = Visibility.Collapsed;
         InfoPanel.Visibility = Visibility.Collapsed;
 
-        // 边缘拖动 seek：落点在左右边缘带内则进入 seek 手势（不触发暂停），否则按普通点击处理
+        // 边缘拖动 seek：仅当落点在左右最窄边缘带（固定 50px）内才进入 seek 手势，
+        // 避免用户点画面左/右侧想暂停时误入。拖动需超过 12px 才算有效 seek。
         var pos = e.GetPosition(Root);
         var w = Root.ActualWidth;
         if (w > 0)
         {
-            var band = Math.Max(70, w * 0.08);
+            var band = 50.0;
             bool onLeft = pos.X <= band;
             bool onRight = pos.X >= w - band;
             if (onLeft || onRight)
@@ -109,7 +110,7 @@ public partial class PlayerOverlayWindow : Window
             var target = _edgeStartMs + (dx / _edgeWidth) * len * _edgeDir;
             target = Math.Max(0, Math.Min(len, target));
             _edgeTargetMs = (long)target;
-            _edgeMoved = Math.Abs(dx) > 4;
+            _edgeMoved = Math.Abs(dx) > 12;
             SeekBar.Maximum = len;
             SeekBar.Value = target;
             TimeLabel.Text = $"{FormatTime((long)target)} / {FormatTime(len)}";
@@ -334,6 +335,7 @@ public partial class PlayerOverlayWindow : Window
         PicturePanel.Visibility = Visibility.Collapsed;
         InfoPanel.Visibility = Visibility.Collapsed;
         MorePanel.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
+        if (open) UpdateDecoderButtons(DecoderSettings.Current);
     }
 
     private void PictureMenu_Click(object s, RoutedEventArgs e) { MorePanel.Visibility = Visibility.Collapsed; _host.RequestPicturePanel(); }
@@ -344,6 +346,28 @@ public partial class PlayerOverlayWindow : Window
     private void AbClearMenu_Click(object s, RoutedEventArgs e) { MorePanel.Visibility = Visibility.Collapsed; _host.RequestClearAb(); }
     private void MiniMenu_Click(object s, RoutedEventArgs e) { MorePanel.Visibility = Visibility.Collapsed; _host.RequestToggleMini(); }
     private void ShortcutsMenu_Click(object s, RoutedEventArgs e) { MorePanel.Visibility = Visibility.Collapsed; _host.RequestShortcutsPanel(); }
+
+    private void DecodeSoft_Click(object s, RoutedEventArgs e) => SwitchDecoder(DecoderSettings.Mode.Software);
+    private void DecodeHard_Click(object s, RoutedEventArgs e) => SwitchDecoder(DecoderSettings.Mode.Hardware);
+    private void DecodeAuto_Click(object s, RoutedEventArgs e) => SwitchDecoder(DecoderSettings.Mode.Auto);
+
+    private void SwitchDecoder(DecoderSettings.Mode mode)
+    {
+        _host.RequestSetDecoder(mode);
+        UpdateDecoderButtons(mode);
+        string tip = mode == DecoderSettings.Mode.Software ? "软件解码（无白块，CPU 占用高）"
+                   : mode == DecoderSettings.Mode.Hardware ? "硬件解码（流畅，部分 GPU 可能白块）"
+                   : "自动解码（由 VLC 选择）";
+        ShowToast($"解码模式：{tip}（重新播放后生效）");
+    }
+
+    private void UpdateDecoderButtons(DecoderSettings.Mode mode)
+    {
+        DecodeSoftBtn.FontWeight = DecodeHardBtn.FontWeight = DecodeAutoBtn.FontWeight = FontWeights.Normal;
+        if (mode == DecoderSettings.Mode.Software) DecodeSoftBtn.FontWeight = FontWeights.Bold;
+        else if (mode == DecoderSettings.Mode.Hardware) DecodeHardBtn.FontWeight = FontWeights.Bold;
+        else DecodeAutoBtn.FontWeight = FontWeights.Bold;
+    }
 
     // 重绑快捷键时的“监听下一按键”状态
     private PlayerShortcuts.PlayerAction? _listeningAction;
