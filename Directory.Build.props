@@ -1,13 +1,12 @@
 <Project>
   <PropertyGroup>
-    <AllowMissingPrunePackageData>true</AllowMissingPrunePackageData>
-    <!-- 测试时使用 -p:BaseIntermediateOutputPath=obj_verify/ 规避 OneDrive/Defender 文件锁，
-         但该目录位于项目树内，会被默认编译项当作源码 glob 进来，与 obj/ 的生成文件冲突。
-         显式排除 obj_verify，避免重复程序集特性编译错误。 -->
-    <DefaultItemExcludes>$(DefaultItemExcludes);**/obj_verify/**</DefaultItemExcludes>
-    <!-- .NET 10 RC SDK 在干净重建中间输出目录时会重复生成程序集特性（CS0579）。
-         关闭 SDK 自动生成程序集元数据（桌面应用不需要），消除重复定义。 -->
+    <!-- 新位置默认 obj 全新无锁；使用默认 obj 名可避免 WPF _wpftmp.csproj 双包含 449 错误。 -->
+    <!-- 关闭 SDK 自动生成程序集特性，避免与项目中显式定义的 AssemblyInfo 重复（CS0579）。 -->
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
+    <!-- 旧位置失败构建遗留的 intobj1/ bldobj/ 等自定义中间目录被一并复制进来，
+         其中残留的 .g.cs 会被当作源码 glob 进来，与默认 obj 新生成的 .g.cs 重复（CS0102/CS0111）。
+         这些目录已无用途，且因进程持锁无法删除，故显式排除，不参与编译。 -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);**/intobj1/**;**/bldobj/**;**/obj_*/**;**/bin_*/**</DefaultItemExcludes>
   </PropertyGroup>
 </Project>

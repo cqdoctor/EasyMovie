@@ -6,7 +6,6 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using EasyMovie.Core.Models;
 using EasyMovie.Data;
@@ -25,9 +24,74 @@ public partial class VideoPlayerHost : UserControl
     private bool _isSeeking;
     private bool _isPlaying;
     private bool _isFullscreen;
+    private Thickness _normalMargin = new(-24);
+    private WindowState _previousWindowState = WindowState.Normal;
+    private double _previousLeft, _previousTop, _previousWidth, _previousHeight;
     private CancellationTokenSource? _hideCts;
     private readonly DispatcherTimer _cursorTimer;
-    private Point _lastCursorPos = new(double.NaN, double.NaN);
+    private PlayerOverlayWindow? _overlay;
+
+    // 直接读系统光标坐标（GetCursorPos），绕过 WPF 的 Mouse.GetPosition 在 HwndHost 上方不更新的坑：
+    // 鼠标位于视频子窗口上方时，WPF 收不到鼠标消息，GetPosition 会“冻结”，导致轮询检测不到移动、
+    // 控制栏不再弹出。GetCursorPos 始终反映真实光标位置。
+    [StructLayout(LayoutKind.Sequential)]
+    private struct POINT { public int X; public int Y; }
+
+    [DllImport("user32.dll")]
+    private static extern bool GetCursorPos(out POINT lpPoint);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
+    [DllImport("user32.dll")]
+    private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
+
+    [DllImport("user32.dll")]
+    private static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
+
+    [DllImport("user32.dll")]
+    private static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+    private struct MONITORINFO
+    {
+        public uint cbSize;
+        public RECT rcMonitor;
+        public RECT rcWork;
+        public uint dwFlags;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct RECT
+    {
+        public int left, top, right, bottom;
+        public int Width => right - left;
+        public int Height => bottom - top;
+    }
+
+    private const uint MONITOR_DEFAULTTONEAREST = 2;
+    private const uint SWP_SHOWWINDOW = 0x0040;
+    private const uint SWP_FRAMECHANGED = 0x0020;
+    private static readonly IntPtr HWND_TOP = IntPtr.Zero;
+
+    private const int GWL_STYLE = -16;
+    private const int WS_POPUP = unchecked((int)0x80000000);
+    private const int WS_CAPTION = 0x00C00000;
+    private const int WS_THICKFRAME = 0x00040000;
+    private const int WS_SYSMENU = 0x00080000;
+    private const int WS_MAXIMIZEBOX = 0x00010000;
+    private const int WS_MINIMIZEBOX = 0x00020000;
+
+    private POINT _lastOsCursor;
+    private int _previousStyle;
+    private RECT _previousRect;
+    private System.Windows.Media.Brush? _previousBackground;
 
     public event EventHandler? Closed;
 
@@ -35,36 +99,180 @@ public partial class VideoPlayerHost : UserControl
     {
         InitializeComponent();
 
-        // 视频区域是 WPF Image，但鼠标在 Image 上移动仍走 WPF 事件；
-        // 用轮询统一检测（对嵌入/全屏一致），唤出控制栏
         _cursorTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
         _cursorTimer.Tick += CursorTimer_Tick;
 
         if (_libVLC == null)
         {
             LibVLCSharp.Shared.Core.Initialize();
-            // no-avcodec-corrupted：不显示 seek 到非关键帧时的损坏帧（色块/马赛克）
-            _libVLC = new LibVLC("--no-avcodec-corrupted", "--no-video-title-show");
+            // 关闭硬件解码（DXVA/D3D）：部分 GPU 上硬件解码帧会合成失败，画面出现白色/花块，
+            // 故用纯软件解码（--avcodec-hw=none）。视频输出不再强指定（去掉 --vout），
+            // 用 VLC 默认输出模块：direct3d11/d3d9/opengl 在信箱黑边处都渲染出白块，
+            // 默认输出让 VLC 自选最合适的模块，黑边处理往往更正常。
+            _libVLC = new LibVLC("--avcodec-hw=none", "--no-video-title-show");
         }
     }
 
+    #region 覆盖窗口（独立透明顶级窗口，承载控件 + 画面点击）
+
+    private void EnsureOverlay()
+    {
+        if (_overlay != null) return;
+        var owner = Window.GetWindow(this);
+        _overlay = new PlayerOverlayWindow(this)
+        {
+            Owner = owner,
+            WindowState = WindowState.Normal
+        };
+        _overlay.Show();
+        SyncOverlay();
+    }
+
+    /// <summary>把透明覆盖窗口精确贴合到视频显示区。处理 DPI 缩放并防御布局未就绪导致的 0 尺寸。</summary>
+    private void SyncOverlay()
+    {
+        if (_overlay == null) return;
+        if (ActualWidth <= 1 || ActualHeight <= 1)
+        {
+            Dispatcher.BeginInvoke(SyncOverlay, DispatcherPriority.Render);
+            return;
+        }
+
+        var source = PresentationSource.FromVisual(this);
+        if (source?.CompositionTarget == null) return;
+
+        // PointToScreen 返回物理像素；Window.Left/Top/Width/Height 是 DIP，需转换。
+        var topLeft = PointToScreen(new Point(0, 0));
+        var toDip = source.CompositionTarget.TransformFromDevice;
+        _overlay.Left = topLeft.X * toDip.M11;
+        _overlay.Top = topLeft.Y * toDip.M22;
+        _overlay.Width = ActualWidth;
+        _overlay.Height = ActualHeight;
+    }
+
+    #endregion
+
     private void CursorTimer_Tick(object? sender, EventArgs e)
     {
-        var pos = Mouse.GetPosition(this);
-        if (pos.X >= 0 && pos.Y >= 0 && pos.X <= ActualWidth && pos.Y <= ActualHeight)
+        if (!GetCursorPos(out POINT p)) return;
+
+        var dpi = VisualTreeHelper.GetDpi(this);
+        var topLeft = PointToScreen(new Point(0, 0));
+        var x = (p.X / dpi.DpiScaleX) - topLeft.X;
+        var y = (p.Y / dpi.DpiScaleY) - topLeft.Y;
+
+        var over = x >= 0 && y >= 0 && x <= ActualWidth && y <= ActualHeight;
+        var moved = p.X != _lastOsCursor.X || p.Y != _lastOsCursor.Y;
+        _lastOsCursor = p;
+
+        if (over && moved)
         {
-            if (pos != _lastCursorPos)
+            ShowControls();
+        }
+    }
+
+    // 宽高比模式：fill=铺满(等比裁剪，不变形、无信箱，默认)、fit=原始比例(不变形，有信箱)、169=16:9、43=4:3
+    private string _aspectMode = "fill";
+
+    /// <summary>读取视频原始尺寸（播放后才有效）。</summary>
+    private bool TryGetVideoSize(out int w, out int h)
+    {
+        w = h = 0;
+        if (_mediaPlayer == null) return false;
+        uint px = 0, py = 0;
+        try
+        {
+            if (_mediaPlayer.Size(0, ref px, ref py) && px > 0 && py > 0)
             {
-                _lastCursorPos = pos;
-                ShowControls();
+                w = (int)px; h = (int)py;
+                return true;
             }
+        }
+        catch { }
+        return false;
+    }
+
+    /// <summary>循环切换宽高比模式，返回当前模式的中文名（供覆盖窗提示）。</summary>
+    public string CycleAspectMode()
+    {
+        _aspectMode = _aspectMode switch
+        {
+            "fill" => "fit",
+            "fit" => "169",
+            "169" => "43",
+            _ => "fill"
+        };
+        ApplyAspectMode();
+        return AspectModeLabel(_aspectMode);
+    }
+
+    public static string AspectModeLabel(string mode) => mode switch
+    {
+        "fill" => "铺满",
+        "169" => "16:9",
+        "43" => "4:3",
+        _ => "原始比例"
+    };
+
+    /// <summary>把 VideoView 调整为目标宽高比并居中（targetAspect=null 时填满整个播放区）。
+    /// 返回 VideoView 的实际宽高。信箱区域落在 VideoView 之外的 VideoPlayerHost 黑底上（显示黑色），
+    /// 从而绕开 VideoView 内部 static 窗口信箱露白的问题。</summary>
+    private (double w, double h) LayoutVideoView(double? targetAspect)
+    {
+        if (targetAspect == null)
+        {
+            // 填满播放区
+            VideoView.Width = double.NaN;
+            VideoView.Height = double.NaN;
+            VideoView.HorizontalAlignment = HorizontalAlignment.Stretch;
+            VideoView.VerticalAlignment = VerticalAlignment.Stretch;
+            return (ActualWidth, ActualHeight);
+        }
+        double aspect = targetAspect.Value;
+        double hostAspect = ActualWidth / ActualHeight;
+        double w, h;
+        if (hostAspect > aspect) { h = ActualHeight; w = h * aspect; }
+        else { w = ActualWidth; h = w / aspect; }
+        VideoView.Width = w;
+        VideoView.Height = h;
+        VideoView.HorizontalAlignment = HorizontalAlignment.Center;
+        VideoView.VerticalAlignment = VerticalAlignment.Center;
+        return (w, h);
+    }
+
+    private void ApplyAspectMode()
+    {
+        if (_mediaPlayer == null || ActualWidth <= 1 || ActualHeight <= 1) return;
+
+        if (_aspectMode == "fit")
+        {
+            // 原始比例：VideoView 缩到视频比例并居中，VLC BestFit 填满它 → 完整画面、不变形，
+            // 信箱在 VideoView 外的黑底上（黑色）。
+            double? videoAspect = TryGetVideoSize(out int vw, out int vh) ? vw / (double)vh : null;
+            LayoutVideoView(videoAspect);
+            _mediaPlayer.Scale = 0;
+            _mediaPlayer.AspectRatio = null;
+            return;
+        }
+
+        // fill / 16:9 / 4:3：把 VideoView 布局到目标比例，再等比裁剪视频填满它 → 无信箱。
+        double? target = _aspectMode switch
+        {
+            "169" => 16.0 / 9,
+            "43" => 4.0 / 3,
+            _ => (double?)null // fill：填满播放区
+        };
+        var (viewW, viewH) = LayoutVideoView(target);
+        if (TryGetVideoSize(out int vw2, out int vh2) && vw2 > 0 && vh2 > 0)
+        {
+            _mediaPlayer.AspectRatio = null;
+            _mediaPlayer.Scale = (float)Math.Max(viewW / vw2, viewH / vh2);
         }
     }
 
     private void ShowControls()
     {
-        TitleBar.Visibility = Visibility.Visible;
-        ControlBar.Visibility = Visibility.Visible;
+        _overlay?.ShowControls();
 
         _hideCts?.Cancel();
         _hideCts = new CancellationTokenSource();
@@ -79,20 +287,32 @@ public partial class VideoPlayerHost : UserControl
     private void HideControls()
     {
         if (!_isPlaying) return;
-        TitleBar.Visibility = Visibility.Collapsed;
-        ControlBar.Visibility = Visibility.Collapsed;
+        _overlay?.HideControls();
     }
 
     public void LoadMovie(Movie movie)
     {
         _movie = movie;
-        WindowTitleLabel.Text = movie.Title;
-        TitleLabel.Text = movie.Title;
+        EnsureOverlay();
+        _overlay?.SetTitle(movie.Title);
         StartPlayback();
     }
 
     private void Host_Loaded(object sender, RoutedEventArgs e)
     {
+        // 保存正常模式下的 Margin（ContentBorder.Padding=24 时 -24 抵消）。
+        _normalMargin = Margin;
+
+            // 跟随宿主尺寸/位置变化，保持覆盖窗口贴合；尺寸变化时重新布局 VideoView（所有比例模式都依赖播放区尺寸）
+            this.SizeChanged += (s, ev) => { SyncOverlay(); ApplyAspectMode(); };
+        if (Window.GetWindow(this) is Window w)
+        {
+            w.LocationChanged += (s, ev) => SyncOverlay();
+            // 全屏/窗口缩放会改变主窗口尺寸，布局稳定后需重新贴合覆盖窗口
+            // （否则全屏瞬间读到的还是旧尺寸，覆盖窗口偏上 → 返回栏溢出屏幕）
+            w.SizeChanged += (s, ev) => SyncOverlay();
+        }
+
         if (_movie != null && _mediaPlayer == null)
             StartPlayback();
     }
@@ -102,55 +322,73 @@ public partial class VideoPlayerHost : UserControl
         if (_movie == null || _libVLC == null) return;
 
         Focus();
-        Cleanup(); // 先清理可能存在的旧播放器
+        EnsureOverlay();
+        CleanupInner();
 
         try
         {
             _mediaPlayer = new MediaPlayer(_libVLC);
             VideoView.MediaPlayer = _mediaPlayer;
             var media = new Media(_libVLC, new Uri(_movie.FilePath!));
+
+            // 续播：用 :start-time 跳到记录处附近最近关键帧（稳定、不会像精确 seek 那样产生花屏）。
+            // 不再在 Playing 事件里做精确 _mediaPlayer.Time 补 seek——那会重新触发解码花屏。
+            if (_movie.PlaybackPosition > 0)
+                media.AddOption($":start-time={(_movie.PlaybackPosition / 1000.0).ToString(System.Globalization.CultureInfo.InvariantCulture)}");
+
             _mediaPlayer.Playing += (s, args) =>
             {
+                // Playing 事件在 VLC 回调线程触发，仅更新状态/图标（BeginInvoke 回 UI 线程），
+                // 绝不在该线程同步调用 Pause/Play，否则 VLC 内部死锁。
                 _isPlaying = true;
-                Dispatcher.BeginInvoke(() => PlayPauseIcon.Kind = MaterialDesignThemes.Wpf.PackIconKind.Pause);
+                Dispatcher.BeginInvoke(() =>
+                {
+                    ApplyAspectMode();
+                    _overlay?.SetPlaying(true);
+                    // 视频原始尺寸在播放瞬间可能未就绪，延迟校正一次，确保布局/裁剪按真实比例生效
+                    var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
+                    timer.Tick += (s2, e2) => { ApplyAspectMode(); timer.Stop(); };
+                    timer.Start();
+                });
             };
             _mediaPlayer.Paused += (s, args) =>
             {
                 _isPlaying = false;
-                Dispatcher.BeginInvoke(() => PlayPauseIcon.Kind = MaterialDesignThemes.Wpf.PackIconKind.Play);
+                Dispatcher.BeginInvoke(() => _overlay?.SetPlaying(false));
             };
             _mediaPlayer.Stopped += (s, args) =>
             {
                 _isPlaying = false;
-                Dispatcher.BeginInvoke(() => PlayPauseIcon.Kind = MaterialDesignThemes.Wpf.PackIconKind.Play);
+                Dispatcher.BeginInvoke(() => _overlay?.SetPlaying(false));
             };
             _mediaPlayer.EndReached += (s, args) =>
             {
                 _isPlaying = false;
                 Dispatcher.BeginInvoke(() =>
                 {
-                    PlayPauseIcon.Kind = MaterialDesignThemes.Wpf.PackIconKind.Play;
+                    _overlay?.SetPlaying(false);
                     SavePosition(0);
                 });
             };
             _mediaPlayer.TimeChanged += (s, args) =>
             {
                 if (!_isSeeking)
-                {
-                    Dispatcher.BeginInvoke(() => UpdateSeekBar());
-                }
+                    Dispatcher.BeginInvoke(UpdateSeekBar);
             };
 
-            _mediaPlayer.Play(media);
-
             _cursorTimer.Start();
-            ShowControls();
 
             if (_movie.PlaybackPosition > 0)
             {
+                // 有续播进度：只准备媒体、不自动播放，弹出续播面板等用户决策。
+                _mediaPlayer.Media = media;
                 var ts = TimeSpan.FromMilliseconds(_movie.PlaybackPosition);
-                ResumeTimeText.Text = ts.ToString(@"hh\:mm\:ss");
-                ResumePanel.Visibility = Visibility.Visible;
+                _overlay?.ShowResume(ts);
+            }
+            else
+            {
+                _mediaPlayer.Play(media);
+                ShowControls();
             }
         }
         catch (Exception ex)
@@ -160,10 +398,87 @@ public partial class VideoPlayerHost : UserControl
         }
     }
 
-    #region VLC 视频渲染（使用官方 LibVLCSharp.Wpf VideoView 硬件渲染，无需手写帧回调）
+    #region 宿主对外接口（供覆盖窗口调用）
 
-    // VideoView 通过 VideoHwndHost(HWND) 由 libVLC 直接渲染，覆盖控件作为 VideoView.Content
-    // 经 ForegroundWindow 自动悬浮于画面上方。彻底避免手写 WriteableBitmap 帧缓冲的跨线程/越界崩溃。
+    public void RequestTogglePlay() => TogglePlayPause();
+    public void RequestFullscreen() => ToggleFullscreen();
+    public void RequestBack() => SavePositionAndClose();
+    public void RequestStop() => SavePositionAndClose();
+
+    public void SetVolume(int v)
+    {
+        if (_mediaPlayer == null) return;
+        _mediaPlayer.Volume = v;
+        _overlay?.SetVolumeDisplay(v);
+    }
+
+    public void BeginSeek() => _isSeeking = true;
+    public void EndSeek() => _isSeeking = false;
+
+    public void SeekTo(long ms)
+    {
+        if (_mediaPlayer == null) return;
+        _mediaPlayer.Time = ms;
+    }
+
+    public long GetLength() => _mediaPlayer?.Length ?? 0;
+
+    public void ResumeContinue()
+    {
+        _overlay?.HideResume();
+        _mediaPlayer?.Play();
+        ShowControls();
+    }
+
+    public void ResumeFromStart()
+    {
+        if (_movie == null || _mediaPlayer == null || _libVLC == null) return;
+        _overlay?.HideResume();
+        _movie.PlaybackPosition = 0;
+        SavePositionToDb(0);
+        // 从头播：用不含 :start-time 的新媒体，避免仍跳到旧进度
+        var fresh = new Media(_libVLC, new Uri(_movie.FilePath!));
+        _mediaPlayer.Media = fresh;
+        _mediaPlayer.Play();
+        ShowControls();
+    }
+
+    /// <summary>供覆盖窗口转发键盘事件（覆盖窗口获得焦点时也能响应快捷键）。</summary>
+    public void HandleKey(Key key)
+    {
+        switch (key)
+        {
+            case Key.Space:
+                RequestTogglePlay();
+                break;
+            case Key.Escape:
+                if (_isFullscreen) ToggleFullscreen();
+                else SavePositionAndClose();
+                break;
+            case Key.Left:
+                if (_mediaPlayer != null)
+                    _mediaPlayer.Time = Math.Max(0, _mediaPlayer.Time - 5000);
+                break;
+            case Key.Right:
+                if (_mediaPlayer != null)
+                    _mediaPlayer.Time = Math.Min(_mediaPlayer.Length, _mediaPlayer.Time + 5000);
+                break;
+            case Key.Up:
+                if (_overlay != null) SetVolume((int)Math.Min(100, _overlayVolume() + 5));
+                break;
+            case Key.Down:
+                if (_overlay != null) SetVolume((int)Math.Max(0, _overlayVolume() - 5));
+                break;
+            case Key.F:
+                ToggleFullscreen();
+                break;
+            case Key.M:
+                SetVolume(_overlayVolume() > 0 ? 0 : 80);
+                break;
+        }
+    }
+
+    private int _overlayVolume() => (int)(_mediaPlayer?.Volume ?? 80);
 
     #endregion
 
@@ -176,6 +491,16 @@ public partial class VideoPlayerHost : UserControl
     {
         _cursorTimer.Stop();
         SavePosition();
+        CleanupInner();
+        if (_overlay != null)
+        {
+            _overlay.Close();
+            _overlay = null;
+        }
+    }
+
+    private void CleanupInner()
+    {
         VideoView.MediaPlayer = null;
         _mediaPlayer?.Stop();
         _mediaPlayer?.Dispose();
@@ -191,169 +516,161 @@ public partial class VideoPlayerHost : UserControl
     private void UpdateSeekBar()
     {
         if (_mediaPlayer == null || _isSeeking || _mediaPlayer.Length <= 0) return;
-
-        var pos = _mediaPlayer.Time;
-        var len = _mediaPlayer.Length;
-        SeekBar.Maximum = len;
-        SeekBar.Value = pos;
-        TimeLabel.Text = $"{FormatTime(pos)} / {FormatTime(len)}";
+        _overlay?.SetTime(_mediaPlayer.Time, _mediaPlayer.Length);
     }
 
-    private void SeekBar_DragStarted(object sender, RoutedEventArgs e)
-    {
-        _isSeeking = true;
-    }
-
-    private void SeekBar_DragCompleted(object sender, RoutedEventArgs e)
+    private void TogglePlayPause()
     {
         if (_mediaPlayer == null) return;
-        _mediaPlayer.Time = (long)SeekBar.Value;
-        _isSeeking = false;
-    }
-
-    private void SeekBar_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-    {
-        if (_isSeeking && _mediaPlayer != null)
+        if (_mediaPlayer.IsPlaying)
         {
-            var seekPos = (long)SeekBar.Value;
-            TimeLabel.Text = $"{FormatTime(seekPos)} / {FormatTime(_mediaPlayer.Length)}";
-        }
-    }
-
-    private void PlayPause_Click(object sender, RoutedEventArgs e)
-    {
-        if (_mediaPlayer == null) return;
-        if (_isPlaying)
             _mediaPlayer.Pause();
+            _isPlaying = false;
+            _overlay?.SetPlaying(false);
+        }
         else
+        {
             _mediaPlayer.Play();
-    }
-
-    private void Stop_Click(object sender, RoutedEventArgs e)
-    {
-        SavePositionAndClose();
-    }
-
-    private void VolumeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-    {
-        if (_mediaPlayer == null) return;
-        _mediaPlayer.Volume = (int)VolumeSlider.Value;
-
-        VolumeIcon.Kind = VolumeSlider.Value == 0 ? MaterialDesignThemes.Wpf.PackIconKind.VolumeOff
-            : VolumeSlider.Value < 50 ? MaterialDesignThemes.Wpf.PackIconKind.VolumeMedium
-            : MaterialDesignThemes.Wpf.PackIconKind.VolumeHigh;
-    }
-
-    private void ResumeYes_Click(object sender, RoutedEventArgs e)
-    {
-        ResumePanel.Visibility = Visibility.Collapsed;
-        if (_mediaPlayer != null && _movie != null && _movie.PlaybackPosition > 0)
-        {
-            _mediaPlayer.Time = _movie.PlaybackPosition;
-        }
-        ShowControls();
-    }
-
-    private void ResumeNo_Click(object sender, RoutedEventArgs e)
-    {
-        ResumePanel.Visibility = Visibility.Collapsed;
-        if (_movie != null)
-        {
-            _movie.PlaybackPosition = 0;
-            SavePositionToDb(0);
-        }
-        ShowControls();
-    }
-
-    private void ResumePanel_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
-    {
-        ResumeYes_Click(sender, e);
-    }
-
-    private void Host_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        if (e.ClickCount == 2)
-        {
-            ToggleFullscreen();
+            _isPlaying = true;
+            _overlay?.SetPlaying(true);
         }
     }
 
-    private void Back_Click(object sender, RoutedEventArgs e)
+    private void LogDebug(string msg)
     {
-        SavePositionAndClose();
-    }
-
-    private void Fullscreen_Click(object sender, RoutedEventArgs e)
-    {
-        ToggleFullscreen();
+        try
+        {
+            var dir = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs");
+            System.IO.Directory.CreateDirectory(dir);
+            System.IO.File.AppendAllText(System.IO.Path.Combine(dir, "debug.log"),
+                $"[{DateTime.Now:HH:mm:ss.fff}] {msg}\n");
+        }
+        catch { }
     }
 
     private void ToggleFullscreen()
     {
-        var window = Window.GetWindow(this);
-        if (window == null) return;
+        var window = Window.GetWindow(this) as MainWindow;
+        if (window == null) { LogDebug("ToggleFullscreen: window is null"); return; }
+
+        var hwnd = new System.Windows.Interop.WindowInteropHelper(window).Handle;
+        LogDebug($"ToggleFullscreen enter, _isFullscreen={_isFullscreen}, hwnd=0x{hwnd:X}, window L={window.Left},T={window.Top},W={window.Width},H={window.Height},State={window.WindowState}");
 
         if (_isFullscreen)
         {
-            window.WindowState = WindowState.Normal;
+            window.TitleBarBorder.Visibility = Visibility.Visible;
+            window.NavBorder.Visibility = Visibility.Visible;
+            window.StatusBar.Visibility = Visibility.Visible;
+            window.RootGrid.RowDefinitions[0].Height = new GridLength(32);
+            window.RootGrid.RowDefinitions[2].Height = GridLength.Auto;
+
+            var cb = window.ContentBorder;
+            cb.SetValue(Grid.ColumnProperty, 1);
+            cb.SetValue(Grid.ColumnSpanProperty, 1);
+            cb.SetValue(Grid.RowProperty, 1);
+            cb.SetValue(Grid.RowSpanProperty, 2);
+            cb.CornerRadius = new CornerRadius(12, 0, 0, 0);
+            cb.Padding = new Thickness(24);
+
+            // 非全屏时恢复 -24 Margin，抵消 ContentBorder.Padding=24，使播放区与 ContentBorder 边界对齐。
+            Margin = _normalMargin;
+
+            // 还原 Win32 样式与窗口几何
+            SetWindowLong(hwnd, GWL_STYLE, _previousStyle);
+            SetWindowPos(hwnd, HWND_TOP,
+                _previousRect.left, _previousRect.top,
+                _previousRect.Width, _previousRect.Height,
+                SWP_SHOWWINDOW | SWP_FRAMECHANGED);
+
+            // 还原主窗口背景（退出全屏恢复原色）
+            if (_previousBackground != null)
+                window.Background = _previousBackground;
+
+            // 还原 WPF 属性
             window.WindowStyle = WindowStyle.SingleBorderWindow;
-            FullscreenIcon.Kind = MaterialDesignThemes.Wpf.PackIconKind.Fullscreen;
+            window.ResizeMode = ResizeMode.CanResize;
+            window.WindowState = WindowState.Normal;
+            window.Left = _previousLeft;
+            window.Top = _previousTop;
+            window.Width = _previousWidth;
+            window.Height = _previousHeight;
+            window.WindowState = _previousWindowState;
+            _overlay?.SetFullscreenIcon(false);
         }
         else
         {
-            window.WindowStyle = WindowStyle.None;
-            window.WindowState = WindowState.Maximized;
-            FullscreenIcon.Kind = MaterialDesignThemes.Wpf.PackIconKind.FullscreenExit;
+            // 保存退出全屏前的窗口几何与 Win32 样式
+            _previousWindowState = window.WindowState;
+            _previousLeft = window.Left;
+            _previousTop = window.Top;
+            _previousWidth = window.Width;
+            _previousHeight = window.Height;
+            _previousStyle = GetWindowLong(hwnd, GWL_STYLE);
+            GetWindowRect(hwnd, out _previousRect);
+
+            window.TitleBarBorder.Visibility = Visibility.Collapsed;
+            window.NavBorder.Visibility = Visibility.Collapsed;
+            window.StatusBar.Visibility = Visibility.Collapsed;
+            window.RootGrid.RowDefinitions[0].Height = new GridLength(0);
+            window.RootGrid.RowDefinitions[2].Height = new GridLength(0);
+
+            var cb = window.ContentBorder;
+            cb.SetValue(Grid.ColumnProperty, 0);
+            cb.SetValue(Grid.ColumnSpanProperty, 2);
+            cb.SetValue(Grid.RowProperty, 0);
+            cb.SetValue(Grid.RowSpanProperty, 3);
+            cb.CornerRadius = new CornerRadius(0);
+            cb.Padding = new Thickness(0);
+
+            // 全屏时 Padding=0，必须把 Margin 也清零，否则播放区外扩 24px，
+            // 覆盖窗口被顶上屏幕外 → 返回栏上部超出屏幕、顶部露出灰条。
+            Margin = new Thickness(0);
+
+            // 全屏黑底遮蔽：视频 HWND 顶部若留空隙，会露出主窗口浅色背景 → 上面的“白块”。
+            // 全屏时把主窗口背景设为纯黑，即使有空隙也显示黑色而非白色。
+            _previousBackground = window.Background;
+            window.Background = System.Windows.Media.Brushes.Black;
+
+            // 把窗口样式改成 WS_POPUP（去掉标题栏/边框/系统菜单），
+            // Windows 才不会把窗口限制在工作区；再用 SetWindowPos 铺满整个显示器（含任务栏）。
+            var style = _previousStyle;
+            var newStyle = style & ~WS_CAPTION & ~WS_THICKFRAME & ~WS_SYSMENU & ~WS_MAXIMIZEBOX & ~WS_MINIMIZEBOX | WS_POPUP;
+            SetWindowLong(hwnd, GWL_STYLE, newStyle);
+
+            var monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+            var mi = new MONITORINFO { cbSize = (uint)Marshal.SizeOf(typeof(MONITORINFO)) };
+            if (monitor != IntPtr.Zero && GetMonitorInfo(monitor, ref mi))
+            {
+                LogDebug($"Fullscreen monitor rect: L={mi.rcMonitor.left},T={mi.rcMonitor.top},W={mi.rcMonitor.Width},H={mi.rcMonitor.Height}");
+                window.WindowStyle = WindowStyle.None;
+                window.ResizeMode = ResizeMode.NoResize;
+                window.WindowState = WindowState.Normal;
+                var ok = SetWindowPos(hwnd, HWND_TOP,
+                    mi.rcMonitor.left, mi.rcMonitor.top,
+                    mi.rcMonitor.Width, mi.rcMonitor.Height,
+                    SWP_SHOWWINDOW | SWP_FRAMECHANGED);
+                LogDebug($"SetWindowPos result={ok}, after L={window.Left},T={window.Top},W={window.Width},H={window.Height},State={window.WindowState}");
+            }
+            else
+            {
+                LogDebug($"Fullscreen fallback: monitor=0x{monitor:X}, GetMonitorInfo failed");
+                window.WindowStyle = WindowStyle.None;
+                window.WindowState = WindowState.Maximized;
+            }
+            _overlay?.SetFullscreenIcon(true);
         }
         _isFullscreen = !_isFullscreen;
+
+        // 全屏布局刷新有延迟：连续几帧在 ApplicationIdle 优先级同步覆盖窗口，
+        // 确保读到的是全屏后的真实尺寸/位置（返回栏贴顶、不溢出屏幕）。
+        for (int i = 0; i < 3; i++)
+            Dispatcher.BeginInvoke(new Action(SyncOverlay), DispatcherPriority.ApplicationIdle);
     }
 
     private void Host_KeyDown(object sender, KeyEventArgs e)
     {
-        switch (e.Key)
-        {
-            case Key.Space:
-                PlayPause_Click(sender, e);
-                e.Handled = true;
-                break;
-            case Key.Escape:
-                if (_isFullscreen)
-                {
-                    ToggleFullscreen();
-                }
-                else
-                {
-                    SavePositionAndClose();
-                }
-                e.Handled = true;
-                break;
-            case Key.Left:
-                if (_mediaPlayer != null)
-                    _mediaPlayer.Time = Math.Max(0, _mediaPlayer.Time - 5000);
-                e.Handled = true;
-                break;
-            case Key.Right:
-                if (_mediaPlayer != null)
-                    _mediaPlayer.Time = Math.Min(_mediaPlayer.Length, _mediaPlayer.Time + 5000);
-                e.Handled = true;
-                break;
-            case Key.Up:
-                VolumeSlider.Value = Math.Min(100, VolumeSlider.Value + 5);
-                e.Handled = true;
-                break;
-            case Key.Down:
-                VolumeSlider.Value = Math.Max(0, VolumeSlider.Value - 5);
-                e.Handled = true;
-                break;
-            case Key.F:
-                ToggleFullscreen();
-                e.Handled = true;
-                break;
-            case Key.M:
-                VolumeSlider.Value = VolumeSlider.Value > 0 ? 0 : 80;
-                e.Handled = true;
-                break;
-        }
+        HandleKey(e.Key);
+        e.Handled = true;
     }
 
     private void SavePositionAndClose()
@@ -388,13 +705,5 @@ public partial class VideoPlayerHost : UserControl
             }
         }
         catch (Exception ex) { Log.Error(ex, "VideoPlayerHost 操作异常"); }
-    }
-
-    private static string FormatTime(long ms)
-    {
-        var ts = TimeSpan.FromMilliseconds(ms);
-        return ts.TotalHours >= 1
-            ? ts.ToString(@"hh\:mm\:ss")
-            : ts.ToString(@"mm\:ss");
     }
 }

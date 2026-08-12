@@ -61,3 +61,23 @@ appsettings*.json
 
 ## Verification build output
 obj_verify/
+
+## Parallel / sandbox build artifact dirs (must not be committed)
+bin_run/
+bldobj/
+intobj1/
+binX/
+binY/
+binZ/
+bin_final/
+bin_test/
+obj_b2/
+obj_b3/
+obj_build/
+outbin1/
+
+## Stray artifacts
+diag.txt
+debug.log
+screenshot.png
+query3.csx

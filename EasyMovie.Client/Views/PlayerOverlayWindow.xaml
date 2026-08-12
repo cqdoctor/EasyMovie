@@ -1,0 +1,144 @@
+<Window x:Class="EasyMovie.Client.Views.PlayerOverlayWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        ShowInTaskbar="False" ResizeMode="NoResize" SnapsToDevicePixels="True"
+        RenderOptions.BitmapScalingMode="HighQuality"
+        Title="PlayerOverlay" Width="400" Height="300">
+
+    <!-- 背景用 alpha=1(#01000000)而非 Transparent(alpha=0)：
+         在 AllowsTransparency 分层窗口里，DWM 会把 alpha=0 的像素视为不存在，
+         点击会“穿透”到下层视频 HWND，导致画面区域点击收不到（按钮能点、画面点击失效）。
+         alpha=1 几乎不可见，但能让该区域正常命中测试，单击暂停/双击全屏即可生效。 -->
+    <Grid x:Name="Root" Background="#01000000" Cursor="Arrow"
+          MouseLeftButtonDown="Root_MouseLeftButtonDown">
+        <!-- 顶部标题/返回栏 -->
+        <Border x:Name="TitleBar" VerticalAlignment="Top" Background="#CC000000" Padding="12,8"
+                Visibility="Collapsed" Cursor="Arrow">
+            <Grid>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                    <Button Style="{StaticResource MaterialDesignIconForegroundButton}" Foreground="White"
+                            Width="36" Height="36" Click="Back_Click" Cursor="Hand">
+                        <materialDesign:PackIcon Kind="ArrowLeft" Width="22" Height="22" />
+                    </Button>
+                    <TextBlock x:Name="WindowTitleLabel" Text="" FontSize="14" Foreground="White"
+                               VerticalAlignment="Center" Margin="8,0,0,0" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+                <Button Style="{StaticResource MaterialDesignIconForegroundButton}" Foreground="White"
+                        Width="36" Height="36" HorizontalAlignment="Right" Click="Fullscreen_Click" Cursor="Hand"
+                        ToolTip="全屏 (F)">
+                    <materialDesign:PackIcon x:Name="FullscreenIcon" Kind="Fullscreen" Width="20" Height="20" />
+                </Button>
+            </Grid>
+        </Border>
+
+        <!-- 画面比例切换提示（悬浮顶部居中，短暂显示） -->
+        <Border x:Name="AspectTooltip" Visibility="Collapsed"
+                VerticalAlignment="Top" HorizontalAlignment="Center" Margin="0,56,0,0"
+                Background="#CC000000" CornerRadius="6" Padding="12,6">
+            <TextBlock x:Name="AspectTooltipText" Text="" FontSize="13" Foreground="White" />
+        </Border>
+
+        <!-- 续播提示（悬浮居中） -->
+        <Border x:Name="ResumePanel" Visibility="Collapsed"
+                VerticalAlignment="Center" HorizontalAlignment="Center"
+                Background="#CC1E1E2E" CornerRadius="12" Padding="24,16"
+                Cursor="Hand">
+            <StackPanel>
+                <TextBlock x:Name="ResumeText" Text="{DynamicResource Player_ResumePrompt}" FontSize="16"
+                           Foreground="White" HorizontalAlignment="Center" Margin="0,0,0,8" />
+                <TextBlock x:Name="ResumeTimeText" FontSize="13"
+                           Foreground="#AAFFFFFF" HorizontalAlignment="Center" Margin="0,0,0,12" />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                    <Button x:Name="ResumeYesBtn" Content="{DynamicResource Player_ResumeYes}"
+                            Style="{StaticResource MaterialDesignRaisedButton}"
+                            Foreground="White" Background="#7C4DFF" Margin="0,0,8,0"
+                            Click="ResumeYes_Click" Cursor="Hand" />
+                    <Button x:Name="ResumeNoBtn"
+                            Style="{StaticResource MaterialDesignFlatButton}"
+                            Click="ResumeNo_Click" Cursor="Hand">
+                        <TextBlock Text="{DynamicResource Player_ResumeNo}" Foreground="White" FontSize="14" />
+                    </Button>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- 底部控制栏 -->
+        <Border x:Name="ControlBar" VerticalAlignment="Bottom"
+                Background="#CC000000" Padding="16,8"
+                Visibility="Collapsed" Cursor="Arrow">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!-- 进度条 -->
+                <Grid Grid.Row="0" Margin="0,0,0,4">
+                    <Slider x:Name="SeekBar" Minimum="0" Maximum="100" Value="0"
+                            Style="{StaticResource MaterialDesignSlider}"
+                            Thumb.DragStarted="SeekBar_DragStarted"
+                            Thumb.DragCompleted="SeekBar_DragCompleted"
+                            ValueChanged="SeekBar_ValueChanged" />
+                    <TextBlock x:Name="SeekTooltip" Text="00:00"
+                               Foreground="White" FontSize="11"
+                               VerticalAlignment="Top" HorizontalAlignment="Left"
+                               Margin="0,-16,0,0" Visibility="Collapsed" />
+                </Grid>
+
+                <!-- 控制按钮行 -->
+                <Grid Grid.Row="1">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- 播放/暂停 -->
+                    <Button Grid.Column="0" x:Name="PlayPauseBtn" Width="36" Height="36"
+                            Style="{StaticResource MaterialDesignIconForegroundButton}"
+                            Foreground="White" Click="PlayPause_Click" Cursor="Hand">
+                        <materialDesign:PackIcon x:Name="PlayPauseIcon" Kind="Pause" Width="20" Height="20" />
+                    </Button>
+
+                    <!-- 停止 -->
+                    <Button Grid.Column="1" Width="36" Height="36"
+                            Style="{StaticResource MaterialDesignIconForegroundButton}"
+                            Foreground="White" Click="Stop_Click" Cursor="Hand">
+                        <materialDesign:PackIcon Kind="Stop" Width="18" Height="18" />
+                    </Button>
+
+                    <!-- 时间显示 -->
+                    <TextBlock Grid.Column="2" x:Name="TimeLabel" Text="00:00 / 00:00"
+                               Foreground="White" FontSize="12" VerticalAlignment="Center"
+                               Margin="8,0,0,0" />
+
+                    <!-- 画面比例切换：原始比例 / 铺满 / 16:9 / 4:3 循环 -->
+                    <Button Grid.Column="3" Width="36" Height="36"
+                            HorizontalAlignment="Right"
+                            Style="{StaticResource MaterialDesignIconForegroundButton}"
+                            Foreground="White" Click="Aspect_Click" Cursor="Hand"
+                            ToolTip="画面比例">
+                        <materialDesign:PackIcon Kind="AspectRatio" Width="18" Height="18" />
+                    </Button>
+
+                    <!-- 音量：图标与滑块并排居中，避免 MaterialDesign 滑块内边距导致滑块偏上、与图标错位 -->
+                    <StackPanel Grid.Column="4" Grid.ColumnSpan="2" Orientation="Horizontal"
+                                VerticalAlignment="Center" Margin="8,0,0,0">
+                        <materialDesign:PackIcon x:Name="VolumeIcon" Kind="VolumeHigh"
+                                                  Width="16" Height="16" Foreground="White"
+                                                  VerticalAlignment="Center" Margin="0,0,6,0" />
+                        <Slider x:Name="VolumeSlider" Width="80" Minimum="0" Maximum="100" Value="80"
+                                Style="{StaticResource MaterialDesignSlider}"
+                                VerticalAlignment="Center"
+                                ValueChanged="VolumeSlider_ValueChanged" />
+                    </StackPanel>
+                </Grid>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>
