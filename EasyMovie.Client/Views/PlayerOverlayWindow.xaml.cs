@@ -20,6 +20,15 @@ public partial class PlayerOverlayWindow : Window
     private readonly VideoPlayerHost _host;
     private bool _isSeeking;
 
+    // 边缘拖动 seek 手势状态：在画面左右边缘带内按下并拖动来快进/快退。
+    private bool _edgeSeeking;
+    private double _edgeStartX;
+    private double _edgeWidth;
+    private double _edgeDir;      // 左边缘=+1（向右拖前进），右边缘=-1（向左拖前进）
+    private long _edgeStartMs;
+    private long _edgeTargetMs;
+    private bool _edgeMoved;
+
     public PlayerOverlayWindow(VideoPlayerHost host)
     {
         InitializeComponent();
@@ -49,10 +58,77 @@ public partial class PlayerOverlayWindow : Window
         SubtitlePanel.Visibility = Visibility.Collapsed;
         AudioPanel.Visibility = Visibility.Collapsed;
 
+        // 边缘拖动 seek：落点在左右边缘带内则进入 seek 手势（不触发暂停），否则按普通点击处理
+        var pos = e.GetPosition(Root);
+        var w = Root.ActualWidth;
+        if (w > 0)
+        {
+            var band = Math.Max(70, w * 0.08);
+            bool onLeft = pos.X <= band;
+            bool onRight = pos.X >= w - band;
+            if (onLeft || onRight)
+            {
+                BeginEdgeSeek(pos.X, w, onLeft);
+                e.Handled = true;
+                return;
+            }
+        }
+
         if (e.ClickCount == 2)
             _host.RequestFullscreen();
         else
             _host.RequestTogglePlay();
+    }
+
+    private void BeginEdgeSeek(double startX, double width, bool onLeft)
+    {
+        _edgeSeeking = true;
+        _edgeStartX = startX;
+        _edgeWidth = width;
+        _edgeDir = onLeft ? 1.0 : -1.0;
+        _edgeStartMs = _host.GetCurrentTime();
+        _edgeTargetMs = _edgeStartMs;
+        _edgeMoved = false;
+        _host.BeginSeek();
+        ShowControls();          // 确保进度条可见，便于预览 seek 目标
+        CaptureMouse();
+    }
+
+    private void Root_MouseMove(object sender, MouseEventArgs e)
+    {
+        if (!_edgeSeeking) return;
+        var pos = e.GetPosition(Root);
+        var dx = pos.X - _edgeStartX;
+        var len = _host.GetLength();
+        if (_edgeWidth > 0 && len > 0)
+        {
+            var target = _edgeStartMs + (dx / _edgeWidth) * len * _edgeDir;
+            target = Math.Max(0, Math.Min(len, target));
+            _edgeTargetMs = (long)target;
+            _edgeMoved = Math.Abs(dx) > 4;
+            SeekBar.Maximum = len;
+            SeekBar.Value = target;
+            TimeLabel.Text = $"{FormatTime((long)target)} / {FormatTime(len)}";
+            SeekTooltip.Text = FormatTime((long)target);
+            SeekTooltip.Visibility = Visibility.Visible;
+        }
+    }
+
+    private void Root_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (!_edgeSeeking) return;
+        _edgeSeeking = false;
+        ReleaseMouseCapture();
+        _host.EndSeek();
+        SeekTooltip.Visibility = Visibility.Collapsed;
+        if (_edgeMoved)
+            _host.SeekTo(_edgeTargetMs);
+    }
+
+    private void Root_MouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        _host.AdjustVolume(e.Delta > 0 ? 5 : -5);
+        e.Handled = true;
     }
 
     #endregion
@@ -93,6 +169,8 @@ public partial class PlayerOverlayWindow : Window
     private void Snapshot_Click(object sender, RoutedEventArgs e) => _host.RequestSnapshot();
     private void SubDelayMinus_Click(object sender, RoutedEventArgs e) => _host.AdjustSubtitleDelay(-500);
     private void SubDelayPlus_Click(object sender, RoutedEventArgs e) => _host.AdjustSubtitleDelay(500);
+    private void AudioDelayMinus_Click(object sender, RoutedEventArgs e) => _host.AdjustAudioDelay(-500);
+    private void AudioDelayPlus_Click(object sender, RoutedEventArgs e) => _host.AdjustAudioDelay(500);
 
     private void VolumeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
@@ -186,6 +264,9 @@ public partial class PlayerOverlayWindow : Window
 
     public void SetRateDisplay(double rate)
         => RateLabel.Text = $"{rate:0.00}x";
+
+    public void SetAudioDelayDisplay(long delayUs)
+        => AudioDelayLabel.Text = $"{delayUs / 1000.0:0.0}s";
 
     public void ShowSubtitleTracks((int Id, string Name)[] tracks, int currentId, long delayUs)
     {
