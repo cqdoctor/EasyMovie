@@ -7,6 +7,8 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using System.IO;
+using System.Linq;
 using EasyMovie.Core.Models;
 using EasyMovie.Data;
 using LibVLCSharp.Shared;
@@ -174,6 +176,11 @@ public partial class VideoPlayerHost : UserControl
     // 宽高比模式：fill=铺满(等比裁剪，不变形、无信箱，默认)、fit=原始比例(不变形，有信箱)、169=16:9、43=4:3
     private string _aspectMode = "fill";
 
+    // 倍速档位（与 CycleRate 配合循环）
+    private static readonly double[] _rates = { 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0 };
+    private int _rateIndex = 2; // 默认 1.0x
+    private long _subtitleDelay; // 字幕延迟，单位微秒
+
     /// <summary>读取视频原始尺寸（播放后才有效）。</summary>
     private bool TryGetVideoSize(out int w, out int h)
     {
@@ -330,6 +337,7 @@ public partial class VideoPlayerHost : UserControl
             _mediaPlayer = new MediaPlayer(_libVLC);
             VideoView.MediaPlayer = _mediaPlayer;
             var media = new Media(_libVLC, new Uri(_movie.FilePath!));
+            ApplyExternalSubtitle(media);
 
             // 续播：用 :start-time 跳到记录处附近最近关键帧（稳定、不会像精确 seek 那样产生花屏）。
             // 不再在 Playing 事件里做精确 _mediaPlayer.Time 补 seek——那会重新触发解码花屏。
@@ -438,12 +446,19 @@ public partial class VideoPlayerHost : UserControl
         SavePositionToDb(0);
         // 从头播：用不含 :start-time 的新媒体，避免仍跳到旧进度
         var fresh = new Media(_libVLC, new Uri(_movie.FilePath!));
+        ApplyExternalSubtitle(fresh);
         _mediaPlayer.Media = fresh;
-        _mediaPlayer.Play();
-        ShowControls();
-    }
+            _mediaPlayer.Play();
+            ShowControls();
+        }
 
-    /// <summary>供覆盖窗口转发键盘事件（覆盖窗口获得焦点时也能响应快捷键）。</summary>
+        // ===== P0 播放增强：对外接口（供覆盖窗口调用） =====
+        public void RequestCycleRate() => CycleRate();
+        public void RequestSnapshot() => TakeSnapshot();
+        public void RequestSubtitlePanel() => ShowSubtitlePanel();
+        public void RequestAudioPanel() => ShowAudioPanel();
+
+        /// <summary>供覆盖窗口转发键盘事件（覆盖窗口获得焦点时也能响应快捷键）。</summary>
     public void HandleKey(Key key)
     {
         switch (key)
@@ -474,6 +489,18 @@ public partial class VideoPlayerHost : UserControl
                 break;
             case Key.M:
                 SetVolume(_overlayVolume() > 0 ? 0 : 80);
+                break;
+            case Key.S:
+                TakeSnapshot();
+                break;
+            case Key.C:
+                CycleRate();
+                break;
+            case Key.OemComma:
+                AdjustSubtitleDelay(-500);
+                break;
+            case Key.OemPeriod:
+                AdjustSubtitleDelay(500);
                 break;
         }
     }
@@ -706,4 +733,107 @@ public partial class VideoPlayerHost : UserControl
         }
         catch (Exception ex) { Log.Error(ex, "VideoPlayerHost 操作异常"); }
     }
+
+    #region P0 播放增强：字幕/音轨/倍速/截图
+
+    /// <summary>把同名外挂字幕作为附加字幕轨挂到媒体上（select=true 使其自动启用）。</summary>
+    private void ApplyExternalSubtitle(Media media)
+    {
+        if (_movie?.FilePath == null) return;
+        var sub = FindExternalSubtitle(_movie.FilePath);
+        if (sub == null) return;
+        try { media.AddOption($":sub-file={sub}"); }
+        catch { /* 字幕加载失败不阻断播放 */ }
+    }
+
+    private string? FindExternalSubtitle(string moviePath)
+    {
+        try
+        {
+            var dir = Path.GetDirectoryName(moviePath);
+            var name = Path.GetFileNameWithoutExtension(moviePath);
+            if (dir == null || name == null) return null;
+            var exts = new[] { ".srt", ".ass", ".ssa", ".sub", ".vtt", ".smi", ".scc" };
+            foreach (var ext in exts)
+            {
+                var exact = Path.Combine(dir, name + ext);
+                if (File.Exists(exact)) return exact;
+            }
+            // 名称.zh.srt 等变体
+            foreach (var ext in exts)
+            {
+                var hit = Directory.EnumerateFiles(dir, name + "*" + ext).FirstOrDefault();
+                if (hit != null) return hit;
+            }
+        }
+        catch { }
+        return null;
+    }
+
+    public void CycleRate()
+    {
+        _rateIndex = (_rateIndex + 1) % _rates.Length;
+        ApplyRate();
+    }
+
+    private void ApplyRate()
+    {
+        if (_mediaPlayer == null) return;
+        var r = _rates[_rateIndex];
+        _mediaPlayer.SetRate((float)r);
+        _overlay?.SetRateDisplay(r);
+    }
+
+    public void TakeSnapshot()
+    {
+        if (_mediaPlayer == null || _movie == null) return;
+        try
+        {
+            var dir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "EasyMovie", "Snapshots");
+            Directory.CreateDirectory(dir);
+            var stamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+            var safe = string.Concat((_movie.Title ?? "snapshot").Split(Path.GetInvalidFileNameChars()));
+            var path = Path.Combine(dir, $"{safe}_{stamp}.png");
+            _mediaPlayer.TakeSnapshot(0, path, 0, 0);
+            _overlay?.ShowToast($"截图已保存：{path}");
+        }
+        catch (Exception ex)
+        {
+            _overlay?.ShowToast($"截图失败：{ex.Message}");
+        }
+    }
+
+    public void ShowSubtitlePanel()
+    {
+        if (_mediaPlayer == null) return;
+        var desc = _mediaPlayer.SpuDescription;
+        var tracks = desc.Select(t => (t.Id, t.Name ?? $"轨 {t.Id}")).ToArray();
+        _overlay?.ShowSubtitleTracks(tracks, _mediaPlayer.Spu, _subtitleDelay);
+    }
+
+    public void ShowAudioPanel()
+    {
+        if (_mediaPlayer == null) return;
+        var desc = _mediaPlayer.AudioTrackDescription;
+        var tracks = desc.Select(t => (t.Id, t.Name ?? $"轨 {t.Id}")).ToArray();
+        _overlay?.ShowAudioTracks(tracks, _mediaPlayer.AudioTrack);
+    }
+
+    public void SetSubtitleTrack(int id) => _mediaPlayer?.SetSpu(id);
+
+    public void AdjustSubtitleDelay(int deltaMs)
+    {
+        if (_mediaPlayer == null) return;
+        _subtitleDelay += deltaMs * 1000L; // SetSpuDelay 单位为微秒
+        _mediaPlayer.SetSpuDelay(_subtitleDelay);
+        var desc = _mediaPlayer.SpuDescription;
+        var tracks = desc.Select(t => (t.Id, t.Name ?? $"轨 {t.Id}")).ToArray();
+        _overlay?.ShowSubtitleTracks(tracks, _mediaPlayer.Spu, _subtitleDelay);
+    }
+
+    public void SetAudioTrack(int id) => _mediaPlayer?.SetAudioTrack(id);
+
+    #endregion
 }
