@@ -1,7 +1,7 @@
 ﻿<Window x:Class="MpvPoc.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:mpv="clr-namespace:LibMPVSharp.WPF;assembly=LibMPVSharp.WPF"
+        xmlns:wf="clr-namespace:System.Windows.Forms.Integration;assembly=WindowsFormsIntegration"
         Title="mpv POC 验证" Height="600" Width="960">
     <Grid>
         <Grid.RowDefinitions>
@@ -9,8 +9,9 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- mpv 渲染控件：vo_gpu(D3D11) 正确清屏，无 VLC 那种信箱白块 -->
-        <mpv:VideoView x:Name="VideoView" Grid.Row="0"/>
+        <!-- mpv 渲染目标：libmpv 直接嵌入到内部的 WinForms Panel 句柄（wid）。
+             渲染由 mpv 的 vo=gpu(D3D11) 完成，正确清屏 → 无 VLC 信箱白块。 -->
+        <wf:WindowsFormsHost x:Name="Host" Grid.Row="0"/>
 
         <StackPanel Grid.Row="1" Orientation="Vertical" Background="#222">
             <Slider x:Name="SeekSlider" Minimum="0" Maximum="100" Value="0" Margin="8,4"
