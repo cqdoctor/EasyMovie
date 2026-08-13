@@ -28,7 +28,8 @@ public partial class VideoPlayerHost : UserControl
     private bool _isSeeking;
     private bool _isPlaying;
     private bool _isFullscreen;
-    private Thickness _normalMargin = new(-24);
+    // 播放区现在是 RootGrid 的直接子元素（不再嵌在有 Padding 的 ContentBorder 里），因此无需负 Margin 抵消
+    private Thickness _normalMargin = new(0);
     private WindowState _previousWindowState = WindowState.Normal;
     private double _previousLeft, _previousTop, _previousWidth, _previousHeight;
     private CancellationTokenSource? _hideCts;
@@ -150,9 +151,28 @@ public partial class VideoPlayerHost : UserControl
         var source = PresentationSource.FromVisual(this);
         if (source?.CompositionTarget == null) return;
 
+        var toDip = source.CompositionTarget.TransformFromDevice;
+
+        // 全屏：直接按显示器矩形贴合，不依赖 WPF 布局尺寸。
+        // 之前依赖 ActualWidth/Height，进入全屏瞬间布局尚未刷新（读到的还是内容区的旧尺寸），
+        // 覆盖窗口就比屏幕矮一截 → 底部控制栏悬在屏幕中间而不是最底部。
+        if (_isFullscreen && Window.GetWindow(this) is Window fw)
+        {
+            var hwnd = new System.Windows.Interop.WindowInteropHelper(fw).Handle;
+            var monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+            var mi = new MONITORINFO { cbSize = (uint)Marshal.SizeOf(typeof(MONITORINFO)) };
+            if (monitor != IntPtr.Zero && GetMonitorInfo(monitor, ref mi))
+            {
+                _overlay.Left = mi.rcMonitor.left * toDip.M11;
+                _overlay.Top = mi.rcMonitor.top * toDip.M22;
+                _overlay.Width = mi.rcMonitor.Width * toDip.M11;
+                _overlay.Height = mi.rcMonitor.Height * toDip.M22;
+                return;
+            }
+        }
+
         // PointToScreen 返回物理像素；Window.Left/Top/Width/Height 是 DIP，需转换。
         var topLeft = PointToScreen(new Point(0, 0));
-        var toDip = source.CompositionTarget.TransformFromDevice;
         _overlay.Left = topLeft.X * toDip.M11;
         _overlay.Top = topLeft.Y * toDip.M22;
         _overlay.Width = ActualWidth;
@@ -180,8 +200,8 @@ public partial class VideoPlayerHost : UserControl
         }
     }
 
-    // 宽高比模式：fill=铺满(等比裁剪，不变形、无信箱，默认)、fit=原始比例(不变形，有信箱)、169=16:9、43=4:3
-    private string _aspectMode = "fill";
+    // 宽高比模式：fit=原始比例(不变形，有信箱，默认)、fill=铺满(等比裁剪，不变形、无信箱)、169=16:9、43=4:3
+    private string _aspectMode = "fit";
 
     // 倍速档位（与 CycleRate 配合循环）
     private static readonly double[] _rates = { 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0 };
@@ -193,7 +213,7 @@ public partial class VideoPlayerHost : UserControl
     private static readonly string[] _videoExts = { ".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".ts", ".m2ts", ".mpg", ".mpeg", ".webm", ".vob" };
     private static int _lastVolume = 80;
     private static int _lastRateIndex = 2;
-    private static string _lastAspectMode = "fill";
+    private static string _lastAspectMode = "fit"; // 默认按原始画面比例播放
 
     /// <summary>读取视频原始尺寸（播放后才有效）。</summary>
     private bool TryGetVideoSize(out int w, out int h)
@@ -218,13 +238,14 @@ public partial class VideoPlayerHost : UserControl
     {
         _aspectMode = _aspectMode switch
         {
-            "fill" => "fit",
-            "fit" => "169",
+            "fit" => "fill",
+            "fill" => "169",
             "169" => "43",
-            _ => "fill"
+            _ => "fit"
         };
         _lastAspectMode = _aspectMode;
         ApplyAspectMode();
+        _overlay?.SetAspectDisplay(AspectModeShortLabel(_aspectMode));
         return AspectModeLabel(_aspectMode);
     }
 
@@ -234,6 +255,15 @@ public partial class VideoPlayerHost : UserControl
         "169" => "16:9",
         "43" => "4:3",
         _ => "原始比例"
+    };
+
+    /// <summary>控制栏按钮上常驻显示的短标签（让用户随时看到当前处于哪个比例）。</summary>
+    public static string AspectModeShortLabel(string mode) => mode switch
+    {
+        "fill" => "铺满",
+        "169" => "16:9",
+        "43" => "4:3",
+        _ => "原始"
     };
 
     /// <summary>把 VideoView 调整为目标宽高比并居中（targetAspect=null 时填满整个播放区）。
@@ -356,6 +386,7 @@ public partial class VideoPlayerHost : UserControl
             _rateIndex = _lastRateIndex;
             try { _mediaPlayer.Volume = _lastVolume; } catch { }
             _overlay?.SetVolumeDisplay(_lastVolume);
+            _overlay?.SetAspectDisplay(AspectModeShortLabel(_aspectMode));
             var media = new Media(_libVLC, new Uri(_movie.FilePath!));
             ApplyExternalSubtitle(media);
 
@@ -632,6 +663,24 @@ public partial class VideoPlayerHost : UserControl
         catch { }
     }
 
+    /// <summary>播放区铺满整个 RootGrid（全屏/迷你模式用）。</summary>
+    private void ApplyFullPlacement()
+    {
+        SetValue(Grid.ColumnProperty, 0);
+        SetValue(Grid.ColumnSpanProperty, 2);
+        SetValue(Grid.RowProperty, 0);
+        SetValue(Grid.RowSpanProperty, 3);
+    }
+
+    /// <summary>播放区回到内容行 Row1/Col1（不跨状态栏行，避免视频 HWND 覆盖状态栏）。</summary>
+    private void RestoreNormalPlacement()
+    {
+        SetValue(Grid.ColumnProperty, 1);
+        SetValue(Grid.ColumnSpanProperty, 1);
+        SetValue(Grid.RowProperty, 1);
+        SetValue(Grid.RowSpanProperty, 1);
+    }
+
     private void ToggleFullscreen()
     {
         var window = Window.GetWindow(this) as MainWindow;
@@ -658,8 +707,11 @@ public partial class VideoPlayerHost : UserControl
             cb.CornerRadius = new CornerRadius(12, 0, 0, 0);
             cb.Padding = new Thickness(24);
 
-            // 非全屏时恢复 -24 Margin，抵消 ContentBorder.Padding=24，使播放区与 ContentBorder 边界对齐。
+            // 播放区退回内容行（Row1/Col1，不跨状态栏行）：
+            // 视频是 HWND 子窗口，会盖住与之重叠的所有 WPF 元素，只能靠布局把它挡在状态栏之外。
+            RestoreNormalPlacement();
             Margin = _normalMargin;
+            if (_overlay != null) _overlay.Topmost = false;
 
             // 还原 Win32 样式与窗口几何
             SetWindowLong(hwnd, GWL_STYLE, _previousStyle);
@@ -708,9 +760,11 @@ public partial class VideoPlayerHost : UserControl
             cb.CornerRadius = new CornerRadius(0);
             cb.Padding = new Thickness(0);
 
-            // 全屏时 Padding=0，必须把 Margin 也清零，否则播放区外扩 24px，
-            // 覆盖窗口被顶上屏幕外 → 返回栏上部超出屏幕、顶部露出灰条。
+            // 播放区铺满整个网格（标题行/状态栏行已折叠为 0，导航列宽度仍在，必须跨列）
+            ApplyFullPlacement();
             Margin = new Thickness(0);
+            // 全屏窗口覆盖了任务栏区域，覆盖窗口需置顶，否则底部控制栏会被任务栏压住
+            if (_overlay != null) _overlay.Topmost = true;
 
             // 全屏黑底遮蔽：视频 HWND 顶部若留空隙，会露出主窗口浅色背景 → 上面的“白块”。
             // 全屏时把主窗口背景设为纯黑，即使有空隙也显示黑色而非白色。
@@ -1052,6 +1106,7 @@ public partial class VideoPlayerHost : UserControl
             cb.SetValue(Grid.RowProperty, 0); cb.SetValue(Grid.RowSpanProperty, 3);
             cb.CornerRadius = new CornerRadius(0); cb.Padding = new Thickness(0);
 
+            ApplyFullPlacement();
             Margin = new Thickness(0);
             window.WindowStyle = WindowStyle.None;
             window.ResizeMode = ResizeMode.NoResize;
@@ -1073,6 +1128,7 @@ public partial class VideoPlayerHost : UserControl
             cb.SetValue(Grid.RowProperty, 1); cb.SetValue(Grid.RowSpanProperty, 2);
             cb.CornerRadius = new CornerRadius(12, 0, 0, 0); cb.Padding = new Thickness(24);
 
+            RestoreNormalPlacement();
             Margin = _normalMargin;
             window.WindowStyle = WindowStyle.SingleBorderWindow;
             window.ResizeMode = ResizeMode.CanResize;

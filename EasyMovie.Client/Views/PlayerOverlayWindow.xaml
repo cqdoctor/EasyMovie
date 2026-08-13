@@ -157,12 +157,18 @@
                         <materialDesign:PackIcon Kind="Camera" Width="18" Height="18" />
                     </Button>
 
-                    <!-- 画面比例切换：原始比例 / 铺满 / 16:9 / 4:3 循环 -->
-                    <Button Grid.Column="7" Width="36" Height="36"
+                    <!-- 画面比例切换：原始 / 铺满 / 16:9 / 4:3 循环。
+                         按钮上常驻显示当前模式短标签，避免“不知道现在是哪个比例”。 -->
+                    <Button Grid.Column="7" Width="72" Height="36" Padding="0"
                             Style="{StaticResource MaterialDesignIconForegroundButton}"
                             Foreground="White" Click="Aspect_Click" Cursor="Hand"
-                            ToolTip="画面比例">
-                        <materialDesign:PackIcon Kind="AspectRatio" Width="18" Height="18" />
+                            ToolTip="画面比例（点击循环：原始 / 铺满 / 16:9 / 4:3）">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <materialDesign:PackIcon Kind="AspectRatio" Width="18" Height="18"
+                                                     VerticalAlignment="Center" />
+                            <TextBlock x:Name="AspectLabel" Text="原始" FontSize="11" Foreground="White"
+                                       VerticalAlignment="Center" Margin="4,0,0,0" />
+                        </StackPanel>
                     </Button>
 
                     <!-- 音量：图标与滑块并排 -->

@@ -286,7 +286,6 @@
                 Padding="24" Grid.RowSpan="2">
             <Grid>
                 <Grid x:Name="ContentArea" />
-                <views:VideoPlayerHost x:Name="PlayerHost" Visibility="Collapsed" Margin="-24" />
             </Grid>
         </Border>
 
@@ -310,5 +309,12 @@
                              Style="{StaticResource MaterialDesignLinearProgressBar}" />
             </Grid>
         </Border>
+
+        <!-- 播放器：作为 RootGrid 直接子元素，非全屏时只占内容行(Row1/Col1)，
+             不跨到状态栏行——视频是 HWND 子窗口，会盖住任何与之重叠的 WPF 元素，
+             因此必须靠布局把它限制在内容区内，状态栏才不会被覆盖。
+             全屏/迷你模式由 VideoPlayerHost 代码把 Row/Column 切成铺满整个网格。 -->
+        <views:VideoPlayerHost x:Name="PlayerHost" Grid.Column="1" Grid.Row="1"
+                               Visibility="Collapsed" />
     </Grid>
 </Window>
