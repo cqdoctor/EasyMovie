@@ -45,8 +45,11 @@ public partial class VideoPlayerWindow : Window
         if (_libVLC == null)
         {
             LibVLCSharp.Shared.Core.Initialize();
-            // no-avcodec-corrupted：不显示 seek 到非关键帧时的损坏帧（色块/马赛克）
-            _libVLC = new LibVLC("--no-avcodec-corrupted", "--no-video-title-show");
+            // 本窗口走“帧回调写 WriteableBitmap”的内存输出：硬件解码需把 GPU 帧回读到 CPU，
+            // 在部分 GPU 上正是白块/马赛克的根源。因此该路径强制纯软件解码（--avcodec-hw=none），
+            // 输出干净；代价是 4K/高码率可能不如硬件解码流畅。
+            // no-avcodec-corrupted：不显示 seek 到非关键帧时的损坏帧。
+            _libVLC = new LibVLC("--no-video-title-show", "--no-avcodec-corrupted", "--avcodec-hw=none");
         }
     }
 

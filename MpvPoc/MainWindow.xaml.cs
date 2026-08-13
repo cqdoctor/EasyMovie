@@ -36,7 +36,7 @@ public partial class MainWindow : Window
             _player = new MpvPlayer();
             // Panel.Handle 此时已就绪，mpv 会渲染到该窗口
             _player.Initialize(_renderPanel!.Handle);
-            StatusLabel.Text = "mpv 已就绪（hwdec=auto）。打开视频开始验证。";
+            StatusLabel.Text = "mpv 已就绪（hwdec=no 软解，确保不出白屏/马赛克）。打开视频开始验证。";
         }
         catch (Exception ex)
         {

@@ -36,7 +36,7 @@
                 <TextBlock x:Name="TimeLabel" Text="00:00:00 / 00:00:00" Foreground="White"
                            VerticalAlignment="Center" Margin="6,0"/>
             </StackPanel>
-            <TextBlock x:Name="StatusLabel" Text="打开一个视频文件开始验证（硬件解码 hwdec=auto）"
+            <TextBlock x:Name="StatusLabel" Text="打开一个视频文件开始验证（软解 hwdec=no，确保不出白屏/马赛克）"
                        Foreground="Yellow" Margin="8,2"/>
         </StackPanel>
     </Grid>
