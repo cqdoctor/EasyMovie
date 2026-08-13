@@ -81,3 +81,8 @@ diag.txt
 debug.log
 screenshot.png
 query3.csx
+
+## mpv POC 自测产物（解码帧/日志，非源码）
+MpvHeadlessTest/*.jpg
+MpvHeadlessTest/*.png
+MpvHeadlessTest/out/
