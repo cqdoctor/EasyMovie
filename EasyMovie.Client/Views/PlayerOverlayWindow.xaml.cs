@@ -147,6 +147,9 @@ public partial class PlayerOverlayWindow : Window
     private void ResumeYes_Click(object sender, RoutedEventArgs e) => _host.ResumeContinue();
     private void ResumeNo_Click(object sender, RoutedEventArgs e) => _host.ResumeFromStart();
 
+    /// <summary>更新控制栏比例按钮上的常驻状态标签。</summary>
+    public void SetAspectDisplay(string shortLabel) => AspectLabel.Text = shortLabel;
+
     private void Aspect_Click(object sender, RoutedEventArgs e)
     {
         var label = _host.CycleAspectMode();
