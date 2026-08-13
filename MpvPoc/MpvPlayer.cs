@@ -24,9 +24,11 @@ internal sealed class MpvPlayer : IDisposable
         // wid 必须在 initialize 之前作为 option 设置（嵌入目标窗口）
         long hwnd = hostHandle.ToInt64();
         MpvApi.mpv_set_option(_ctx, "wid", MpvApi.mpv_format.MPV_FORMAT_INT64, ref hwnd);
-        // vo=gpu 走 D3D11 渲染，正确清屏；hwdec=auto 自动选 d3d11va/nvdec 硬件解码
+        // vo=gpu 走 D3D11 渲染，正确清屏（无 VLC 信箱白块）；
+        // hwdec=no：本环境实测 hwdec=auto 在嵌入/无显式 GPU 上下文时会初始化失败、整屏白屏且不走帧，
+        // 故 POC 用纯软解先保证“能播放、无白块/马赛克”；生产接入时可再尝试 hwdec=d3d11va 提升高码率流畅度。
         MpvApi.mpv_set_option_string(_ctx, "vo", "gpu");
-        MpvApi.mpv_set_option_string(_ctx, "hwdec", "auto");
+        MpvApi.mpv_set_option_string(_ctx, "hwdec", "no");
         // 播放结束不自动关闭窗口，方便查看最后一帧
         MpvApi.mpv_set_option_string(_ctx, "keep-open", "yes");
 

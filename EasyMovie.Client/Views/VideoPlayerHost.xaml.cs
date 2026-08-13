@@ -112,8 +112,8 @@ public partial class VideoPlayerHost : UserControl
         if (_libVLC == null)
         {
             LibVLCSharp.Shared.Core.Initialize();
-            // 解码模式由 DecoderSettings 决定（默认 Software 以保留“关硬件解码消除白块”的修复；
-            // 用户可在播放器「更多」面板切到 Hardware/Auto 换取 4K/高码率流畅，遇白块再切回）。
+            // 解码模式由 DecoderSettings 决定（默认 Hardware=d3d11va + direct3d11 输出，
+            // 既流畅又避开了 DXVA2 的白块/马赛克；遇个别 GPU 异常可切到 Software 纯软解）。
             _libVLC = new LibVLC(DecoderSettings.ToLibVlcOptions());
         }
 
