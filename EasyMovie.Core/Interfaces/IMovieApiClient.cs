@@ -78,4 +78,10 @@ public interface IMovieApiClient
 
     /// <summary>获取电影详情</summary>
     Task<MovieSearchResult?> GetDetailAsync(string externalId, CancellationToken ct = default);
+
+    /// <summary>
+    /// 是否处于自身节流/冷却中（如豆瓣限流自我冷却）。处于此状态时客户端不会真正发请求，
+    /// 调用方不应将其计入熔断失败计数，以免冷却被熔断叠加惩罚、造成过长的无效封禁。
+    /// </summary>
+    bool IsThrottled() => false;
 }

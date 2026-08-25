@@ -202,6 +202,7 @@ public partial class DuplicateResultDialog : Window
                 duplicate.PosterData != null && duplicate.PosterData.Length > 0)
             {
                 primary.PosterData = duplicate.PosterData;
+                if (duplicate.PosterData != null) EasyMovie.Client.Helpers.PosterCache.Save(primary.Id, duplicate.PosterData);
             }
 
             // 合并标签（去重）

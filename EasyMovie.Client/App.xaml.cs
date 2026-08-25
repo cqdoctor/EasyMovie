@@ -4,6 +4,8 @@ using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Media;
+using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Windows.Threading;
 using EasyMovie.Core.Interfaces;
 using EasyMovie.Core.Models;
@@ -29,19 +31,90 @@ public partial class App : Application
     /// <summary>DI 容器根（由 OnStartup 构建）。供 View/Service 增量迁移时使用。</summary>
     public static IServiceProvider Services { get; private set; } = null!;
 
-    protected override void OnStartup(StartupEventArgs e)
+    /// <summary>单实例互斥体句柄。持有期间本进程为唯一运行实例；退出时释放。
+    /// 用于防止多个 exe 副本同时运行并争抢同一 AppData（DB / settings.json / 标志文件），
+    /// 该争抢会造成 "Access to the path '...settings.json' is denied" 与严重卡顿（已在日志中实证）。</summary>
+    private static Mutex? _singleInstanceMutex;
+
+    /// <summary>手动控制的启动闪屏实例。改用 <see cref="ShowSplash"/>/<see cref="CloseSplash"/> 后，
+    /// 闪屏由我们精确控制关闭时机：在所有导航页构造完成、主窗口已就绪后平滑淡出，避免“闪屏未隐藏、主窗口已显示”的重叠衔接问题。</summary>
+    private static SplashScreen? _splashScreen;
+
+    /// <summary>显示启动闪屏（不自动关闭）。应尽早调用，覆盖 CLR 加载、DI/主题/窗口创建与页面预热阶段。</summary>
+    public static void ShowSplash()
     {
-        // 启动里程碑：写到 logs/startup.log，便于跨会话验证窗口是否真正建出（不依赖 Serilog 初始化时机）
+        try
+        {
+            _splashScreen = new SplashScreen("app.png");
+            _splashScreen.Show(false);
+            LogStartup("启动闪屏已显示(手动控制)");
+        }
+        catch (Exception ex)
+        {
+            LogStartup("启动闪屏显示失败: " + ex.Message);
+            _splashScreen = null;
+        }
+        // 兜底：极端情况下若预热流程异常未关闭闪屏，8 秒后强制关闭，绝不卡死在启动画面。
+        _ = Task.Delay(8000).ContinueWith(_ => CloseSplash());
+    }
+
+    /// <summary>平滑关闭启动闪屏（幂等，可重复调用）。内部自动封送到 UI 线程，因此可从任意线程（含兜底超时的线程池线程）安全调用。</summary>
+    public static void CloseSplash()
+    {
+        try
+        {
+            if (_splashScreen == null) return;
+            var splash = _splashScreen;
+            var dispatcher = Application.Current?.Dispatcher;
+            if (dispatcher?.CheckAccess() == true)
+                splash.Close(TimeSpan.FromMilliseconds(250));
+            else
+                dispatcher?.BeginInvoke(new Action(() => splash.Close(TimeSpan.FromMilliseconds(250))));
+        }
+        catch { }
+        _splashScreen = null;
+    }
+
+    /// <summary>启动期里程碑日志：写入 exe 同级 logs/startup.log，带毫秒时间戳，用于跨会话定位卡顿阶段。</summary>
+    public static void LogStartup(string msg)
+    {
         try
         {
             var dir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs");
             Directory.CreateDirectory(dir);
             File.AppendAllText(Path.Combine(dir, "startup.log"),
-                $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] OnStartup 开始 (PID={Environment.ProcessId}, Session={Environment.ProcessId})\n");
+                $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] {msg}\n");
         }
         catch { }
+    }
+
+    /// <summary>模块初始化器：CLR 加载本程序集后、任何类型静态构造之前立即执行，用于探测"OnStartup 之前"的极早期耗时。</summary>
+    [ModuleInitializer]
+    public static void ModuleInit() => LogStartup($"CLR模块已加载(极早期, PID={Environment.ProcessId})");
+
+    protected override void OnStartup(StartupEventArgs e)
+    {
+        // ===== 单实例保护 =====
+        // 多个 exe 副本会共享同一 AppData（DB / settings.json / 标志文件），互相争抢会导致
+        // "Access to the path '...settings.json' is denied" 与严重卡顿（已在日志中实证）。
+        // 使用全局命名互斥体：若已有实例持有，则当前实例直接退出，避免重复争抢。
+        _singleInstanceMutex = new Mutex(true, @"Global\EasyMovie_SingleInstance", out var createdNew);
+        if (!createdNew)
+        {
+            LogStartup($"已有实例运行，本实例退出 (PID={Environment.ProcessId})");
+            try { _singleInstanceMutex.Dispose(); _singleInstanceMutex = null; } catch { }
+            Shutdown();
+            return;
+        }
+
+        // 启动里程碑：写到 logs/startup.log，便于跨会话验证窗口是否真正建出（不依赖 Serilog 初始化时机）
+        LogStartup($"OnStartup 开始 (PID={Environment.ProcessId})");
 
         base.OnStartup(e);
+        LogStartup("base.OnStartup 完成(主窗口即将创建)");
+
+        // 手动显示启动闪屏：覆盖 DI/主题/窗口创建与页面预热阶段，关闭时机由 MainWindow 预热完成后调用 CloseSplash 精确控制。
+        ShowSplash();
 
         // 构建 DI 容器；失败不影响启动，FolderWatcher 回退为默认实例
         try
@@ -53,9 +126,11 @@ public partial class App : Application
         {
             Log.Error(ex, "DI 容器初始化失败，使用默认 FolderWatcher");
         }
+        LogStartup("DI容器就绪");
 
         // 初始化语言
         LanguageManager.Initialize();
+        LogStartup("语言初始化完成");
 
         Log.Logger = new LoggerConfiguration()
             .MinimumLevel.Information()
@@ -65,15 +140,23 @@ public partial class App : Application
                 retainedFileCountLimit: 30,
                 outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss} [{Level}] {Message}{NewLine}{Exception}")
             .CreateLogger();
+        LogStartup("Serilog日志器就绪");
 
         Log.Information("EasyMovie 启动");
 
-        try
+        // 数据库初始化（schema 迁移 / 数据清洗 / 种子标签）较重，放到后台线程，
+        // 避免阻塞主界面首屏（实测同步执行约 24 秒）。
+        _ = Task.Run(() =>
         {
-            using var context = DbHelper.CreateContext();
-            Log.Information("数据库就绪: {Path}", DbHelper.ConnectionString);
-        }
-        catch (Exception ex) { Log.Error(ex, "数据库初始化失败"); }
+            try
+            {
+                using var context = DbHelper.CreateContext();
+                Log.Information("数据库就绪: {Path}", DbHelper.ConnectionString);
+                LogStartup("数据库就绪(后台线程)");
+            }
+            catch (Exception ex) { Log.Error(ex, "数据库初始化失败"); LogStartup("数据库初始化失败: " + ex.Message); }
+        });
+        LogStartup("数据库初始化已派发到后台线程");
 
         AppDomain.CurrentDomain.UnhandledException += (s, args) =>
         {
@@ -97,7 +180,13 @@ public partial class App : Application
             args.SetObserved();
         };
 
+        // 系统深浅色实时跟随：注入 Windows 系统主题检测，并在 System 模式下监听系统主题变化
+        AppSettings.SetSystemThemeDetector(DetectSystemDark);
+        if (AppSettings.Theme == AppThemeMode.System)
+            RegisterSystemThemeWatcher();
+
         ApplyTheme(IsDarkTheme);
+        LogStartup("主题/皮肤就绪");
 
         // 启动文件夹监控
         FolderWatcher.GetExistingPaths = () =>
@@ -112,7 +201,7 @@ public partial class App : Application
                     .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
                 // 也加入已删除的文件路径，防止重新导入
-                foreach (var p in AppSettings.DeletedFilePaths)
+                foreach (var p in AppSettings.GetDeletedFilePathsSnapshot())
                     dbPaths.Add(p);
 
                 return dbPaths;
@@ -125,11 +214,30 @@ public partial class App : Application
             FolderWatcher.NewFileDetected += OnNewFileDetected;
             FolderWatcher.Start(AppSettings.MonitoredFolders);
         }
+        // 后台把历史海报写盘（磁盘缓存层），不阻塞启动；任何失败均被 PosterCache 内部吞掉
+        _ = System.Threading.Tasks.Task.Run(EasyMovie.Client.Helpers.PosterCache.MigrateFromDb);
+
+        // 若启用“定时同步在线信息”，启动周期计时器（首轮在间隔后触发，不阻塞启动）
+        StartMetadataAutoSync();
+
+        LogStartup("OnStartup 结束");
     }
 
     protected override void OnExit(ExitEventArgs e)
     {
+        Microsoft.Win32.SystemEvents.UserPreferenceChanged -= OnSystemPreferenceChanged;
         FolderWatcher.Stop();
+        _metadataSyncTimer?.Stop();
+        _metadataSyncTimer?.Dispose();
+        _metadataSyncTimer = null;
+        // 释放单实例互斥体，允许下次启动
+        try
+        {
+            _singleInstanceMutex?.ReleaseMutex();
+            _singleInstanceMutex?.Dispose();
+            _singleInstanceMutex = null;
+        }
+        catch { }
         Log.Information("EasyMovie 退出");
         Log.CloseAndFlush();
         base.OnExit(e);
@@ -180,6 +288,10 @@ public partial class App : Application
     {
         AppSettings.Theme = mode;
         ApplyTheme(IsDarkTheme);
+        if (mode == AppThemeMode.System)
+            RegisterSystemThemeWatcher();
+        else
+            Microsoft.Win32.SystemEvents.UserPreferenceChanged -= OnSystemPreferenceChanged;
         Log.Information("主题切换: {Theme} (实际: {Actual})", mode, IsDarkTheme ? "Dark" : "Light");
     }
 
@@ -200,6 +312,46 @@ public partial class App : Application
             skinName = dark ? "Dark" : "Light";
 
         LoadSkin(skinName);
+    }
+
+    /// <summary>读取 Windows 系统“应用”深浅色（注册表 AppsUseLightTheme，0=深色 1=浅色）。非 Windows 或读取失败回退夜间时间判定。</summary>
+    private static bool DetectSystemDark()
+    {
+        if (!OperatingSystem.IsWindows())
+            return AppSettings.IsNightTime();
+        try
+        {
+            using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
+                @"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize");
+            if (key?.GetValue("AppsUseLightTheme") is int v)
+                return v == 0; // 0 表示系统使用深色
+        }
+        catch { }
+        return AppSettings.IsNightTime();
+    }
+
+    /// <summary>订阅 Windows 系统主题变化并实时切换界面主题（幂等，可重复调用）。</summary>
+    private static void RegisterSystemThemeWatcher()
+    {
+        _lastSystemDark = AppSettings.IsDarkTheme;
+        Microsoft.Win32.SystemEvents.UserPreferenceChanged -= OnSystemPreferenceChanged;
+        Microsoft.Win32.SystemEvents.UserPreferenceChanged += OnSystemPreferenceChanged;
+    }
+
+    // 记录上次应用的系统深浅色，避免系统其它偏好变化（鼠标/键盘/语言等）触发事件时反复切换主题
+    private static bool _lastSystemDark = AppSettings.IsDarkTheme;
+
+    private static void OnSystemPreferenceChanged(object? sender, Microsoft.Win32.UserPreferenceChangedEventArgs e)
+    {
+        if (AppSettings.Theme != AppThemeMode.System) return;
+        try
+        {
+            var nowDark = AppSettings.IsDarkTheme;
+            if (nowDark == _lastSystemDark) return; // 系统深浅色未变，跳过
+            _lastSystemDark = nowDark;
+            Current.Dispatcher.Invoke(() => ApplyTheme(nowDark));
+        }
+        catch { }
     }
 
     /// <summary>加载指定皮肤，写入刷子 + 切换主色调</summary>
@@ -249,7 +401,7 @@ public partial class App : Application
             try
             {
                 // 检查是否已被用户删除（防止重新导入）
-                if (AppSettings.DeletedFilePaths.Contains(filePath))
+                if (AppSettings.IsFileDeleted(filePath))
                 {
                     Log.Information("[FolderWatcher] 文件已被用户删除，跳过: {File}", fileName);
                     return;
@@ -357,6 +509,48 @@ public partial class App : Application
         {
             FolderWatcher.Start(AppSettings.MonitoredFolders);
         }
+    }
+
+    // ── 定时同步在线信息 ──
+    private static System.Timers.Timer? _metadataSyncTimer;
+    private static int _metadataSyncRunning = 0;
+
+    /// <summary>若启用自动同步，启动周期计时器（首轮在间隔之后触发，不阻塞启动）。</summary>
+    private static void StartMetadataAutoSync()
+    {
+        if (!AppSettings.MetadataAutoSyncEnabled) return;
+        var hours = Math.Max(1, AppSettings.MetadataAutoSyncIntervalHours);
+        _metadataSyncTimer = new System.Timers.Timer(hours * 3600.0 * 1000.0) { AutoReset = true };
+        _metadataSyncTimer.Elapsed += (_, _) => _ = RunMetadataSyncNow();
+        _metadataSyncTimer.Start();
+        Log.Information("已启用定时同步在线信息，间隔 {Hours} 小时", hours);
+    }
+
+    /// <summary>立即同步所有已绑定外部 ID 的电影（手动按钮 / 定时触发共用）。重叠调用会被忽略。</summary>
+    public static async Task RunMetadataSyncNow(IProgress<string>? progress = null)
+    {
+        if (Interlocked.Exchange(ref _metadataSyncRunning, 1) == 1) return; // 已在运行
+        try
+        {
+            await EasyMovie.Client.Services.MetadataSyncService.SyncAllAsync(progress);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "同步在线信息失败");
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _metadataSyncRunning, 0);
+        }
+    }
+
+    /// <summary>设置变更后重新应用自动同步（停止旧计时器并按当前设置重启或关闭）。</summary>
+    public static void ApplyMetadataAutoSyncSetting()
+    {
+        _metadataSyncTimer?.Stop();
+        _metadataSyncTimer?.Dispose();
+        _metadataSyncTimer = null;
+        StartMetadataAutoSync();
     }
 
     private static readonly object _crashLock = new();

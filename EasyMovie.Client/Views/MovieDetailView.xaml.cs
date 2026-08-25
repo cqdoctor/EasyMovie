@@ -117,6 +117,7 @@ public partial class MovieDetailView : UserControl
                         else if (_fetchedInfo.PosterUrl.Contains("douban"))
                             imgClient.DefaultRequestHeaders.Add("Referer", "https://movie.douban.com/");
                         m.PosterData = await imgClient.GetByteArrayAsync(_fetchedInfo.PosterUrl);
+                        if (m.PosterData != null) EasyMovie.Client.Helpers.PosterCache.Save(m.Id, m.PosterData);
                     }
                     catch (Exception ex) { Log.Error(ex, "MovieDetailView 操作异常"); }
                 }
@@ -157,27 +158,9 @@ public partial class MovieDetailView : UserControl
         }
     }
 
-    /// <summary>从文件名提取标题和年份（复用 FolderImportService 的清洗逻辑）</summary>
+    /// <summary>从文件名提取标题和年份（复用统一的 FileNameParser 清洗逻辑）</summary>
     private static (string title, int? year) ParseFileName(string fileName)
-    {
-        var name = Path.GetFileNameWithoutExtension(fileName);
-        name = Regex.Replace(name, @"\[.*?\]", " ");
-        name = Regex.Replace(name, @"\(.*?\)", " ");
-        name = Regex.Replace(name, @"\b(4K|1080p|720p|2160p|BluRay|Blu-ray|WEB-DL|WEBRip|HDRip|BRRip|HDTV|x264|x265|H264|H265|AAC|DTS|DD5\.1|DD2\.0|E?AC3|DDP?5\.1|HEVC|10bit|SDR|HDR|Remux|PROPER|REPACK|EXTENDED|UNCUT|Director.s.Cut|Theatrical.Cut|TrueHD|Atmos|DTSHD|MA|Multi|Dual|Dubbed|Subbed)\b", " ", RegexOptions.IgnoreCase);
-        name = Regex.Replace(name, @"\b(\.|\-|_)\b", " ");
-
-        int? year = null;
-        var yearMatch = Regex.Match(name, @"\b(18[8-9]\d|19\d{2}|20[0-2]\d|2030)\b");
-        if (yearMatch.Success)
-        {
-            year = int.Parse(yearMatch.Value);
-            name = name.Replace(yearMatch.Value, "");
-        }
-
-        name = Regex.Replace(name, @"\s+", " ").Trim();
-        if (string.IsNullOrEmpty(name)) name = Path.GetFileNameWithoutExtension(fileName);
-        return (name, year);
-    }
+        => EasyMovie.Tools.ImportExport.FileNameParser.Parse(fileName);
 
     /// <summary>浏览文件后自动填充标题并触发在线获取电影信息</summary>
     private async void AutoFillFromFileName(string filePath)

@@ -4,6 +4,7 @@ using System.Text.Json;
 using EasyMovie.Core;
 using EasyMovie.Core.Interfaces;
 using Serilog;
+using System.Globalization;
 
 namespace EasyMovie.Tools.MovieApi;
 
@@ -184,7 +185,7 @@ public class MovieNewsService
                 }
 
                 double? rating = null;
-                if (!string.IsNullOrEmpty(rate) && double.TryParse(rate, out var rv)) rating = rv;
+                if (!string.IsNullOrEmpty(rate) && double.TryParse(rate, NumberStyles.Float, CultureInfo.InvariantCulture, out var rv)) rating = rv;
 
                 // 海报URL替换为大图
                 if (!string.IsNullOrEmpty(cover))
@@ -347,7 +348,7 @@ public class MovieNewsService
             var rm = Regex.Match(block, @"subject-rate[^>]*>([\d.]+)<");
             if (!rm.Success) rm = Regex.Match(block, @"rating[^>]*>([\d.]+)<");
             if (!rm.Success) rm = Regex.Match(block, @">([\d.]+)</span>\s*$", RegexOptions.Multiline);
-            if (rm.Success && double.TryParse(rm.Groups[1].Value, out var r)) rating = r;
+            if (rm.Success && double.TryParse(rm.Groups[1].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var r)) rating = r;
 
             results.Add(new MovieNewsItem
             {
@@ -434,7 +435,7 @@ public class MovieNewsService
 
             double? rating = null;
             var rm = Regex.Match(block, @"class=""rating_num""[^>]*>([\d.]+)<");
-            if (rm.Success && double.TryParse(rm.Groups[1].Value, out var r)) rating = r;
+            if (rm.Success && double.TryParse(rm.Groups[1].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var r)) rating = r;
 
             int? rank = null;
             var rkm = Regex.Match(block, @"<em[^>]*>(\d+)</em>");
@@ -541,12 +542,12 @@ public class MovieNewsService
             double? rating = null;
             // 猫眼评分拆分为 integer + fraction
             var rm = Regex.Match(block, @"class=""integer""[^>]*>(\d+)</i>\s*<i[^>]*class=""fraction""[^>]*>(\d+)</i>");
-            if (rm.Success && double.TryParse(rm.Groups[1].Value + "." + rm.Groups[2].Value, out var r)) rating = r;
+            if (rm.Success && double.TryParse(rm.Groups[1].Value + "." + rm.Groups[2].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var r)) rating = r;
             if (rating == null)
             {
                 rm = Regex.Match(block, @"class=""score[^""]*""[^>]*>([\d.]+)<");
                 if (!rm.Success) rm = Regex.Match(block, @"score[^>]*>([\d.]+)<");
-                if (rm.Success && double.TryParse(rm.Groups[1].Value, out var r2)) rating = r2;
+                if (rm.Success && double.TryParse(rm.Groups[1].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var r2)) rating = r2;
             }
 
             int? rank = null;

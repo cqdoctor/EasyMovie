@@ -1,5 +1,8 @@
 using System;
+using System.Globalization;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -23,6 +26,7 @@ public partial class SettingsView : UserControl
 {
     private readonly MovieDbContext _context;
     private readonly SettingsViewModel _vm;
+    private CancellationTokenSource? _backfillCts;
 
     public SettingsView()
     {
@@ -40,6 +44,8 @@ public partial class SettingsView : UserControl
         InitBackupSettings();
         InitAISettings();
         InitFolderMonitor();
+        InitAutoSync();
+        InitReleaseReminder();
         UpdateNetworkStatus();
     }
 
@@ -447,6 +453,57 @@ public partial class SettingsView : UserControl
         UpdateFolderMonitorStatus();
     }
 
+    // ── 自动同步在线信息 ──
+    private void InitAutoSync()
+    {
+        AutoSyncToggle.IsChecked = AppSettings.MetadataAutoSyncEnabled;
+        AutoSyncIntervalBox.Text = AppSettings.MetadataAutoSyncIntervalHours.ToString();
+    }
+
+    private void InitReleaseReminder()
+    {
+        ReleaseReminderToggle.IsChecked = AppSettings.ReleaseReminderEnabled;
+        ReleaseReminderNowPlayingToggle.IsChecked = AppSettings.ReleaseReminderIncludeNowPlaying;
+    }
+
+    private void ReleaseReminderToggle_Changed(object sender, RoutedEventArgs e)
+    {
+        if (ReleaseReminderToggle.IsChecked != null)
+            AppSettings.ReleaseReminderEnabled = ReleaseReminderToggle.IsChecked.Value;
+        if (ReleaseReminderNowPlayingToggle.IsChecked != null)
+            AppSettings.ReleaseReminderIncludeNowPlaying = ReleaseReminderNowPlayingToggle.IsChecked.Value;
+    }
+
+    private void AutoSyncToggle_Changed(object sender, RoutedEventArgs e)
+    {
+        if (AutoSyncToggle.IsChecked == null) return;
+        AppSettings.MetadataAutoSyncEnabled = AutoSyncToggle.IsChecked.Value;
+        App.ApplyMetadataAutoSyncSetting();
+    }
+
+    private async void SyncNow_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn) btn.IsEnabled = false;
+        try
+        {
+            // 间隔值随手动触发一并保存，便于下次启动沿用
+            if (int.TryParse(AutoSyncIntervalBox.Text, out var hrs) && hrs > 0)
+                AppSettings.MetadataAutoSyncIntervalHours = hrs;
+
+            var progress = new Progress<string>(s => AutoSyncStatus.Text = s);
+            AutoSyncStatus.Text = LanguageManager.GetString("Sync_Running") ?? "正在同步…";
+            await App.RunMetadataSyncNow(progress);
+        }
+        catch (Exception ex)
+        {
+            AutoSyncStatus.Text = "同步失败：" + ex.Message;
+        }
+        finally
+        {
+            if (sender is Button b) b.IsEnabled = true;
+        }
+    }
+
     private void AddMonitoredFolder_Click(object sender, RoutedEventArgs e)
     {
         try
@@ -618,4 +675,165 @@ public partial class SettingsView : UserControl
     }
 
     #endregion
+
+    #region 离线预种子（豆瓣 CSV → cache.db）
+
+    private void SelectSeedFile_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var d = new OpenFileDialog { Filter = "CSV 文件|*.csv|所有文件|*.*", Title = "选择豆瓣 movies.csv" };
+            if (d.ShowDialog() == true) SeedFilePathBox.Text = d.FileName;
+        }
+        catch (Exception ex) { Log.Error(ex, "SettingsView 选择种子文件异常"); }
+    }
+
+    private async void ImportSeed_Click(object sender, RoutedEventArgs e)
+    {
+        var path = SeedFilePathBox.Text?.Trim();
+        if (string.IsNullOrEmpty(path) || !File.Exists(path))
+        {
+            AppMessageBox.ShowInfo("请先选择有效的豆瓣 movies.csv 文件", "导入离线种子");
+            return;
+        }
+        if (sender is Button btn) btn.IsEnabled = false;
+        try
+        {
+            double minRating = 0;
+            long minVotes = 0;
+            if (double.TryParse(SeedMinRatingBox.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out var r)) minRating = r;
+            if (long.TryParse(SeedMinVotesBox.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v)) minVotes = v;
+
+            SeedProgressText.Text = "正在导入，请稍候…（仅本地读取）";
+            var progress = new Progress<SeedImporter.SeedProgress>(p => SeedProgressText.Text = $"{p.Message}（已处理 {p.Done} 行）");
+            var report = await SeedImporter.ImportDoubanCsvAsync(path, minRating, minVotes, progress);
+
+            if (!string.IsNullOrEmpty(report.Error))
+            {
+                AppMessageBox.ShowError(report.Error);
+                SeedProgressText.Text = "导入失败：" + report.Error;
+            }
+            else
+            {
+                AppMessageBox.ShowInfo(
+                    $"导入完成：共读取 {report.TotalRows} 行，新增 {report.Inserted} 条，跳过(空/重复) {report.Skipped} 条，过滤(低分/冷门) {report.Filtered} 条，为已有条目补图 {report.PosterFilled} 条。\n缓存库现有约 {LocalMovieCache.Count()} 部影片元数据。",
+                    "导入离线种子");
+                SeedProgressText.Text = $"导入完成：新增 {report.Inserted} 条，缓存库约 {LocalMovieCache.Count()} 部";
+            }
+        }
+        catch (Exception ex)
+        {
+            AppMessageBox.ShowError(ex.Message);
+            SeedProgressText.Text = "导入失败：" + ex.Message;
+        }
+        finally
+        {
+            if (sender is Button b) b.IsEnabled = true;
+        }
+    }
+
+    #endregion
+
+    #region 慢慢补全 2020+ 元数据（豆瓣·慢速防封）
+
+    /// <summary>从用户片库筛出 Year>=2020 且离线缓存覆盖不足的影片，作为补全队列。</summary>
+    private List<(string Title, int? Year)> BuildBackfillQueue()
+    {
+        var queue = new List<(string, int?)>();
+        LocalMovieCache.EnsureReady();
+        // 用独立上下文，避免与 UI 线程上的 _context 跨线程争用
+        using var ctx = DbHelper.CreateContext();
+        var movies = ctx.Movies
+            .Where(m => m.Year >= 2020)
+            .Select(m => new { m.Title, m.Year })
+            .AsEnumerable()
+            .ToList();
+        foreach (var mv in movies)
+        {
+            // 片库标题带发布标签（如"年会不能停 Johnny Keep Walking EAC3"），
+            // cache.db 存的是干净标题。必须先用解析层清洗，否则 Lookup 键不匹配、
+            // 已补全的影片会永远重复入队、队列永不缩小。
+            var cleanTitle = DoubanApiClient.ExtractChineseKeyword(mv.Title);
+            if (string.IsNullOrWhiteSpace(cleanTitle))
+                cleanTitle = DoubanApiClient.ExtractEnglishHint(mv.Title) ?? mv.Title.Trim();
+            var hit = LocalMovieCache.Lookup(new Movie { Title = cleanTitle, Year = mv.Year });
+            // 覆盖判断：必须有"硬数据"（评分或海报）才算覆盖。
+            // 导演/演员字段可能来自不可信的 seed 数据（如 14 万集中"满江红导演=左几"是错的），
+            // 仅非空不可信——若只按"导演非空"判定，脏数据会挡住补全，正确信息进不来。
+            bool covered = hit != null &&
+                           (hit.Rating.HasValue || !string.IsNullOrEmpty(hit.PosterUrl));
+            if (!covered) queue.Add((mv.Title, mv.Year));
+        }
+        return queue;
+    }
+
+    private void BackfillPreview_Click(object sender, RoutedEventArgs e)
+    {
+        BackfillPreviewText.Text = "统计中…";
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                var q = BuildBackfillQueue();
+                Dispatcher.Invoke(() => BackfillPreviewText.Text = $"待补全约 {q.Count} 部（2020+ 且离线缓存覆盖不足）");
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "统计待补全异常");
+                Dispatcher.Invoke(() => BackfillPreviewText.Text = "统计失败：" + ex.Message);
+            }
+        });
+    }
+
+    private async void StartBackfill_Click(object sender, RoutedEventArgs e)
+    {
+        if (_backfillCts != null) return; // 已在运行
+        if (sender is Button b) b.IsEnabled = false;
+        _backfillCts = new CancellationTokenSource();
+        var ct = _backfillCts.Token;
+        var progress = new Progress<string>(msg => BackfillProgressText.Text = msg);
+        try
+        {
+            // 先在后台构建队列（避免界面卡顿）
+            BackfillProgressText.Text = "正在统计待补全影片…";
+            var queue = await Task.Run(BuildBackfillQueue, ct);
+            if (queue.Count == 0)
+            {
+                BackfillProgressText.Text = "没有需要补全的 2020+ 影片（离线缓存已覆盖或片库无 2020+ 影片）。";
+                return;
+            }
+            BackfillProgressText.Text = $"开始慢慢补全，共 {queue.Count} 部（节奏很慢、遇封控即停）…";
+            var report = await DoubanBackfillService.RunAsync(queue, progress, ct);
+            if (ct.IsCancellationRequested)
+                BackfillProgressText.Text = $"已手动停止。完成 {report.Done}/{report.Total}（补全 {report.Filled}，跳过 {report.Skipped}）。";
+            else if (report.StoppedByThrottle)
+                BackfillProgressText.Text = $"⚠ {report.Error} 本次完成 {report.Done}/{report.Total}（补全 {report.Filled}）。可稍后点“开始”继续。";
+            else
+                BackfillProgressText.Text = $"完成：{report.Done}/{report.Total}（补全 {report.Filled}，跳过 {report.Skipped}）。{(report.Error ?? "")}";
+        }
+        catch (OperationCanceledException)
+        {
+            BackfillProgressText.Text = "已停止。";
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "慢慢补全异常");
+            BackfillProgressText.Text = "补全异常：" + ex.Message;
+        }
+        finally
+        {
+            _backfillCts?.Dispose();
+            _backfillCts = null;
+            if (sender is Button bb) bb.IsEnabled = true;
+        }
+    }
+
+    private void StopBackfill_Click(object sender, RoutedEventArgs e)
+    {
+        _backfillCts?.Cancel();
+        BackfillProgressText.Text = "正在停止…";
+    }
+
+    #endregion
+
 }

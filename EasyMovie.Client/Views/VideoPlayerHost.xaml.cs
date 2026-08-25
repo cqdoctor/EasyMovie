@@ -55,6 +55,9 @@ public partial class VideoPlayerHost : UserControl
     private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
 
     [DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
     private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
 
     [DllImport("user32.dll")]
@@ -266,6 +269,9 @@ public partial class VideoPlayerHost : UserControl
         _ => "原始"
     };
 
+    /// <summary>自测用：进入/退出全屏（供 --selftest 自动化截图验证）。</summary>
+    public void EnterFullscreenForTest() => ToggleFullscreen();
+
     /// <summary>把 VideoView 调整为目标宽高比并居中（targetAspect=null 时填满整个播放区）。
     /// 返回 VideoView 的实际宽高。信箱区域落在 VideoView 之外的 VideoPlayerHost 黑底上（显示黑色），
     /// 从而绕开 VideoView 内部 static 窗口信箱露白的问题。</summary>
@@ -376,6 +382,8 @@ public partial class VideoPlayerHost : UserControl
         Focus();
         EnsureOverlay();
         CleanupInner();
+        ClearThumbnails();
+        GenerateThumbnails();
 
         try
         {
@@ -484,10 +492,26 @@ public partial class VideoPlayerHost : UserControl
     public void BeginSeek() => _isSeeking = true;
     public void EndSeek() => _isSeeking = false;
 
-    public void SeekTo(long ms)
+    public void SeekTo(long ms, bool fast = false)
     {
         if (_mediaPlayer == null) return;
-        _mediaPlayer.Time = ms;
+        // LibVLC 3.x 的 set_time 是同步阻塞的：若直接在主线程调用，拖动松手后
+        // UI 会被冻结直到 seek 完成（画面"过好久"才跳过去）。改为后台线程执行，
+        // 主线程不阻塞；拖动过程传入 fast=true 仅定位最近关键帧，进一步提速。
+        var mp = _mediaPlayer;
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                // LibVLCSharp 3.x 未暴露 fast-seek 标志，统一在后台线程执行同步 set_time，
+                // 避免阻塞 UI 线程（拖动松手后无需再冻结等待 seek 完成）。
+                mp.Time = ms;
+            }
+            catch (Exception ex)
+            {
+                LogDebug($"后台 seek 失败: {ex.Message}");
+            }
+        });
     }
 
     public long GetLength() => _mediaPlayer?.Length ?? 0;
@@ -516,6 +540,7 @@ public partial class VideoPlayerHost : UserControl
 
         // ===== P0 播放增强：对外接口（供覆盖窗口调用） =====
         public void RequestCycleRate() => CycleRate();
+        public void RequestRatePanel() => ShowRatePanel();
         public void RequestSnapshot() => TakeSnapshot();
         public void RequestSubtitlePanel() => ShowSubtitlePanel();
         public void RequestAudioPanel() => ShowAudioPanel();
@@ -634,10 +659,19 @@ public partial class VideoPlayerHost : UserControl
         _overlay?.SetTime(_mediaPlayer.Time, _mediaPlayer.Length);
     }
 
+    private DateTime _lastToggleUtc;
     private void TogglePlayPause()
     {
         if (_mediaPlayer == null) return;
-        if (_mediaPlayer.IsPlaying)
+        // 防抖：避免暂停/播放切换的竞态（VLC 的 Pause/Play 是异步处理，
+        // 极快连点会让 IsPlaying 状态短暂失真，导致“点了播放却仍暂停”）。
+        var now = DateTime.UtcNow;
+        if ((now - _lastToggleUtc).TotalMilliseconds < 250) return;
+        _lastToggleUtc = now;
+
+        // 用本地维护的 _isPlaying 作为切换依据，而不是 _mediaPlayer.IsPlaying：
+        // 后者在 Pause() 调用后的一段时间内仍可能返回 true，造成二次 Pause。
+        if (_isPlaying)
         {
             _mediaPlayer.Pause();
             _isPlaying = false;
@@ -683,8 +717,14 @@ public partial class VideoPlayerHost : UserControl
 
     private void ToggleFullscreen()
     {
-        var window = Window.GetWindow(this) as MainWindow;
+        try
+        {
+            var window = Window.GetWindow(this) as MainWindow;
         if (window == null) { LogDebug("ToggleFullscreen: window is null"); return; }
+        // 过渡期间先隐藏视频 HWND 表面：窗口被 SetWindowPos 瞬间拉满而 VideoView 尺寸滞后，
+        // 中间几帧视频会按旧/中间尺寸拉伸渲染（画面乱）。隐藏后底层 Host 为纯黑，
+        // 等布局稳定、HWND 已是正确尺寸后再恢复显示，画面直接干净呈现。
+        VideoView.Visibility = Visibility.Hidden;
         // 迷你模式下先恢复普通窗口，再进入全屏，避免两套几何状态冲突
         if (_isMini) ToggleMiniMode();
 
@@ -789,6 +829,9 @@ public partial class VideoPlayerHost : UserControl
                     mi.rcMonitor.left, mi.rcMonitor.top,
                     mi.rcMonitor.Width, mi.rcMonitor.Height,
                     SWP_SHOWWINDOW | SWP_FRAMECHANGED);
+                // 强制窗口到前台：后台启动的全屏窗口可能被其他应用抢焦点
+                SetForegroundWindow(hwnd);
+                try { window.Activate(); } catch (Exception aex) { LogDebug($"Activate failed: {aex.Message}"); }
                 LogDebug($"SetWindowPos result={ok}, after L={window.Left},T={window.Top},W={window.Width},H={window.Height},State={window.WindowState}");
             }
             else
@@ -803,8 +846,22 @@ public partial class VideoPlayerHost : UserControl
 
         // 全屏布局刷新有延迟：连续几帧在 ApplicationIdle 优先级同步覆盖窗口，
         // 确保读到的是全屏后的真实尺寸/位置（返回栏贴顶、不溢出屏幕）。
+        // 最后一帧再恢复视频表面，此时 VideoView 的 HWND 已是正确尺寸，避免拉伸/错位。
         for (int i = 0; i < 3; i++)
-            Dispatcher.BeginInvoke(new Action(SyncOverlay), DispatcherPriority.ApplicationIdle);
+        {
+            var idx = i;
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                SyncOverlay();
+                if (idx == 2) VideoView.Visibility = Visibility.Visible;
+            }), DispatcherPriority.ApplicationIdle);
+        }
+        }
+        catch (Exception ex)
+        {
+            VideoView.Visibility = Visibility.Visible;
+            LogDebug($"ToggleFullscreen EXCEPTION: {ex}");
+        }
     }
 
     private void Host_KeyDown(object sender, KeyEventArgs e)
@@ -816,6 +873,10 @@ public partial class VideoPlayerHost : UserControl
     private void SavePositionAndClose()
     {
         SavePosition();
+        // 全屏/迷你状态下点返回：先恢复主窗口正常状态（标题栏/边框/最大化最小化按钮），
+        // 否则关闭播放器后主界面仍是无边框全屏，看不到右上角按钮、无法操作。
+        if (_isFullscreen) ToggleFullscreen();
+        else if (_isMini) ToggleMiniMode();
         Close();
     }
 
@@ -898,6 +959,20 @@ public partial class VideoPlayerHost : UserControl
         _overlay?.SetRateDisplay(r);
     }
 
+    /// <summary>弹出倍速选项面板（在覆盖窗口中渲染全部档位供选择，替代原先“点一下循环切一个”）。</summary>
+    public void ShowRatePanel()
+    {
+        if (_mediaPlayer == null) return;
+        _overlay?.ShowRateOptions(_rates, _rateIndex, SetRateIndex);
+    }
+
+    public void SetRateIndex(int index)
+    {
+        if (index < 0 || index >= _rates.Length) return;
+        _rateIndex = index;
+        ApplyRate();
+    }
+
     public void TakeSnapshot()
     {
         if (_mediaPlayer == null || _movie == null) return;
@@ -922,17 +997,56 @@ public partial class VideoPlayerHost : UserControl
     public void ShowSubtitlePanel()
     {
         if (_mediaPlayer == null) return;
-        var desc = _mediaPlayer.SpuDescription;
-        var tracks = desc.Select(t => (t.Id, t.Name ?? $"轨 {t.Id}")).ToArray();
+        var tracks = GetSubtitleTracks();
         _overlay?.ShowSubtitleTracks(tracks, _mediaPlayer.Spu, _subtitleDelay);
+        // 轨道可能尚未枚举完成（尤其刚打开或暂停态下 Description 常返回空），稍后重试一次
+        if (tracks.Length == 0) RetryShowPanel(() => ShowSubtitlePanel());
     }
 
     public void ShowAudioPanel()
     {
         if (_mediaPlayer == null) return;
-        var desc = _mediaPlayer.AudioTrackDescription;
-        var tracks = desc.Select(t => (t.Id, t.Name ?? $"轨 {t.Id}")).ToArray();
+        var tracks = GetAudioTracks();
         _overlay?.ShowAudioTracks(tracks, _mediaPlayer.AudioTrack);
+        if (tracks.Length == 0) RetryShowPanel(() => ShowAudioPanel());
+    }
+
+    /// <summary>从 Media.Tracks 枚举轨道（解析后即固定，不受播放/暂停状态影响，比 AudioTrackDescription/SpuDescription 可靠）。
+    /// 若 Media.Tracks 暂不可用，回退到 MediaPlayer 的描述属性。</summary>
+    private (int Id, string Name)[] GetAudioTracks()
+    {
+        if (_mediaPlayer?.Media is { } media && media.Tracks is { } ts)
+        {
+            var list = ts.Where(t => t.TrackType == TrackType.Audio)
+                .Select(t => (t.Id, LabelOf(t))).ToArray();
+            if (list.Length > 0) return list;
+        }
+        return _mediaPlayer!.AudioTrackDescription
+            .Select(t => (t.Id, t.Name ?? $"轨 {t.Id}")).ToArray();
+    }
+
+    private (int Id, string Name)[] GetSubtitleTracks()
+    {
+        if (_mediaPlayer?.Media is { } media && media.Tracks is { } ts)
+        {
+            var list = ts.Where(t => t.TrackType == TrackType.Text)
+                .Select(t => (t.Id, LabelOf(t))).ToArray();
+            if (list.Length > 0) return list;
+        }
+        return _mediaPlayer!.SpuDescription
+            .Select(t => (t.Id, t.Name ?? $"轨 {t.Id}")).ToArray();
+    }
+
+    private static string LabelOf(LibVLCSharp.Shared.MediaTrack t)
+        => t.Description ?? t.Language ?? $"轨 {t.Id}";
+
+    private int _panelRetry;
+    private void RetryShowPanel(Action reShow)
+    {
+        if (_panelRetry++ >= 2) { _panelRetry = 0; return; }
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(600) };
+        timer.Tick += (s, e) => { timer.Stop(); _panelRetry = 0; reShow(); };
+        timer.Start();
     }
 
     public void SetSubtitleTrack(int id) => _mediaPlayer?.SetSpu(id);
@@ -1082,6 +1196,88 @@ public partial class VideoPlayerHost : UserControl
         if (_mediaPlayer == null || _abA < 0 || _abB < 0) return;
         if (_mediaPlayer.Time >= _abB) _mediaPlayer.Time = _abA;
     }
+
+    #region 进度条缩略图预览条 + AB 循环辅助
+
+    // 进度条缩略图：影片加载后用【独立 MediaPlayer】后台抽取若干张关键帧缩略图，
+    // 拖动进度条时按当前位置显示最近的一张，提供“预览条”体验，且不干扰主播放器。
+    private readonly List<(long time, string path)> _thumbnails = new();
+    private readonly object _thumbLock = new();
+    private long _genMovieId = -1;   // 当前正在生成缩略图的影片 Id（用于切换影片时打断旧任务）
+
+    public void GenerateThumbnails()
+    {
+        if (_movie?.FilePath == null || _libVLC == null) return;
+        var movieId = _movie.Id;
+        if (_genMovieId == movieId) return;   // 已在同一影片上生成，避免重复
+        _genMovieId = movieId;
+        var expected = movieId;
+        var filePath = _movie.FilePath;
+        var lib = _libVLC;
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                var thumbDir = Path.Combine(Path.GetTempPath(), "EasyMovieThumbs", movieId.ToString());
+                Directory.CreateDirectory(thumbDir);
+                using var media = new Media(lib, filePath, FromType.FromPath);
+                using var gen = new MediaPlayer(media);
+                gen.Play();
+                Thread.Sleep(500);                 // 等时长/首帧就绪
+                var len = gen.Length;              // 毫秒
+                if (len <= 0) { Thread.Sleep(500); len = gen.Length; }
+                if (len <= 0) return;
+                int count = Math.Clamp((int)(len / 30000), 12, 48);   // 约每 30s 一张，12~48 张
+                for (int i = 0; i < count; i++)
+                {
+                    if (_genMovieId != expected) return;   // 切换影片，打断旧任务
+                    var t = (long)(len * (i + 0.5) / count);
+                    try { gen.Time = t; } catch { }
+                    Thread.Sleep(160);                    // 等该位置帧渲染
+                    var path = Path.Combine(thumbDir, $"t{i}.png");
+                    try { gen.TakeSnapshot(0, path, 160, 0); } catch { }
+                    int wait = 0;
+                    while (!File.Exists(path) && wait < 600) { Thread.Sleep(20); wait += 20; }
+                    lock (_thumbLock) _thumbnails.Add((t, path));
+                }
+                try { gen.Stop(); } catch { }
+            }
+            catch { }
+        });
+    }
+
+    public string? GetThumbnailForTime(long time)
+    {
+        lock (_thumbLock)
+        {
+            if (_thumbnails.Count == 0) return null;
+            var best = _thumbnails[0];
+            var bestDiff = Math.Abs(best.time - time);
+            foreach (var th in _thumbnails)
+            {
+                var d = Math.Abs(th.time - time);
+                if (d < bestDiff) { bestDiff = d; best = th; }
+            }
+            return best.path;
+        }
+    }
+
+    public void ClearThumbnails()
+    {
+        lock (_thumbLock) _thumbnails.Clear();
+        _genMovieId = -1;   // 打断可能仍在跑的旧生成任务
+    }
+
+    public void CycleAbPoint()
+    {
+        if (_abA < 0) SetAbPointA();
+        else if (_abB < 0) SetAbPointB();
+        else ClearAb();
+    }
+
+    public (long a, long b) GetAbState() => (_abA, _abB);
+
+    #endregion
 
     public void ToggleMiniMode()
     {

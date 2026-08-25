@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using EasyMovie.Core;
 using EasyMovie.Core.Interfaces;
 using Serilog;
+using System.Globalization;
 
 namespace EasyMovie.Tools.MovieApi;
 
@@ -57,12 +58,14 @@ public class C1905ApiClient : IMovieApiClient
     private static List<MovieSearchResult> ParseSearch(string html)
     {
         var results = new List<MovieSearchResult>();
-        // 1905 搜索链接: href="https://www.1905.com/mdb/film/xxxxx/"
-        foreach (Match m in Regex.Matches(html, @"href=""(https://www\.1905\.com/mdb/film/\d+/?)""[^>]*>([^<]+)</a>"))
+        // 1905 搜索链接: href="https://www.1905.com/mdb/film/xxxxx/"，标题可能在 <span> 内
+        foreach (Match m in Regex.Matches(html, @"href=""(https://www\.1905\.com/mdb/film/\d+/?)""[^>]*>(.*?)</a>", RegexOptions.Singleline))
         {
             var url = m.Groups[1].Value;
-            var title = WebUtility.HtmlDecode(m.Groups[2].Value).Trim();
             if (results.Any(r => r.ExternalId == url)) continue;
+            var raw = Regex.Replace(m.Groups[2].Value, "<[^>]+>", "").Trim();
+            var title = WebUtility.HtmlDecode(raw).Trim();
+            if (string.IsNullOrEmpty(title)) continue;
             results.Add(new MovieSearchResult { Title = title, ExternalId = url, Source = "1905" });
         }
         return results;
@@ -110,7 +113,7 @@ public class C1905ApiClient : IMovieApiClient
 
         // 评分
         var rm = Regex.Match(html, @"评分[：:]\s*([\d.]+)");
-        if (rm.Success && double.TryParse(rm.Groups[1].Value, out var rate)) r.Rating = rate;
+        if (rm.Success && double.TryParse(rm.Groups[1].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var rate)) r.Rating = rate;
 
         return r;
     }

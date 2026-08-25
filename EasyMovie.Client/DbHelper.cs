@@ -14,12 +14,13 @@ using Serilog;
 
 namespace EasyMovie.Client;
 
-/// <summary>连接打开后执行 PRAGMA busy_timeout，缓解并发读写时的 "database is locked"。
+/// <summary>连接打开后执行 PRAGMA：启用 WAL 日志模式（读写并发不再互相排他锁，根治 "database is locked"），
+/// 并设置 busy_timeout 兜底。WAL 模式是持久化的（写入 DB 头），只需在连接打开时设置一次。
 /// 注意：Microsoft.Data.Sqlite 9.x 的连接串不支持 BusyTimeout/Busy Timeout 关键字，必须通过 PRAGMA 设置。</summary>
 public sealed class BusyTimeoutInterceptor : DbConnectionInterceptor
 {
     public static readonly BusyTimeoutInterceptor Instance = new();
-    private const string Pragma = "PRAGMA busy_timeout=3000;";
+    private const string Pragma = "PRAGMA journal_mode=WAL; PRAGMA busy_timeout=3000;";
 
     public override void ConnectionOpened(DbConnection connection, ConnectionEndEventData eventData)
         => Execute(connection);

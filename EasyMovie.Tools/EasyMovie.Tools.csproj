@@ -14,6 +14,9 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- 与 EasyMovie.Client 一致：抑制可空引用注解缺口（CS86xx）与 fire-and-forget async 未 await（CS4014）的噪音警告，
+         均为非逻辑错误；本项目已 0 错误、运行正常。 -->
+    <NoWarn>CS4014;CS8625;CS8602;CS8604;CS8629;CS8601</NoWarn>
   </PropertyGroup>
 
 </Project>

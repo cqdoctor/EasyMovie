@@ -118,11 +118,17 @@ public class TmdbApiClient : IMovieApiClient
         if (string.IsNullOrWhiteSpace(request.Keyword))
             return new MovieSearchResponse();
 
+        // 清洗文件名标题为可搜索关键词：优先纯中文（含续数字），无中文则用去标签的英文名。
+        // 直接拿"花月杀手 Killers Of The Flower Moon EAC3 Atmos"整串搜索会导致 TMDB 匹配失败。
+        var keyword = DoubanApiClient.ExtractChineseKeyword(request.Keyword);
+        if (string.IsNullOrWhiteSpace(keyword))
+            keyword = DoubanApiClient.ExtractEnglishHint(request.Keyword) ?? request.Keyword.Trim();
+
         // 配置了 API Key 且有代理时优先使用官方 API（API 在国内被墙，需代理）
         var proxy = EasyMovie.Core.AppSettings.HttpProxy;
         if (!string.IsNullOrWhiteSpace(_apiKey) && !string.IsNullOrWhiteSpace(proxy))
         {
-            var apiResult = await SearchViaApiAsync(request.Keyword, request.PageSize, ct);
+            var apiResult = await SearchViaApiAsync(keyword, request.PageSize, ct);
             if (apiResult != null) return apiResult;
             // API 失败时回退到网站爬取
         }
@@ -130,7 +136,7 @@ public class TmdbApiClient : IMovieApiClient
         // 网站爬取（www.themoviedb.org 在国内可访问）
         try
         {
-            var encoded = Uri.EscapeDataString(request.Keyword);
+            var encoded = Uri.EscapeDataString(keyword);
             var url = $"https://www.themoviedb.org/search?query={encoded}";
             var html = await _http.GetStringAsync(url, ct);
             var results = ParseSearchNew(html);
@@ -274,14 +280,15 @@ public class TmdbApiClient : IMovieApiClient
                 }
             }
 
-            // HTML fallback: 严格匹配 crew 列表中 character 为 Director 的 li.profile 块
+            // HTML fallback: 严格匹配 crew 列表中 character 为 Director 的 li.profile 块。
+            // 新版页面 character 可能为 "Director, Screenplay"（带职业后缀），用 Director[^<]* 匹配开头。
             if (string.IsNullOrEmpty(director))
             {
                 var dirNames = new List<string>();
                 foreach (Match profile in Regex.Matches(html, @"<li[^>]*class=""profile""[^>]*>(.*?)</li>", RegexOptions.Singleline))
                 {
                     var profileHtml = profile.Groups[1].Value;
-                    if (Regex.IsMatch(profileHtml, @"class=""character""[^>]*>\s*Director\s*</p>", RegexOptions.Singleline))
+                    if (Regex.IsMatch(profileHtml, @"class=""character""[^>]*>\s*Director[^<]*</p>", RegexOptions.Singleline))
                     {
                         var nameM = Regex.Match(profileHtml, @"<a[^>]*href=""/person/[^""]*""[^>]*>(.*?)</a>", RegexOptions.Singleline);
                         if (nameM.Success)
@@ -298,12 +305,28 @@ public class TmdbApiClient : IMovieApiClient
             // 最后清理：去掉 HTML 标签、职业说明、非导演人员
             director = CleanDirector(director);
 
+            // 演员：优先新版结构 <ol class="people scroller"><li class="card">...<p><a href="/person/x">名字</a></p></li>
             var castList = new List<string>();
-            var castMatches = Regex.Matches(html, @"class=""name""[^>]*>\s*<a[^>]*>(.*?)</a>");
-            foreach (Match cm in castMatches.Take(5))
+            var scrollerM = Regex.Match(html, @"<ol class=""people scroller"">(.*?)</ol>", RegexOptions.Singleline);
+            if (scrollerM.Success)
             {
-                var name = StripHtml(WebUtility.HtmlDecode(cm.Groups[1].Value.Trim()));
-                if (!IsTemplateOrLabel(name)) castList.Add(name);
+                foreach (Match cm in Regex.Matches(scrollerM.Groups[1].Value, @"<p><a href=""/person/[^""]*""[^>]*>(.*?)</a></p>", RegexOptions.Singleline))
+                {
+                    var name = StripHtml(WebUtility.HtmlDecode(cm.Groups[1].Value.Trim()));
+                    if (!IsTemplateOrLabel(name)) castList.Add(name);
+                    if (castList.Count >= 8) break;
+                }
+            }
+
+            // 演员兜底：旧版 class="name" 结构
+            if (castList.Count == 0)
+            {
+                var castMatches = Regex.Matches(html, @"class=""name""[^>]*>\s*<a[^>]*>(.*?)</a>");
+                foreach (Match cm in castMatches.Take(5))
+                {
+                    var name = StripHtml(WebUtility.HtmlDecode(cm.Groups[1].Value.Trim()));
+                    if (!IsTemplateOrLabel(name)) castList.Add(name);
+                }
             }
 
             var country = "";
@@ -451,7 +474,7 @@ public class TmdbApiClient : IMovieApiClient
                 }
             }
 
-            double rating = 0;
+            double? rating = null;
             var ratingM = Regex.Match(html, @"class=""user_score_chart""[^>]*data-percent=""([\d.]+)""");
             if (ratingM.Success) rating = double.Parse(ratingM.Groups[1].Value) / 10.0;
 
@@ -466,7 +489,7 @@ public class TmdbApiClient : IMovieApiClient
                 Synopsis = synopsis,
                 PosterUrl = string.IsNullOrEmpty(posterUrl) ? null : posterUrl,
                 Runtime = runtime > 0 ? runtime : null,
-                Rating = rating,
+                Rating = rating > 0 ? rating : null,
                 ExternalId = externalId,
                 Source = "tmdb"
             };

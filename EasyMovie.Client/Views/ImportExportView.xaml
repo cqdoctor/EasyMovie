@@ -40,6 +40,8 @@
                         <StackPanel Grid.Row="1" Orientation="Horizontal">
                             <Button Content="{DynamicResource ImportExport_ExportCsv}" Style="{StaticResource MaterialDesignRaisedButton}" Click="ExportCsv_Click" Margin="0,0,12,0" />
                             <Button Content="{DynamicResource ImportExport_ExportJson}" Style="{StaticResource MaterialDesignRaisedButton}" Click="ExportJson_Click" Margin="0,0,12,0" />
+                            <Button Content="{DynamicResource ImportExport_ExportExcel}" Style="{StaticResource MaterialDesignRaisedButton}" Click="ExportExcel_Click" Margin="0,0,12,0" />
+                            <Button Content="{DynamicResource ImportExport_ExportHtml}" Style="{StaticResource MaterialDesignRaisedButton}" Click="ExportHtml_Click" Margin="0,0,12,0" />
                             <Button Content="{DynamicResource Settings_FullBackup}" Style="{StaticResource MaterialDesignRaisedButton}" Click="ExportFullBackup_Click" />
                         </StackPanel>
                     </Grid>

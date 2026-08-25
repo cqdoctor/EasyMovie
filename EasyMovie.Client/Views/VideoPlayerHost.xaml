@@ -5,7 +5,7 @@
              xmlns:wpf="clr-namespace:LibVLCSharp.WPF;assembly=LibVLCSharp.WPF"
              Background="Black"
              SnapsToDevicePixels="True"
-             RenderOptions.BitmapScalingMode="HighQuality"
+             RenderOptions.BitmapScalingMode="LowQuality"
              Loaded="Host_Loaded"
              Unloaded="Host_Unloaded"
              KeyDown="Host_KeyDown"

@@ -40,6 +40,7 @@ public class MovieRepository : IMovieRepository
         string? sortBy, bool sortDesc, int skip, int take, bool? isFavorite = null)
     {
         var query = _context.Movies
+            .AsNoTracking()
             .Include(m => m.Category)
             .Include(m => m.MovieTags)
                 .ThenInclude(mt => mt.Tag)
@@ -138,7 +139,7 @@ public class MovieRepository : IMovieRepository
         List<string>? countries, List<string>? languages, int? runtimeMin, int? runtimeMax, List<string>? directors,
         bool? isFavorite = null)
     {
-        var query = _context.Movies.AsQueryable();
+        var query = _context.Movies.AsNoTracking().AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(keyword))
         {

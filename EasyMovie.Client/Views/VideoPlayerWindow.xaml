@@ -6,7 +6,7 @@
         WindowState="Maximized"
         Background="Black"
         SnapsToDevicePixels="True"
-        RenderOptions.BitmapScalingMode="HighQuality"
+        RenderOptions.BitmapScalingMode="LowQuality"
         KeyDown="Window_KeyDown"
         MouseLeftButtonDown="Window_MouseLeftButtonDown"
         Loaded="Window_Loaded"
