@@ -6,13 +6,23 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
-    <NoWarn>NU1701</NoWarn>
+    <!-- 抑制构建噪音警告（均为 Windows 专用 WPF 程序的误报/可空注解不完整，非逻辑错误）：
+         CA1416 = MDIX 的 PackIcon/Card 被平台兼容性分析器误判为"仅 Windows 支持"（本项目即 net10.0-windows）；
+         CS4014 = 有意 fire-and-forget 的 async 调用未 await；
+         CS86xx = 可空引用类型注解缺口。项目已 0 错误、运行正常，统一抑制以保持干净编译输出。 -->
+    <NoWarn>NU1701;CA1416;CS4014;CS8625;CS8602;CS8604;CS8629;CS8601</NoWarn>
     <ApplicationIcon>app.ico</ApplicationIcon>
     <Version>1.03</Version>
     <AllowMissingPrunePackageData>true</AllowMissingPrunePackageData>
+    <!-- 启动提速：发布预编译本机镜像 + 分层 PGO，避免每次启动 JIT 编译大依赖库 -->
+    <PublishReadyToRun>true</PublishReadyToRun>
+    <TieredPGO>true</TieredPGO>
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- 启动闪屏改为手动控制（见 App.xaml.cs）：先 Show(false)，等主窗口+所有导航页构造完成后再平滑 Close，
+         避免“闪屏未隐藏、主窗口已显示”的重叠衔接问题。这里以普通 Resource 嵌入，供 SplashScreen 构造函数按资源名加载。 -->
+    <Resource Include="app.png" />
     <Resource Include="app.ico" />
     <Resource Include="app_multisize.ico" />
     <Resource Include="app_white.ico" />

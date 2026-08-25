@@ -1,7 +1,7 @@
-using System.Text.RegularExpressions;
 using EasyMovie.Core;
 using EasyMovie.Core.Interfaces;
 using EasyMovie.Core.Models;
+using EasyMovie.Tools.MovieApi;
 using Serilog;
 
 namespace EasyMovie.Tools.ImportExport;
@@ -17,11 +17,10 @@ public class FolderImportService : IFolderImportService
         ".m4v", ".mpg", ".mpeg", ".ts", ".rmvb", ".rm", ".3gp", ".vob"
     };
 
-    private readonly IMovieApiClient? _apiClient;
-
     public FolderImportService(IMovieApiClient? apiClient = null)
     {
-        _apiClient = apiClient;
+        // apiClient 参数保留以兼容旧调用方；实际元数据获取统一走 MovieInfoFetcher
+        // （多源级联 + 限流熔断 + 结果缓存），避免批量导入时单一源被封禁导致全部失败。
     }
 
     public Task<List<string>> ScanFolderAsync(string folderPath, bool recursive)
@@ -35,26 +34,7 @@ public class FolderImportService : IFolderImportService
     }
 
     public (string title, int? year) ParseFileName(string fileName)
-    {
-        var name = Path.GetFileNameWithoutExtension(fileName);
-        name = Regex.Replace(name, @"\[.*?\]", " ");
-        name = Regex.Replace(name, @"\(.*?\)", " ");
-        name = Regex.Replace(name, @"\b(4K|1080p|720p|2160p|BluRay|Blu-ray|WEB-DL|WEBRip|HDRip|BRRip|HDTV|x264|x265|H264|H265|AAC|DTS|DD5\.1|DD2\.0|HEVC|10bit|SDR|HDR|Remux|PROPER|REPACK|EXTENDED|UNCUT|Director.s.Cut|Theatrical.Cut)\b", " ", RegexOptions.IgnoreCase);
-        name = Regex.Replace(name, @"\b(\.|\-|_)\b", " ");
-
-        int? year = null;
-        var yearMatch = Regex.Match(name, @"\b(18[8-9]\d|19\d{2}|20[0-2]\d|2030)\b");
-        if (yearMatch.Success)
-        {
-            year = int.Parse(yearMatch.Value);
-            name = name.Replace(yearMatch.Value, "");
-        }
-
-        name = Regex.Replace(name, @"\s+", " ").Trim();
-        if (string.IsNullOrEmpty(name)) name = Path.GetFileNameWithoutExtension(fileName);
-
-        return (name, year);
-    }
+        => FileNameParser.Parse(fileName);
 
     public async Task<FolderImportResult> ImportFolderAsync(string folderPath, bool recursive, IMovieService movieService)
     {
@@ -85,48 +65,32 @@ public class FolderImportService : IFolderImportService
                     UpdatedAt = DateTime.UtcNow
                 };
 
-                // 🔍 自动从豆瓣/TMDB 获取元数据
-                if (_apiClient != null && !string.IsNullOrWhiteSpace(title))
+                // 🔍 自动从多数据源（豆瓣/TMDB/OMDb/百度百科）级联获取元数据，
+                // MovieInfoFetcher 内部自带限流熔断与结果缓存，避免批量导入大量影片时
+                // 单一数据源（如豆瓣）被反爬封禁导致全部匹配失败。
+                if (!string.IsNullOrWhiteSpace(title))
                 {
                     try
                     {
-                        var searchResponse = await _apiClient.SearchAsync(
-                            new MovieSearchRequest { Keyword = title, Page = 1, PageSize = 1 });
-
-                        if (searchResponse.Results.Count > 0)
+                        var fetcher = new MovieInfoFetcher();
+                        var fetchResult = await fetcher.FetchAsync(movie);
+                        if (fetchResult.Success && fetchResult.Info != null)
                         {
-                            var apiResult = searchResponse.Results[0];
-                            // 年份匹配或接近才采用（±1年）
-                            if (year == null || apiResult.Year == 0 ||
-                                Math.Abs(apiResult.Year - (year ?? 0)) <= 1)
-                            {
-                                movie.Title = apiResult.Title;
-                                movie.OriginalTitle = apiResult.OriginalTitle;
-                                movie.Year = apiResult.Year > 0 ? apiResult.Year : (year ?? 0);
-                                movie.Director = apiResult.Director;
-                                movie.Cast = apiResult.Cast;
-                                movie.Country = apiResult.Country;
-                                movie.Synopsis = apiResult.Synopsis;
-                                movie.PosterUrl = apiResult.PosterUrl;
-                                movie.Runtime = apiResult.Runtime;
+                            var apiResult = fetchResult.Info;
+                            movie.Title = apiResult.Title;
+                            movie.OriginalTitle = apiResult.OriginalTitle;
+                            movie.Year = apiResult.Year > 0 ? apiResult.Year : (year ?? 0);
+                            movie.Director = apiResult.Director;
+                            movie.Cast = apiResult.Cast;
+                            movie.Country = apiResult.Country;
+                            movie.Synopsis = apiResult.Synopsis;
+                            movie.PosterUrl = apiResult.PosterUrl;
+                            movie.Runtime = apiResult.Runtime;
 
-                                if (apiResult.Source == "douban")
-                                    movie.DoubanId = apiResult.ExternalId;
-                                else if (apiResult.Source == "tmdb")
-                                    movie.TmdbId = apiResult.ExternalId;
-
-                                // 尝试获取详情（含完整简介）
-                                var detail = await _apiClient.GetDetailAsync(
-                                    apiResult.ExternalId ?? "");
-                                if (detail != null)
-                                {
-                                    movie.Synopsis ??= detail.Synopsis;
-                                    movie.Runtime ??= detail.Runtime;
-                                    movie.Director ??= detail.Director;
-                                    movie.Cast ??= detail.Cast;
-                                    movie.Country ??= detail.Country;
-                                }
-                            }
+                            if (apiResult.Source == "douban")
+                                movie.DoubanId = apiResult.ExternalId;
+                            else if (apiResult.Source == "tmdb")
+                                movie.TmdbId = apiResult.ExternalId;
                         }
                     }
                     catch (Exception ex) { Log.Error(ex, "文件夹导入时获取元数据失败，已跳过"); }

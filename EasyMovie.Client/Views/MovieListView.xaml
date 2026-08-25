@@ -5,6 +5,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
              xmlns:controls="clr-namespace:EasyMovie.Client.Controls"
+             xmlns:behaviors="clr-namespace:EasyMovie.Client.Behaviors"
              mc:Ignorable="d"
              d:DesignHeight="600" d:DesignWidth="900">
 
@@ -473,11 +474,84 @@
                 </DataGrid.Columns>
             </DataGrid>
 
-            <!-- 卡片视图 -->
-            <ScrollViewer x:Name="CardScrollViewer" Visibility="Collapsed"
-                          VerticalScrollBarVisibility="Auto">
-                <WrapPanel x:Name="CardPanel" />
-            </ScrollViewer>
+            <!-- 卡片视图：数据绑定 + WrapPanel，海报走异步解码行为，结构本身便于虚拟化 -->
+            <ListBox x:Name="CardList"
+                     Visibility="Collapsed"
+                     SelectionMode="Single"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                     BorderThickness="0"
+                     Background="Transparent"
+                     PreviewMouseLeftButtonDown="CardList_PreviewMouseLeftButtonDown">
+                <ListBox.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel Orientation="Horizontal" />
+                    </ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
+                <ListBox.ItemContainerStyle>
+                    <Style TargetType="ListBoxItem">
+                        <Setter Property="Padding" Value="0" />
+                        <Setter Property="Margin" Value="8" />
+                        <Setter Property="Background" Value="Transparent" />
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="ListBoxItem">
+                                    <ContentPresenter />
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </ListBox.ItemContainerStyle>
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <materialDesign:Card Width="220" Height="380" Cursor="Hand">
+                            <StackPanel>
+                                <!-- 封面 -->
+                                <Border Height="240" CornerRadius="4,4,0,0" ClipToBounds="True" Background="Gray">
+                                    <Grid>
+                                        <Image Stretch="UniformToFill" VerticalAlignment="Center"
+                                               RenderOptions.BitmapScalingMode="LowQuality"
+                                               behaviors:PosterImageBehavior.Movie="{Binding}"
+                                               behaviors:PosterImageBehavior.DecodeWidth="220"
+                                               behaviors:PosterImageBehavior.DecodeHeight="330" />
+                                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
+                                                    Visibility="{Binding PosterData, Converter={StaticResource NullToVisibilityConverter}}">
+                                            <materialDesign:PackIcon Kind="Movie" Width="40" Height="40" HorizontalAlignment="Center" Foreground="White" />
+                                            <TextBlock Text="{Binding Title}" FontSize="11" TextWrapping="Wrap" TextAlignment="Center" MaxHeight="50" Margin="4" Foreground="White" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                                <!-- 信息 -->
+                                <StackPanel Margin="10,8,10,8">
+                                    <TextBlock Text="{Binding Title}" FontWeight="Bold" FontSize="14" TextTrimming="CharacterEllipsis" />
+                                    <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                        <TextBlock Text="{Binding Year}" FontSize="12" Foreground="#757575" Margin="0,0,8,0" />
+                                        <TextBlock Text="{Binding Rating, StringFormat='⭐{0}'}" FontSize="12" Foreground="Goldenrod"
+                                                   Visibility="{Binding Rating, Converter={StaticResource NullToCollapsedConverter}}" />
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding Director, StringFormat='🎬 {0}'}" FontSize="11" TextTrimming="CharacterEllipsis" Foreground="#757575" Margin="0,2,0,0"
+                                               Visibility="{Binding Director, Converter={StaticResource NullToCollapsedConverter}}" />
+                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                        <Border CornerRadius="4" Padding="6,2,6,2" Margin="0,0,4,0" Background="#7986CB"
+                                                Visibility="{Binding Category, Converter={StaticResource NullToCollapsedConverter}}">
+                                            <TextBlock Text="{Binding Category.Name}" FontSize="10" Foreground="White" />
+                                        </Border>
+                                        <Border CornerRadius="4" Padding="6,2,6,2"
+                                                Background="{Binding WatchStatus, Converter={StaticResource WatchStatusColorConverter}}"
+                                                Visibility="{Binding WatchStatus, Converter={StaticResource WatchStatusBadgeVisibilityConverter}}">
+                                            <TextBlock Text="{Binding WatchStatus, Converter={StaticResource WatchStatusConverter}}" FontSize="10" Foreground="White" />
+                                        </Border>
+                                        <Border CornerRadius="4" Padding="6,2,6,2" Margin="4,0,0,0" Background="Goldenrod"
+                                                Visibility="{Binding IsFavorite, Converter={StaticResource BoolToVisibilityConverter}}">
+                                            <TextBlock Text="⭐收藏" FontSize="10" Foreground="White" />
+                                        </Border>
+                                    </StackPanel>
+                                </StackPanel>
+                            </StackPanel>
+                        </materialDesign:Card>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
 
             <!-- 海报墙视图 -->
             <ListBox x:Name="PosterWall"
@@ -530,9 +604,11 @@
                             <Border CornerRadius="8" ClipToBounds="True"
                                     Background="{DynamicResource MaterialDesignDivider}">
                                 <Grid>
-                                    <Image Source="{Binding PosterData, Converter={StaticResource PosterImageConverter}}"
-                                           Stretch="UniformToFill"
-                                           RenderOptions.BitmapScalingMode="HighQuality" />
+                                    <Image Stretch="UniformToFill"
+                                           RenderOptions.BitmapScalingMode="LowQuality"
+                                           behaviors:PosterImageBehavior.Movie="{Binding}"
+                                           behaviors:PosterImageBehavior.DecodeWidth="185"
+                                           behaviors:PosterImageBehavior.DecodeHeight="278" />
                                     <!-- 无封面占位 -->
                                     <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
                                                 Visibility="{Binding PosterData, Converter={StaticResource NullToVisibilityConverter}}">
@@ -639,6 +715,26 @@
                             <ComboBoxItem Content="{DynamicResource MovieLib_BatchFavSet}" Tag="true" />
                             <ComboBoxItem Content="{DynamicResource MovieLib_BatchFavUnset}" Tag="false" />
                         </ComboBox>
+                    </StackPanel>
+                </UniformGrid>
+                <UniformGrid Columns="2" Margin="0,8,0,0">
+                    <StackPanel Margin="0,0,8,0">
+                        <TextBlock Text="{DynamicResource MovieLib_BatchTag}" FontSize="11" Foreground="{DynamicResource MaterialDesignHintForeground}" Margin="0,0,0,2" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <ComboBox x:Name="BatchTagCombo" Grid.Column="0" Style="{StaticResource MaterialDesignComboBox}" FontSize="12" Margin="0,0,4,0" />
+                            <ComboBox x:Name="BatchTagModeCombo" Grid.Column="1" Style="{StaticResource MaterialDesignComboBox}" FontSize="12" Width="76">
+                                <ComboBoxItem Content="{DynamicResource MovieLib_BatchTagAdd}" Tag="add" />
+                                <ComboBoxItem Content="{DynamicResource MovieLib_BatchTagRemove}" Tag="remove" />
+                            </ComboBox>
+                        </Grid>
+                    </StackPanel>
+                    <StackPanel>
+                        <TextBlock Text="{DynamicResource MovieLib_BatchCollection}" FontSize="11" Foreground="{DynamicResource MaterialDesignHintForeground}" Margin="0,0,0,2" />
+                        <ComboBox x:Name="BatchCollectionCombo" Style="{StaticResource MaterialDesignComboBox}" FontSize="12" />
                     </StackPanel>
                 </UniformGrid>
                 <StackPanel Orientation="Horizontal" Margin="0,8,0,0">

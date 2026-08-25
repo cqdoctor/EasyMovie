@@ -128,6 +128,29 @@
                                 <Button Content="{DynamicResource Settings_Save}" Style="{StaticResource MaterialDesignFlatButton}" Click="SaveNetwork_Click" Margin="0,0,8,0"/>
                                 <TextBlock x:Name="NetworkStatusText" FontSize="12" Foreground="{DynamicResource MaterialDesignHintForeground}" VerticalAlignment="Center"/>
                             </StackPanel>
+
+                            <Separator Margin="0,10,0,6"/>
+                            <TextBlock Text="{DynamicResource Settings_AutoSync}" FontSize="14" FontWeight="Bold" Margin="0,0,0,6"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                <CheckBox x:Name="AutoSyncToggle" Content="{DynamicResource Settings_AutoSyncEnable}" VerticalAlignment="Center"
+                                          Checked="AutoSyncToggle_Changed" Unchecked="AutoSyncToggle_Changed"/>
+                                <TextBlock Text="{DynamicResource Settings_AutoSyncInterval}" VerticalAlignment="Center" Margin="16,0,4,0"/>
+                                <TextBox x:Name="AutoSyncIntervalBox" Width="60" Style="{StaticResource MaterialDesignFloatingHintTextBox}" VerticalAlignment="Center"/>
+                                <TextBlock Text="{DynamicResource Settings_AutoSyncHours}" VerticalAlignment="Center" Margin="4,0,0,0"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                <Button Content="{DynamicResource Settings_SyncNow}" Style="{StaticResource MaterialDesignFlatButton}" Click="SyncNow_Click" Margin="0,0,8,0"/>
+                                <TextBlock x:Name="AutoSyncStatus" FontSize="12" Foreground="{DynamicResource MaterialDesignHintForeground}" VerticalAlignment="Center"/>
+                            </StackPanel>
+
+                            <Separator Margin="0,10,0,6"/>
+                            <TextBlock Text="{DynamicResource Settings_ReleaseReminder}" FontSize="14" FontWeight="Bold" Margin="0,0,0,6"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                <CheckBox x:Name="ReleaseReminderToggle" Content="{DynamicResource Settings_ReleaseReminderEnable}" VerticalAlignment="Center"
+                                          Checked="ReleaseReminderToggle_Changed" Unchecked="ReleaseReminderToggle_Changed"/>
+                                <CheckBox x:Name="ReleaseReminderNowPlayingToggle" Content="{DynamicResource Settings_ReleaseReminderNowPlaying}" VerticalAlignment="Center" Margin="16,0,0,0"
+                                          Checked="ReleaseReminderToggle_Changed" Unchecked="ReleaseReminderToggle_Changed"/>
+                            </StackPanel>
                         </StackPanel>
                     </Grid>
                 </Border>
@@ -257,6 +280,41 @@
                             </ListBox.ItemTemplate>
                         </ListBox>
                     </Grid>
+                </Border>
+
+                <!-- 离线元数据缓存（豆瓣预种子） -->
+                <Border Background="{DynamicResource MaterialDesignCardBackground}" CornerRadius="8" Padding="16" Margin="0,0,0,10">
+                    <StackPanel>
+                        <TextBlock Text="离线元数据缓存（豆瓣预种子）" FontSize="16" FontWeight="Bold" Margin="0,0,0,4"/>
+                        <TextBlock Text="导入豆瓣离线数据集（如 csuldw 14万集 movies.csv），离线兜底匹配影片元数据，首次导入可大幅减少联网请求。仅本地读取，不上传。" FontSize="12" Foreground="{DynamicResource MaterialDesignHintForeground}" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                            <TextBox x:Name="SeedFilePathBox" Width="320" materialDesign:HintAssist.Hint="豆瓣 movies.csv 路径" Style="{StaticResource MaterialDesignFloatingHintTextBox}" Margin="0,0,8,0"/>
+                            <Button Content="选择文件" Style="{StaticResource MaterialDesignRaisedButton}" Click="SelectSeedFile_Click" Margin="0,0,8,0"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                            <TextBlock Text="最低评分" VerticalAlignment="Center" Margin="0,0,4,0" FontSize="12"/>
+                            <TextBox x:Name="SeedMinRatingBox" Width="60" Style="{StaticResource MaterialDesignFloatingHintTextBox}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                            <TextBlock Text="最低评价数" VerticalAlignment="Center" Margin="0,0,4,0" FontSize="12"/>
+                            <TextBox x:Name="SeedMinVotesBox" Width="70" Style="{StaticResource MaterialDesignFloatingHintTextBox}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                            <Button Content="导入种子" Style="{StaticResource MaterialDesignRaisedButton}" Click="ImportSeed_Click"/>
+                        </StackPanel>
+                        <TextBlock x:Name="SeedProgressText" FontSize="12" Foreground="{DynamicResource MaterialDesignHintForeground}" Margin="0,2,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- 慢慢补全 2020+ 元数据（豆瓣·慢速防封） -->
+                <Border Background="{DynamicResource MaterialDesignCardBackground}" CornerRadius="8" Padding="16" Margin="0,0,0,10">
+                    <StackPanel>
+                        <TextBlock Text="慢慢补全 2020+ 元数据（豆瓣·慢速防封）" FontSize="16" FontWeight="Bold" Margin="0,0,0,4"/>
+                        <TextBlock Text="仅对片库中 2020 年后、且离线缓存字段缺失的影片，按很慢的节奏（默认每部间隔 12 秒、每日上限 50 次）从豆瓣取回并写入离线缓存。一旦检测到封控信号立即安全停止，绝不重试；不修改你的个人影片库数据。" FontSize="12" Foreground="{DynamicResource MaterialDesignHintForeground}" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                            <Button Content="统计待补全" Style="{StaticResource MaterialDesignRaisedButton}" Click="BackfillPreview_Click" Margin="0,0,8,0"/>
+                            <Button Content="开始慢慢补全" Style="{StaticResource MaterialDesignRaisedButton}" Click="StartBackfill_Click" Margin="0,0,8,0"/>
+                            <Button Content="停止" Style="{StaticResource MaterialDesignOutlinedButton}" Click="StopBackfill_Click"/>
+                            <TextBlock x:Name="BackfillPreviewText" VerticalAlignment="Center" FontSize="12" Margin="12,0,0,0"/>
+                        </StackPanel>
+                        <TextBlock x:Name="BackfillProgressText" FontSize="12" Foreground="{DynamicResource MaterialDesignHintForeground}" Margin="0,2,0,0" TextWrapping="Wrap"/>
+                    </StackPanel>
                 </Border>
 
                 <!-- 分类与标签 -->

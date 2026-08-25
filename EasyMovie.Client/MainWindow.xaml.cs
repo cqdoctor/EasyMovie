@@ -101,6 +101,7 @@ public partial class MainWindow : Window
             if (dbMovie != null)
             {
                 dbMovie.PosterData = bytes;
+                EasyMovie.Client.Helpers.PosterCache.Save(movie.Id, bytes);
                 await ctx.SaveChangesAsync();
             }
         }
@@ -138,14 +139,20 @@ public partial class MainWindow : Window
 
     public MainWindow()
     {
+        App.LogStartup("MainWindow 构造开始(InitializeComponent 前)");
         InitializeComponent();
+        App.LogStartup("MainWindow.InitializeComponent 完成");
         LoadInputBindings();
         SourceInitialized += (_, _) => VideoPlayerHelper.RestrictMaximizeToWorkArea(this);
         Loaded += OnLoaded;
         StateChanged += OnStateChanged;
         PlayerHost.Closed += PlayerHost_Closed;
-        BackupService.EnsureAutoBackup();
-        NavigateTo("Dashboard");
+        // 自动备份会同步拷贝数据库（可能数十 MB），放到后台线程，避免阻塞主界面首屏
+        _ = Task.Run(() => { try { BackupService.EnsureAutoBackup(); } catch { } });
+        App.LogStartup("BackupService.EnsureAutoBackup 已派发到后台");
+        // 不在构造里同步创建 Dashboard（其 XAML 解析+首屏数据会拖长启动画面），
+        // 改为窗口 Loaded 后再导航，让启动画面尽早关闭。
+        App.LogStartup("MainWindow 构造完成(延迟 Dashboard 至 Loaded)");
     }
 
     private void OnStateChanged(object? sender, EventArgs e)
@@ -170,7 +177,15 @@ public partial class MainWindow : Window
         catch (Exception ex) { Log.Error(ex, "MainWindow 操作异常"); }
 
         RegisterNavButtons();
-        Dispatcher.BeginInvoke(new Action(PreWarmViews), System.Windows.Threading.DispatcherPriority.Background);
+        // 先创建首屏 Dashboard（同步，让主窗口立即有内容）
+        NavigateTo("Dashboard");
+        // 在闪屏仍盖着主窗口期间，把其余 9 个导航页一次性构造好并加入可视树。
+        // 这样用户点击任意导航项时页面早已存在，无需再在 UI 线程同步 new 控件而卡顿。
+        // 闪屏的关闭时机由 MainWindow_ContentRendered（主窗口首帧渲染完成后）精确控制。
+        // 注意：PreWarmViews 是 async void，作为语句直接调用即可，不能写成 `_ = PreWarmViews()`（void 不能赋给弃元）。
+        PreWarmViews();
+        // 主窗口完成首帧渲染后再平滑关闭闪屏，确保交接时无重叠、无空白闪烁。
+        ContentRendered += MainWindow_ContentRendered;
 
         // 启动里程碑：窗口已加载（OnLoaded 触发说明 WPF 已成功创建并显示主窗口）
         try
@@ -181,23 +196,60 @@ public partial class MainWindow : Window
                 $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] MainWindow.OnLoaded 触发（主窗口已创建并显示）\n");
         }
         catch { }
+
+        // 自测开关：--selftest <path> [fs] 自动加载影片并（全屏）播放，便于自动化截图验证 UI
+        try
+        {
+            var args = Environment.GetCommandLineArgs();
+            for (int i = 0; i < args.Length; i++)
+            {
+                if (args[i] == "--selftest" && i + 1 < args.Length)
+                {
+                    var path = args[i + 1];
+                    bool fs = i + 2 < args.Length && args[i + 2] == "fs";
+                    Dispatcher.BeginInvoke(new Action(() =>
+                    {
+                        var m = new Movie { FilePath = path, Title = System.IO.Path.GetFileNameWithoutExtension(path) };
+                        ShowMoviePlayer(m);
+                        if (fs) Dispatcher.BeginInvoke(new Action(() => PlayerHost.EnterFullscreenForTest()), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                    }), System.Windows.Threading.DispatcherPriority.Background);
+                    break;
+                }
+            }
+        }
+        catch (Exception ex) { Log.Error(ex, "selftest 初始化失败"); }
     }
 
-    private void PreWarmViews()
+    /// <summary>主窗口首帧渲染完成后触发：此时所有导航页已在 PreWarmViews 中构造完毕、Dashboard 已显示，
+    /// 可平滑关闭启动闪屏，实现“闪屏→主窗口”的无缝交接，避免两者重叠或空白闪烁。</summary>
+    private void MainWindow_ContentRendered(object? sender, EventArgs e)
+    {
+        ContentRendered -= MainWindow_ContentRendered;
+        App.CloseSplash();
+    }
+
+    private async void PreWarmViews()
     {
         // 创建页面实例、加入可视树、预加载数据
         // 首次加入可视树时 WPF 完成布局，后续切换只改 Visibility
-        Dispatcher.BeginInvoke(new Action(async () =>
+        var pages = new (string key, Func<UserControl> create)[]
         {
-            var pages = new (string key, Func<UserControl> create)[]
-            {
-                ("Dashboard", () => new DashboardView()),
-                ("Movies", () => new MovieListView(this)),
-                ("Categories", () => new CategoryTagManageView()),
-                ("Statistics", () => new StatisticsView()),
-                ("Settings", () => new SettingsView()),
-            };
+            ("Dashboard", () => new DashboardView()),
+            ("Movies", () => new MovieListView(this)),
+            ("Categories", () => new CategoryTagManageView()),
+            ("Statistics", () => new StatisticsView()),
+            ("Settings", () => new SettingsView()),
+            ("Calendar", () => new WatchCalendarView()),
+            ("Relation", () => new MovieRelationView(this)),
+            ("News", () => new MovieNewsView()),
+            ("AI", () => new AIRecommendationView()),
+            ("Heatmap", () => new WatchHeatmapView()),
+        };
 
+        // 阶段一：在 UI 线程一次性构造全部导航页（闪屏此时仍盖着主窗口，用户无感）。
+        // 构造完成前绝不关闭闪屏，因此点击任何导航项都不会再触发同步 new 控件的卡顿。
+        try
+        {
             foreach (var (key, create) in pages)
             {
                 if (_pageCache.ContainsKey(key)) continue;
@@ -205,16 +257,36 @@ public partial class MainWindow : Window
                 _pageCache[key] = view;
                 view.Visibility = Visibility.Collapsed;
                 ContentArea.Children.Add(view);
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "PreWarmViews 页面构造失败");
+        }
+        // 注意：此处不再关闭闪屏。闪屏由 MainWindow.ContentRendered 在“主窗口首帧真正渲染完成”后
+        // 平滑关闭（见 OnLoaded 注册的 MainWindow_ContentRendered），从根本上避免“闪屏未隐藏、主窗口已显示”的重叠。
 
-                // 预加载数据
-                if (view is DashboardView dashView)
-                    await dashView.InitializeAsync();
-                else if (view is CategoryTagManageView catView)
+        // 阶段二：后台预加载数据。
+        // ⚠️ 关键：Dashboard 的 _context/_vm 是在其自身 Loaded 事件（Task.Run 建库）中才创建的，
+        // 此处抢先调用其 InitializeAsync 会因 _context 为 null 失败，并错误地把 _isInitialized 置 true，
+        // 导致 Loaded 后不再加载、首页数据全空。故 Dashboard 必须交由自身 Loaded 初始化，这里跳过。
+        // StatisticsView / CategoryTagManageView 的 _context 在构造函数即已创建，可安全预加载。
+        try
+        {
+            foreach (var (key, _) in pages)
+            {
+                if (!_pageCache.TryGetValue(key, out var view)) continue;
+                if (view is DashboardView) continue;   // 交给 Dashboard 自身 Loaded 初始化
+                if (view is CategoryTagManageView catView)
                     await catView.InitializeAsync();
                 else if (view is StatisticsView statsView)
                     await statsView.InitializeAsync();
             }
-        }), System.Windows.Threading.DispatcherPriority.Background);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "PreWarmViews 数据预加载失败");
+        }
     }
 
     public void SetStatus(string text, bool isWorking = false)
@@ -254,6 +326,8 @@ public partial class MainWindow : Window
         {
             if (child.Tag is string tag)
                 _navButtons[tag] = child;
+            // 关闭 MDIX 涟漪动画，避免每次点击导航都触发额外渲染开销
+            MaterialDesignThemes.Wpf.RippleAssist.SetIsDisabled(child, true);
         }
     }
 
@@ -347,7 +421,7 @@ public partial class MainWindow : Window
 
     private readonly Dictionary<string, UserControl> _pageCache = new();
     private string _currentPage = "";
-    private static readonly Duration PageAnimDuration = new(TimeSpan.FromMilliseconds(200));
+    private static readonly Duration PageAnimDuration = new(TimeSpan.FromMilliseconds(150));
 
     public void NavigateTo(string page)
     {
@@ -391,21 +465,22 @@ public partial class MainWindow : Window
         }
         else
         {
-            // 过渡动画：旧页面淡出 → 新页面淡入
+            // 过渡动画：旧页面淡出 + 新页面淡入 同时进行（交叉淡入），
+            // 避免原先“先淡出完成再淡入”串行造成的空白停顿与拖尾感。
             newView.Opacity = 0;
             newView.Visibility = Visibility.Visible;
 
-            var fadeOut = new DoubleAnimation(1.0, 0.0, PageAnimDuration);
-            fadeOut.Completed += (s, e) =>
+            var fadeIn = new DoubleAnimation(0.0, 1.0, PageAnimDuration)
             {
-                oldView.Visibility = Visibility.Collapsed;
-                var fadeIn = new DoubleAnimation(0.0, 1.0, PageAnimDuration)
-                {
-                    EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
-                };
-                newView.BeginAnimation(UIElement.OpacityProperty, fadeIn);
+                EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
             };
+            var fadeOut = new DoubleAnimation(1.0, 0.0, PageAnimDuration)
+            {
+                EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn }
+            };
+            fadeOut.Completed += (s, e) => { oldView.Visibility = Visibility.Collapsed; };
             oldView.BeginAnimation(UIElement.OpacityProperty, fadeOut);
+            newView.BeginAnimation(UIElement.OpacityProperty, fadeIn);
         }
 
         _currentPage = page;
@@ -456,6 +531,14 @@ public partial class MainWindow : Window
         DetailPoster.Source = null;
 
         var posterLoaded = false;
+        // 优先磁盘缓存（离线/去重层）；失败或缺失则回退下方 PosterData / PosterUrl
+        var cachedSrc = EasyMovie.Client.Helpers.PosterCache.LoadImageSource(movie.Id);
+        if (cachedSrc != null)
+        {
+            DetailPoster.Source = cachedSrc;
+            posterLoaded = true;
+        }
+
         if (movie.PosterData != null && movie.PosterData.Length > 0)
         {
             try
@@ -513,9 +596,8 @@ public partial class MainWindow : Window
     {
         // 在电影详情面板中展示基础信息，右侧 ContentArea 进入播放器
         _lastSelectedMovie = movie;
-        // 播放时隐藏底部状态栏：播放区（含底部控制栏）需占满整高，
-        // 否则控制栏会被 Row2 的底栏遮挡、位置偏低。
-        StatusBar.Visibility = Visibility.Collapsed;
+        // 非全屏播放时保留主界面状态栏：PlayerHost 已限定在内容行 Row1，不会覆盖它；
+        // 视频底部控制栏位于播放区内部，与状态栏互不重叠。
         // 先让播放器可见并完成布局，再 LoadMovie（否则 EnsureOverlay 时 ActualWidth/Height 还是 0，
         // 覆盖窗口位置和尺寸会错，导致返回栏偏移或顶部露出灰条）。
         PlayerHost.Visibility = Visibility.Visible;

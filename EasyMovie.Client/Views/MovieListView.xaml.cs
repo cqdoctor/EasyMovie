@@ -14,6 +14,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using EasyMovie.Client.Converters;
+using EasyMovie.Client.Helpers;
 using MaterialDesignThemes.Wpf;
 using EasyMovie.Core.Enums;
 using EasyMovie.Core.Interfaces;
@@ -41,7 +42,6 @@ public partial class MovieListView : UserControl
     private readonly IRecommendationService _recommendationService;
     private readonly CollectionService _collectionService;
     private readonly MainWindow? _mainWindow;
-    private readonly PosterImageConverter _posterConverter = new();
     private int _currentPage = 1;
     private const int PageSize = 20;
     private int _totalCount;
@@ -51,12 +51,15 @@ public partial class MovieListView : UserControl
 
     private bool _isFirstLoad = true;
     private bool _isPopulatingFilter; // 填充分类下拉框时屏蔽 Filter_Changed，避免多余查询
+    private readonly System.Windows.Threading.DispatcherTimer _searchDebounceTimer = new() { Interval = TimeSpan.FromMilliseconds(350) };
+    private bool _isSearching;
     private bool _quickFilterFavorites;
     private bool _quickFilterWatchlist;
 
     public MovieListView(MainWindow? mainWindow = null)
     {
         InitializeComponent();
+        _searchDebounceTimer.Tick += SearchDebounceTimer_Tick;
         _mainWindow = mainWindow;
         // 优先从 DI 容器解析 DbContext（与全项目 DI 方向一致）；DI 不可用时回退手工创建，行为等价
         _context = App.Services?.GetService<MovieDbContext>() ?? DbHelper.CreateContext();
@@ -278,13 +281,13 @@ public partial class MovieListView : UserControl
         LastPageBtn.IsEnabled = _currentPage < totalPages;
         var hasMovies = movies.Any();
         MovieDataGrid.Visibility = !_isCardView && !_isPosterView && !_isCollectionView && hasMovies ? Visibility.Visible : Visibility.Collapsed;
-        CardScrollViewer.Visibility = _isCardView && hasMovies ? Visibility.Visible : Visibility.Collapsed;
+        CardList.Visibility = _isCardView && hasMovies ? Visibility.Visible : Visibility.Collapsed;
         PosterWall.Visibility = _isPosterView && hasMovies ? Visibility.Visible : Visibility.Collapsed;
         EmptyLabel.Visibility = hasMovies || _isCollectionView ? Visibility.Collapsed : Visibility.Visible;
         CollectionScrollViewer.Visibility = _isCollectionView ? Visibility.Visible : Visibility.Collapsed;
 
         if (_isPosterView) PosterWall.ScrollIntoView(PosterWall.Items[0]);
-        else if (_isCardView) CardScrollViewer.ScrollToTop();
+        else if (_isCardView && CardList.Items.Count > 0) CardList.ScrollIntoView(CardList.Items[0]);
         else if (MovieDataGrid.Items.Count > 0) MovieDataGrid.ScrollIntoView(MovieDataGrid.Items[0]);
 
         if (_isFirstLoad && hasMovies)
@@ -919,8 +922,12 @@ public partial class MovieListView : UserControl
 
     private static readonly HttpClient _httpClient = EasyMovie.Core.HttpClientFactory.Create();
 
-    private static async Task<byte[]?> DownloadPosterAsync(string url)
+    private static async Task<byte[]?> DownloadPosterAsync(int id, string url)
     {
+        // 磁盘缓存命中：直接读文件，避免重复下载
+        var cached = EasyMovie.Client.Helpers.PosterCache.LoadBytes(id);
+        if (cached != null) return cached;
+
         using var req = new HttpRequestMessage(HttpMethod.Get, url);
         if (url.Contains("themoviedb.org") || url.Contains("tmdb.org"))
             req.Headers.Referrer = new Uri("https://www.themoviedb.org/");
@@ -928,7 +935,9 @@ public partial class MovieListView : UserControl
             req.Headers.Referrer = new Uri("https://movie.douban.com/");
         using var resp = await _httpClient.SendAsync(req);
         if (!resp.IsSuccessStatusCode) return null;
-        return await resp.Content.ReadAsByteArrayAsync();
+        var bytes = await resp.Content.ReadAsByteArrayAsync();
+        EasyMovie.Client.Helpers.PosterCache.Save(id, bytes);
+        return bytes;
     }
 
     private async Task LoadPosterAsync(Image img, Border posterBorder, string posterUrl, Brush fallbackBg)
@@ -975,113 +984,45 @@ public partial class MovieListView : UserControl
     private void RenderCardView(List<Movie> movies)
     {
         _selectedCardIds.Clear();
-        CardPanel.Children.Clear();
-        var hintFg = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(117, 117, 117));
-        foreach (var movie in movies)
+        _cardMovies = movies;
+        CardList.ItemsSource = movies;
+    }
+
+    /// <summary>卡片单击：复用原自定义逻辑——Ctrl 多选入批量，否则打开详情；并阻止 ListBox 自带选择。</summary>
+    private void CardList_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (!_isCardView) return;
+        var movie = GetCardMovieFromEvent(e);
+        if (movie == null) return;
+
+        e.Handled = true; // 阻止 ListBox 自带选择，完全由 _selectedCardIds 控制批量状态
+        int id = movie.Id;
+        if (System.Windows.Input.Keyboard.Modifiers == System.Windows.Input.ModifierKeys.Control)
         {
-            var card = new Card { Width = 220, Height = 380, Margin = new Thickness(8), Cursor = System.Windows.Input.Cursors.Hand };
-            var stack = new StackPanel();
-
-            // 封面区域
-            var posterBorder = new Border { Height = 240, CornerRadius = new CornerRadius(4, 4, 0, 0), ClipToBounds = true };
-            if (movie.PosterData is { Length: > 0 })
-            {
-                try
-                {
-                    var image = new System.Windows.Controls.Image
-                    {
-                        Stretch = Stretch.UniformToFill,
-                        VerticalAlignment = VerticalAlignment.Center
-                    };
-                    var source = _posterConverter.Convert(movie.PosterData, typeof(ImageSource), null, CultureInfo.CurrentCulture) as ImageSource;
-                    if (source != null)
-                    {
-                        image.Source = source;
-                        posterBorder.Child = image;
-                    }
-                    else
-                    {
-                        posterBorder.Background = System.Windows.Media.Brushes.Gray;
-                    }
-                }
-                catch (Exception ex) { Log.Error(ex, "海报加载失败，使用占位图"); posterBorder.Background = System.Windows.Media.Brushes.Gray; }
-            }
-            else
-            {
-                posterBorder.Background = System.Windows.Media.Brushes.Gray;
-                var placeholder = new StackPanel { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
-                placeholder.Children.Add(new MaterialDesignThemes.Wpf.PackIcon { Kind = MaterialDesignThemes.Wpf.PackIconKind.Movie, Width = 40, Height = 40, HorizontalAlignment = HorizontalAlignment.Center, Foreground = System.Windows.Media.Brushes.White });
-                placeholder.Children.Add(new TextBlock { Text = movie.Title, FontSize = 11, TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center, MaxHeight = 50, Margin = new Thickness(4), Foreground = System.Windows.Media.Brushes.White });
-                posterBorder.Child = placeholder;
-            }
-            stack.Children.Add(posterBorder);
-
-            // 信息区域
-            var infoPanel = new StackPanel { Margin = new Thickness(10, 8, 10, 8) };
-            infoPanel.Children.Add(new TextBlock { Text = movie.Title, FontWeight = FontWeights.Bold, FontSize = 14, TextTrimming = TextTrimming.CharacterEllipsis });
-
-            // 年份 + 评分
-            var line2 = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 0) };
-            if (movie.Year > 0) line2.Children.Add(new TextBlock { Text = movie.Year.ToString(), FontSize = 12, Foreground = hintFg, Margin = new Thickness(0, 0, 8, 0) });
-            if (movie.Rating.HasValue) line2.Children.Add(new TextBlock { Text = "⭐" + movie.Rating, FontSize = 12, Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.Goldenrod) });
-            infoPanel.Children.Add(line2);
-
-            // 导演
-            if (!string.IsNullOrEmpty(movie.Director))
-                infoPanel.Children.Add(new TextBlock { Text = "🎬 " + movie.Director, FontSize = 11, TextTrimming = TextTrimming.CharacterEllipsis, Foreground = hintFg, Margin = new Thickness(0, 2, 0, 0) });
-
-            // 分类 + 状态
-            var line3 = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
-            if (movie.Category != null)
-            {
-                var catBadge = new Border { CornerRadius = new CornerRadius(4), Padding = new Thickness(6, 2, 6, 2), Margin = new Thickness(0, 0, 4, 0), Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(121, 134, 203)) };
-                catBadge.Child = new TextBlock { Text = movie.Category.Name, FontSize = 10, Foreground = System.Windows.Media.Brushes.White };
-                line3.Children.Add(catBadge);
-            }
-            var st = movie.WatchStatus switch { WatchStatus.WantToWatch => "想看", WatchStatus.Watched => "已看", _ => "" };
-            if (!string.IsNullOrEmpty(st))
-            {
-                var statusColor = movie.WatchStatus switch { WatchStatus.Watched => System.Windows.Media.Colors.Green, _ => System.Windows.Media.Colors.Orange };
-                var statusBadge = new Border { CornerRadius = new CornerRadius(4), Padding = new Thickness(6, 2, 6, 2), Background = new System.Windows.Media.SolidColorBrush(statusColor) };
-                statusBadge.Child = new TextBlock { Text = st, FontSize = 10, Foreground = System.Windows.Media.Brushes.White };
-                line3.Children.Add(statusBadge);
-            }
-            if (movie.IsFavorite)
-            {
-                var favBadge = new Border { CornerRadius = new CornerRadius(4), Padding = new Thickness(6, 2, 6, 2), Margin = new Thickness(4, 0, 0, 0), Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.Goldenrod) };
-                favBadge.Child = new TextBlock { Text = "⭐收藏", FontSize = 10, Foreground = System.Windows.Media.Brushes.White };
-                line3.Children.Add(favBadge);
-            }
-            infoPanel.Children.Add(line3);
-
-            stack.Children.Add(infoPanel);
-            card.Content = stack;
-            card.MouseLeftButtonUp += (s, e) =>
-            {
-                if (System.Windows.Input.Keyboard.Modifiers == System.Windows.Input.ModifierKeys.Control)
-                {
-                    if (_selectedCardIds.Contains(movie.Id))
-                        _selectedCardIds.Remove(movie.Id);
-                    else
-                        _selectedCardIds.Add(movie.Id);
-                    UpdateBatchPanel();
-                }
-                else if (_selectedCardIds.Count > 0 && _selectedCardIds.Contains(movie.Id))
-                {
-                    _selectedCardIds.Remove(movie.Id);
-                    UpdateBatchPanel();
-                }
-                else
-                {
-                    _selectedCardIds.Clear();
-                    _mainWindow?.ShowMovieDetail(movie);
-                    OpenDetailView(movie.Id);
-                }
-            };
-            card.DataContext = movie;
-            card.Tag = movie.Id;
-            CardPanel.Children.Add(card);
+            if (_selectedCardIds.Contains(id)) _selectedCardIds.Remove(id);
+            else _selectedCardIds.Add(id);
+            UpdateBatchPanel();
         }
+        else if (_selectedCardIds.Count > 0 && _selectedCardIds.Contains(id))
+        {
+            _selectedCardIds.Remove(id);
+            UpdateBatchPanel();
+        }
+        else
+        {
+            _selectedCardIds.Clear();
+            _mainWindow?.ShowMovieDetail(movie);
+            OpenDetailView(id);
+        }
+    }
+
+    private static Movie? GetCardMovieFromEvent(MouseButtonEventArgs e)
+    {
+        var dep = e.OriginalSource as DependencyObject;
+        while (dep != null && dep is not ListBoxItem)
+            dep = System.Windows.Media.VisualTreeHelper.GetParent(dep);
+        if (dep is ListBoxItem item && item.DataContext is Movie m) return m;
+        return null;
     }
 
     private static Window CreateThemedWindow(string title, double width, double height)
@@ -1194,7 +1135,7 @@ public partial class MovieListView : UserControl
                     m.PosterUrl = info.PosterUrl;
                     try
                     {
-                        var posterBytes = await DownloadPosterAsync(info.PosterUrl);
+                        var posterBytes = await DownloadPosterAsync(m.Id, info.PosterUrl);
                         if (posterBytes != null) m.PosterData = posterBytes;
                     }
                     catch (Exception ex) { Log.Error(ex, "MovieListView 操作异常"); }
@@ -1227,7 +1168,24 @@ public partial class MovieListView : UserControl
         }
     }
 
-    private async void SearchBox_TextChanged(object sender, TextChangedEventArgs e) { _currentPage = 1; await LoadMoviesAsync(); }
+    // 搜索框防抖：输入过程中不立即查库，停止输入 350ms 后才触发一次查询，避免逐字符全量刷新卡顿
+    private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        _searchDebounceTimer.Stop();
+        _searchDebounceTimer.Start();
+    }
+    private void SearchDebounceTimer_Tick(object? sender, EventArgs e)
+    {
+        _searchDebounceTimer.Stop();
+        if (_isSearching) { _searchDebounceTimer.Start(); return; } // 上一次查询未结束，稍后重试
+        _ = SearchDebouncedAsync();
+    }
+    private async Task SearchDebouncedAsync()
+    {
+        _isSearching = true;
+        try { _currentPage = 1; await LoadMoviesAsync(); }
+        finally { _isSearching = false; }
+    }
     private async void Filter_Changed(object sender, SelectionChangedEventArgs e) { if (_isPopulatingFilter) return; _currentPage = 1; await LoadMoviesAsync(); }
 
     private async void QuickFilter_Changed(object sender, RoutedEventArgs e)
@@ -1490,7 +1448,7 @@ public partial class MovieListView : UserControl
                     // 下载海报存入数据库
                     try
                     {
-                        var posterBytes = await DownloadPosterAsync(info.PosterUrl);
+                        var posterBytes = await DownloadPosterAsync(m.Id, info.PosterUrl);
                         if (posterBytes != null) m.PosterData = posterBytes;
                     }
                     catch (Exception ex) { Log.Error(ex, "MovieListView 操作异常"); }
@@ -1643,7 +1601,7 @@ public partial class MovieListView : UserControl
                 m.PosterUrl = info.PosterUrl;
                 try
                 {
-                    var posterBytes = await DownloadPosterAsync(info.PosterUrl);
+                    var posterBytes = await DownloadPosterAsync(m.Id, info.PosterUrl);
                     if (posterBytes != null) m.PosterData = posterBytes;
                 }
                 catch (Exception ex) { Log.Error(ex, "MovieListView 操作异常"); }
@@ -1690,6 +1648,7 @@ public partial class MovieListView : UserControl
                     dbMovie.Synopsis = movie.Synopsis;
                     dbMovie.PosterUrl = movie.PosterUrl;
                     dbMovie.PosterData = movie.PosterData;
+                    if (movie.PosterData != null) EasyMovie.Client.Helpers.PosterCache.Save(dbMovie.Id, movie.PosterData);
                     dbMovie.Runtime = movie.Runtime;
                     dbMovie.Year = movie.Year;
                     dbMovie.DoubanId = movie.DoubanId;
@@ -1904,7 +1863,7 @@ public partial class MovieListView : UserControl
                     var m = await _movieService.AddAsync(new Movie { Title = title, Year = year ?? 0, FilePath = files[i], CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow });
                     addedIds.Add(m.Id);
                     // 从黑名单中移除（用户手动导入）
-                    AppSettings.DeletedFilePaths.Remove(files[i]);
+                    AppSettings.UnmarkFileDeleted(files[i]);
                 }
                 catch (Exception ex) { Log.Error(ex, "MovieListView 操作异常"); }
             }
@@ -1943,7 +1902,7 @@ public partial class MovieListView : UserControl
                                 m.PosterUrl = info.PosterUrl;
                                 try
                                 {
-                                    var posterBytes = await DownloadPosterAsync(info.PosterUrl);
+                                    var posterBytes = await DownloadPosterAsync(m.Id, info.PosterUrl);
                                     if (posterBytes != null) m.PosterData = posterBytes;
                                 }
                                 catch (Exception ex) { Log.Error(ex, "MovieListView 操作异常"); }
@@ -1981,10 +1940,7 @@ public partial class MovieListView : UserControl
     {
         if (_isCardView)
         {
-            return CardPanel.Children.OfType<Card>()
-                .Where(c => c.Tag is int id && _selectedCardIds.Contains(id))
-                .Select(c => c.DataContext as Movie)
-                .Where(m => m != null).Cast<Movie>().ToList();
+            return _cardMovies?.Where(m => _selectedCardIds.Contains(m.Id)).ToList() ?? new List<Movie>();
         }
         if (_isPosterView)
         {
@@ -1994,6 +1950,7 @@ public partial class MovieListView : UserControl
     }
 
     private readonly HashSet<int> _selectedCardIds = new();
+    private List<Movie>? _cardMovies;
 
     private void UpdateBatchPanel()
     {
@@ -2015,6 +1972,9 @@ public partial class MovieListView : UserControl
     {
         BatchEditPanel.Visibility = Visibility.Collapsed;
         PaginationBorder.Visibility = Visibility.Visible;
+        BatchTagCombo.SelectedIndex = 0;
+        BatchTagModeCombo.SelectedIndex = 0;
+        BatchCollectionCombo.SelectedIndex = 0;
         if (!_isCardView && !_isPosterView)
             MovieDataGrid.SelectedItems.Clear();
         else if (_isPosterView)
@@ -2048,12 +2008,45 @@ public partial class MovieListView : UserControl
         if (BatchFavoriteCombo.SelectedItem is ComboBoxItem favItem && favItem.Tag is string fav && bool.TryParse(fav, out var fv))
             favorite = fv;
 
+        int? tagId = null;
+        if (BatchTagCombo.SelectedItem is ComboBoxItem tagItem && tagItem.Tag is int tid) tagId = tid;
+        string? tagMode = BatchTagModeCombo.SelectedItem is ComboBoxItem tmItem && tmItem.Tag is string tm ? tm : null;
+
+        int? collectionId = null;
+        bool collectionRemove = false;
+        if (BatchCollectionCombo.SelectedItem is ComboBoxItem colItem && colItem.Tag is string colTag)
+        {
+            if (colTag == "remove") collectionRemove = true;
+            else if (int.TryParse(colTag, out var colIdVal)) collectionId = colIdVal;
+        }
+
         foreach (var m in selected)
         {
             if (categoryId.HasValue) m.CategoryId = categoryId;
             if (status.HasValue) m.WatchStatus = status.Value;
             if (rating.HasValue) m.Rating = rating.Value;
             if (favorite.HasValue) m.IsFavorite = favorite.Value;
+            if (collectionRemove) m.CollectionId = null;
+            else if (collectionId.HasValue) m.CollectionId = collectionId.Value;
+        }
+
+        if (tagId.HasValue && tagMode != null)
+        {
+            foreach (var m in selected)
+            {
+                if (tagMode == "add")
+                {
+                    bool has = await _context.MovieTags.AnyAsync(mt => mt.MovieId == m.Id && mt.TagId == tagId.Value);
+                    if (!has) _context.MovieTags.Add(new MovieTag { MovieId = m.Id, TagId = tagId.Value });
+                }
+                else if (tagMode == "remove")
+                {
+                    var existing = await _context.MovieTags
+                        .Where(mt => mt.MovieId == m.Id && mt.TagId == tagId.Value)
+                        .ToListAsync();
+                    _context.MovieTags.RemoveRange(existing);
+                }
+            }
         }
 
         await _context.SaveChangesAsync();
@@ -2063,6 +2056,9 @@ public partial class MovieListView : UserControl
         BatchStatusCombo.SelectedIndex = 0;
         BatchRatingCombo.SelectedIndex = 0;
         BatchFavoriteCombo.SelectedIndex = 0;
+        BatchTagCombo.SelectedIndex = 0;
+        BatchTagModeCombo.SelectedIndex = 0;
+        BatchCollectionCombo.SelectedIndex = 0;
         BatchEditPanel.Visibility = Visibility.Collapsed;
 
         await LoadMoviesAsync();
@@ -2109,11 +2105,9 @@ public partial class MovieListView : UserControl
         }
         else
         {
-            foreach (var child in CardPanel.Children.OfType<Card>())
-            {
-                if (child.DataContext is Movie m)
+            if (_cardMovies != null)
+                foreach (var m in _cardMovies)
                     _selectedCardIds.Add(m.Id);
-            }
             UpdateBatchPanel();
         }
     }
@@ -2193,8 +2187,9 @@ public partial class MovieListView : UserControl
         else if (!_isCardView) MovieDataGrid.SelectAll();
         else
         {
-            foreach (var child in CardPanel.Children.OfType<Card>())
-                if (child.DataContext is Movie m) _selectedCardIds.Add(m.Id);
+            if (_cardMovies != null)
+                foreach (var m in _cardMovies)
+                    _selectedCardIds.Add(m.Id);
             UpdateBatchPanel();
         }
     }
@@ -2221,7 +2216,7 @@ public partial class MovieListView : UserControl
     private async Task LoadCollectionViewAsync()
     {
         MovieDataGrid.Visibility = Visibility.Collapsed;
-        CardScrollViewer.Visibility = Visibility.Collapsed;
+        CardList.Visibility = Visibility.Collapsed;
         PosterWall.Visibility = Visibility.Collapsed;
         EmptyLabel.Visibility = Visibility.Collapsed;
         CollectionScrollViewer.Visibility = Visibility.Visible;
@@ -2514,5 +2509,35 @@ public partial class MovieListView : UserControl
         foreach (var cat in categories)
             BatchCategoryCombo.Items.Add(new ComboBoxItem { Content = cat.Name, Tag = cat.Id });
         BatchCategoryCombo.SelectedIndex = 0;
+        _ = PopulateBatchTagAndCollectionCombosAsync();
+    }
+
+    private async Task PopulateBatchTagAndCollectionCombosAsync()
+    {
+        try
+        {
+            var tags = await _tagService.GetAllAsync();
+            Dispatcher.Invoke(() =>
+            {
+                BatchTagCombo.Items.Clear();
+                BatchTagCombo.Items.Add(new ComboBoxItem { Content = LanguageManager.GetString("MovieLib_BatchNoChange"), Tag = "" });
+                foreach (var t in tags)
+                    BatchTagCombo.Items.Add(new ComboBoxItem { Content = t.Name, Tag = t.Id });
+                BatchTagCombo.SelectedIndex = 0;
+                BatchTagModeCombo.SelectedIndex = 0;
+            });
+
+            var collections = await _collectionService.GetAllAsync();
+            Dispatcher.Invoke(() =>
+            {
+                BatchCollectionCombo.Items.Clear();
+                BatchCollectionCombo.Items.Add(new ComboBoxItem { Content = LanguageManager.GetString("MovieLib_BatchNoChange"), Tag = "" });
+                foreach (var c in collections)
+                    BatchCollectionCombo.Items.Add(new ComboBoxItem { Content = c.Name, Tag = c.Id });
+                BatchCollectionCombo.Items.Add(new ComboBoxItem { Content = LanguageManager.GetString("MovieLib_BatchCollectionRemove"), Tag = "remove" });
+                BatchCollectionCombo.SelectedIndex = 0;
+            });
+        }
+        catch (Exception ex) { Log.Error(ex, "MovieListView 批量标签/合集填充失败"); }
     }
 }

@@ -8,6 +8,8 @@ using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Collections.Concurrent;
+using System.Security.Cryptography;
 
 using Serilog;
 
@@ -127,6 +129,22 @@ public class WatchStatusColorConverter : IValueConverter
 }
 
 /// <summary>
+/// WatchStatus → Visibility：仅“想看/已看”显示状态徽标，“未看”折叠。
+/// </summary>
+public class WatchStatusBadgeVisibilityConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is Core.Enums.WatchStatus status)
+            return status == Core.Enums.WatchStatus.NotWatched ? Visibility.Collapsed : Visibility.Visible;
+        return Visibility.Collapsed;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
+/// <summary>
 /// bool → ⭐ / ☆
 /// </summary>
 public class BoolToStarConverter : IValueConverter
@@ -157,58 +175,73 @@ public class FilePathIconConverter : IValueConverter
 }
 
 /// <summary>
-/// byte[] (PosterData) → BitmapImage，带引用级缓存避免重复解码，null → DependencyProperty.UnsetValue
+/// byte[] (PosterData) → 固定尺寸缩略图 BitmapImage，null → DependencyProperty.UnsetValue。
+/// 性能改进（针对“列表卡顿”）：
+/// 1) 缓存 key 由“byte[] 引用相等”改为“内容 SHA256 哈希 + 目标尺寸”，解决 EF Core 每次查询都
+///    new 出新 byte[] 实例导致引用缓存永不命中、每页都重复同步解码原图的问题；
+/// 2) 支持 ConverterParameter="宽,高" 在解码阶段即缩到显示尺寸（DecodePixelWidth/Height），
+///    避免在 UI 线程解码整张原图（列表密集处收益最大）；
+/// 3) 线程安全缓存（ConcurrentDictionary）+ 容量上限。
 /// </summary>
 public class PosterImageConverter : IValueConverter
 {
-    // 使用 byte[] 引用作为 key：同一张海报在数据库中通常是同一个 byte[] 实例
-    private static readonly Dictionary<byte[], BitmapImage> _cache = new(new ByteArrayReferenceComparer());
-    private const int MaxCacheSize = 200;
+    private static readonly ConcurrentDictionary<string, BitmapImage> _cache = new();
+    private const int MaxCacheSize = 400;
 
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
     {
         if (value is byte[] data && data.Length > 0)
         {
-            lock (_cache)
-            {
-                if (_cache.TryGetValue(data, out var cached))
-                    return cached;
-            }
+            ParseSize(parameter, out var w, out var h);
+            var key = CacheKey(data, w, h);
+            if (_cache.TryGetValue(key, out var cached))
+                return cached;
 
             try
             {
                 var image = new BitmapImage();
                 image.BeginInit();
                 image.CacheOption = BitmapCacheOption.OnLoad;
+                if (w > 0) image.DecodePixelWidth = w;
+                else if (h > 0) image.DecodePixelHeight = h;
                 image.StreamSource = new MemoryStream(data);
                 image.EndInit();
                 image.Freeze();
 
-                lock (_cache)
+                if (_cache.Count >= MaxCacheSize)
                 {
-                    if (_cache.Count >= MaxCacheSize)
-                    {
-                        var first = _cache.Keys.FirstOrDefault();
-                        if (first != null) _cache.Remove(first);
-                    }
-                    _cache[data] = image;
+                    foreach (var k in _cache.Keys) { if (_cache.TryRemove(k, out _)) break; }
                 }
-
+                _cache[key] = image;
                 return image;
             }
-            catch (Exception ex) { Log.Error(ex, "Converters 转换异常"); }
+            catch (Exception ex) { Log.Error(ex, "Converters 海报转换异常"); }
         }
         return DependencyProperty.UnsetValue;
     }
 
+    private static void ParseSize(object? parameter, out int w, out int h)
+    {
+        w = 0; h = 0;
+        if (parameter is string s && s.Contains(','))
+        {
+            var parts = s.Split(',');
+            int.TryParse(parts[0], out w);
+            if (parts.Length > 1) int.TryParse(parts[1], out h);
+        }
+    }
+
+    private static string CacheKey(byte[] data, int w, int h)
+    {
+        // 尺寸影响解码结果，必须纳入 key；内容哈希保证不同海报不串图
+        byte[] hash;
+        using (var sha = SHA256.Create())
+            hash = sha.ComputeHash(data);
+        return $"{w}x{h}:{System.Convert.ToHexString(hash)}";
+    }
+
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
         => throw new NotSupportedException();
-
-    private sealed class ByteArrayReferenceComparer : IEqualityComparer<byte[]>
-    {
-        public bool Equals(byte[]? x, byte[]? y) => ReferenceEquals(x, y);
-        public int GetHashCode(byte[] obj) => RuntimeHelpers.GetHashCode(obj);
-    }
 }
 
 /// <summary>
@@ -235,5 +268,33 @@ public class StringToBrushConverter : IValueConverter
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
+/// <summary>
+/// 续播进度 → GridLength（已播放比例，Star 单位）。
+/// values[0] = PlaybackPosition(毫秒, long)，values[1] = Runtime(分钟, int?)。
+/// 用于“继续观看”卡片底部进度条：第一列宽度 = 已播放比例，第二列 = 剩余。
+/// </summary>
+public class PlaybackProgressConverter : IMultiValueConverter
+{
+    public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (values?.Length == 2 && values[0] is long pos)
+        {
+            int? runtime = values[1] as int?;
+            if (runtime == null || runtime <= 0)
+                return new GridLength(0, GridUnitType.Star);
+
+            double playedSeconds = pos / 1000.0;
+            double totalSeconds = runtime.Value * 60.0;
+            double pct = totalSeconds > 0 ? playedSeconds / totalSeconds : 0;
+            pct = Math.Max(0, Math.Min(1, pct));
+            return new GridLength(pct, GridUnitType.Star);
+        }
+        return new GridLength(0, GridUnitType.Star);
+    }
+
+    public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
         => throw new NotSupportedException();
 }

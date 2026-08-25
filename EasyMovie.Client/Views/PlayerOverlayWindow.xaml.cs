@@ -29,6 +29,10 @@ public partial class PlayerOverlayWindow : Window
     private long _edgeTargetMs;
     private bool _edgeMoved;
 
+    // 拖动进度条实时 seek 的节流时间戳，以及松手后防止进度条回弹的定时器
+    private int _lastDragSeekTick;
+    private readonly DispatcherTimer _seekEndTimer = new() { Interval = TimeSpan.FromMilliseconds(300) };
+
     public PlayerOverlayWindow(VideoPlayerHost host)
     {
         InitializeComponent();
@@ -36,6 +40,35 @@ public partial class PlayerOverlayWindow : Window
         VolumeSlider.Value = 80;
         // 键盘事件转发给宿主处理（覆盖窗口获得焦点时也能响应快捷键）
         this.KeyDown += Overlay_KeyDown;
+        // 拖动/边缘 seek 松手后，保持 seeking 状态约 300ms 再结束，
+        // 避免 VLC 后台 seek 未完成时进度条被 UpdateSeekBar 回弹到旧位置。
+        _seekEndTimer.Tick += (s, e) =>
+        {
+            _seekEndTimer.Stop();
+            _isSeeking = false;
+            _host.EndSeek();
+        };
+
+        // 流畅度优化：关闭全部按钮的 MDIX 涟漪动画（分层窗口软件渲染下涟漪开销大），
+        // 并对静态面板启用位图缓存，避免每次重合成从零重绘。
+        OptimizeRendering(Root);
+    }
+
+    /// <summary>
+    /// 递归遍历视觉树：关闭所有 Button 的涟漪动画，并对静态面板（跳过含拖动滑块的
+    /// ControlBar / PicturePanel）启用 BitmapCache，降低分层窗口的软件渲染开销。
+    /// </summary>
+    private static void OptimizeRendering(DependencyObject root)
+    {
+        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            if (child is Button btn)
+                RippleAssist.SetIsDisabled(btn, true);
+            if (child is Border border && border.Name != "ControlBar" && border.Name != "PicturePanel")
+                border.CacheMode = new BitmapCache();
+            OptimizeRendering(child);
+        }
     }
 
     #region 画面点击：暂停/继续、双击全屏
@@ -50,14 +83,16 @@ public partial class PlayerOverlayWindow : Window
         if (src != null &&
             (IsDescendantOf(src, TitleBar) || IsDescendantOf(src, ControlBar) || IsDescendantOf(src, ResumePanel)
              || IsDescendantOf(src, SubtitlePanel) || IsDescendantOf(src, AudioPanel)
-             || IsDescendantOf(src, MorePanel) || IsDescendantOf(src, PicturePanel) || IsDescendantOf(src, InfoPanel)))
+             || IsDescendantOf(src, RatePanel) || IsDescendantOf(src, MorePanel)
+             || IsDescendantOf(src, PicturePanel) || IsDescendantOf(src, InfoPanel)))
         {
             return;
         }
 
-        // 点击画面空白处：收起已打开的字幕/音轨/更多/画面/信息面板
+        // 点击画面空白处：收起已打开的字幕/音轨/倍速/更多/画面/信息面板
         SubtitlePanel.Visibility = Visibility.Collapsed;
         AudioPanel.Visibility = Visibility.Collapsed;
+        RatePanel.Visibility = Visibility.Collapsed;
         MorePanel.Visibility = Visibility.Collapsed;
         PicturePanel.Visibility = Visibility.Collapsed;
         InfoPanel.Visibility = Visibility.Collapsed;
@@ -111,8 +146,8 @@ public partial class PlayerOverlayWindow : Window
             target = Math.Max(0, Math.Min(len, target));
             _edgeTargetMs = (long)target;
             _edgeMoved = Math.Abs(dx) > 12;
-            SeekBar.Maximum = len;
-            SeekBar.Value = target;
+            // 拖动期间只更新轻量文本（SeekTooltip/TimeLabel），避免每帧重写 SeekBar.Value
+            // 触发 MDIX 滑块在软件分层窗口里的整窗重绘；最终位置在松手时一次性写入。
             TimeLabel.Text = $"{FormatTime((long)target)} / {FormatTime(len)}";
             SeekTooltip.Text = FormatTime((long)target);
             SeekTooltip.Visibility = Visibility.Visible;
@@ -124,10 +159,19 @@ public partial class PlayerOverlayWindow : Window
         if (!_edgeSeeking) return;
         _edgeSeeking = false;
         ReleaseMouseCapture();
-        _host.EndSeek();
         SeekTooltip.Visibility = Visibility.Collapsed;
+        SeekBar.Value = _edgeTargetMs;
         if (_edgeMoved)
-            _host.SeekTo(_edgeTargetMs);
+        {
+            _host.SeekTo(_edgeTargetMs, fast: false);
+            // 松手保持 seeking 防回弹
+            _seekEndTimer.Stop();
+            _seekEndTimer.Start();
+        }
+        else
+        {
+            _host.EndSeek();
+        }
     }
 
     private void Root_MouseWheel(object sender, MouseWheelEventArgs e)
@@ -163,17 +207,53 @@ public partial class PlayerOverlayWindow : Window
 
     private void Subtitle_Click(object sender, RoutedEventArgs e)
     {
+        // 再次点击同一按钮时收起面板（开/关切换）
+        bool open = SubtitlePanel.Visibility != Visibility.Visible;
         AudioPanel.Visibility = Visibility.Collapsed;
-        _host.RequestSubtitlePanel();
+        RatePanel.Visibility = Visibility.Collapsed;
+        if (open)
+        {
+            AlignPanelToButton(SubtitlePanel, SubtitleBtn);
+            _host.RequestSubtitlePanel();
+        }
+        else
+            SubtitlePanel.Visibility = Visibility.Collapsed;
     }
 
     private void Audio_Click(object sender, RoutedEventArgs e)
     {
+        // 再次点击同一按钮时收起面板（开/关切换）
+        bool open = AudioPanel.Visibility != Visibility.Visible;
         SubtitlePanel.Visibility = Visibility.Collapsed;
-        _host.RequestAudioPanel();
+        RatePanel.Visibility = Visibility.Collapsed;
+        if (open)
+        {
+            AlignPanelToButton(AudioPanel, AudioBtn);
+            _host.RequestAudioPanel();
+        }
+        else
+            AudioPanel.Visibility = Visibility.Collapsed;
     }
 
-    private void Rate_Click(object sender, RoutedEventArgs e) => _host.RequestCycleRate();
+    private void Rate_Click(object sender, RoutedEventArgs e)
+    {
+        bool open = RatePanel.Visibility != Visibility.Visible;
+        // 打开倍速面板时收起其它面板（反之亦然）
+        SubtitlePanel.Visibility = Visibility.Collapsed;
+        AudioPanel.Visibility = Visibility.Collapsed;
+        MorePanel.Visibility = Visibility.Collapsed;
+        PicturePanel.Visibility = Visibility.Collapsed;
+        InfoPanel.Visibility = Visibility.Collapsed;
+        if (open) { AlignPanelToButton(RatePanel, RateBtn); _host.RequestRatePanel(); }
+        else RatePanel.Visibility = Visibility.Collapsed;
+    }
+
+    /// <summary>把弹出面板的左边缘对齐到触发按钮的左边缘（面板 VerticalAlignment=Bottom，底边距固定 64）。</summary>
+    private void AlignPanelToButton(Border panel, FrameworkElement button)
+    {
+        var pos = button.TranslatePoint(new Point(0, 0), Root);
+        panel.Margin = new Thickness(pos.X, 0, 0, 64);
+    }
     private void Snapshot_Click(object sender, RoutedEventArgs e) => _host.RequestSnapshot();
     private void SubDelayMinus_Click(object sender, RoutedEventArgs e) => _host.AdjustSubtitleDelay(-500);
     private void SubDelayPlus_Click(object sender, RoutedEventArgs e) => _host.AdjustSubtitleDelay(500);
@@ -191,20 +271,69 @@ public partial class PlayerOverlayWindow : Window
     {
         _isSeeking = true;
         _host.BeginSeek();
+        _seekEndTimer.Stop();
     }
 
     private void SeekBar_DragCompleted(object sender, RoutedEventArgs e)
     {
-        _host.SeekTo((long)SeekBar.Value);
-        _isSeeking = false;
-        _host.EndSeek();
+        var target = (long)SeekBar.Value;
+        _host.SeekTo(target, fast: false);
+        // 松手后保持 seeking 一小段时间，避免 VLC 后台 seek 未完成时进度条回弹
+        _seekEndTimer.Stop();
+        _seekEndTimer.Start();
+        ThumbPreview.Visibility = Visibility.Collapsed;   // 拖动结束隐藏缩略图预览
     }
 
     private void SeekBar_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         if (_host == null) return;
         if (_isSeeking)
-            TimeLabel.Text = $"{FormatTime((long)SeekBar.Value)} / {FormatTime(_host.GetLength())}";
+        {
+            var target = (long)SeekBar.Value;
+            TimeLabel.Text = $"{FormatTime(target)} / {FormatTime(_host.GetLength())}";
+            // 拖动期间实时(fast)seek，让画面跟随滑块，提升跟手度；节流 80ms 避免过快连续 seek
+            var now = Environment.TickCount;
+            if (now - _lastDragSeekTick >= 80)
+            {
+                _lastDragSeekTick = now;
+                _host.SeekTo(target, fast: true);
+                UpdateThumbPreview(target);   // 随拖动显示对应位置的画面缩略图
+            }
+        }
+    }
+
+    // 进度条缩略图预览：按当前位置取最近预生成的缩略图，并让气泡水平跟随滑块
+    private void UpdateThumbPreview(long time)
+    {
+        var path = _host.GetThumbnailForTime(time);
+        if (path == null) { ThumbPreview.Visibility = Visibility.Collapsed; return; }
+        try
+        {
+            var img = new BitmapImage();
+            img.BeginInit();
+            img.CacheOption = BitmapCacheOption.OnLoad;
+            img.UriSource = new Uri(path);
+            img.EndInit();
+            ThumbImage.Source = img;
+            ThumbTime.Text = FormatTime(time);
+            var len = _host.GetLength();
+            var x = len > 0 ? (time / (double)len) * SeekBar.ActualWidth : SeekBar.ActualWidth / 2;
+            ThumbPreview.Margin = new Thickness(Math.Max(0, x - ThumbPreview.Width / 2), -112, 0, 0);
+            ThumbPreview.Visibility = Visibility.Visible;
+        }
+        catch { ThumbPreview.Visibility = Visibility.Collapsed; }
+    }
+
+    private void AbCycle_Click(object sender, RoutedEventArgs e)
+    {
+        _host.CycleAbPoint();
+        UpdateAbButton();
+    }
+
+    private void UpdateAbButton()
+    {
+        var (a, b) = _host.GetAbState();
+        AbBtnText.Text = a < 0 ? "AB" : (b < 0 ? "A•" : "AB•");
     }
 
     #endregion
@@ -268,6 +397,12 @@ public partial class PlayerOverlayWindow : Window
     public void SetTime(long pos, long len)
     {
         if (_isSeeking) return;
+        // 控制栏隐藏时不更新 UI（折叠元素本就不参与渲染，避免分层窗口无谓重绘）
+        if (ControlBar.Visibility != Visibility.Visible) return;
+        // 节流到 ~10Hz：VLC 的 TimeChanged 触发频率远高于刷新所需，限制重绘次数以提升流畅度
+        var now = DateTime.UtcNow;
+        if ((now - _lastTimeUpdate).TotalMilliseconds < 100) return;
+        _lastTimeUpdate = now;
         SeekBar.Maximum = len > 0 ? len : 1;
         SeekBar.Value = pos;
         TimeLabel.Text = $"{FormatTime(pos)} / {FormatTime(len)}";
@@ -300,22 +435,64 @@ public partial class PlayerOverlayWindow : Window
         AudioPanel.Visibility = Visibility.Visible;
     }
 
+    public void ShowRateOptions(double[] rates, int currentIndex, Action<int> onSelect)
+    {
+        RateOptionList.Children.Clear();
+        for (int i = 0; i < rates.Length; i++)
+        {
+            int idx = i;
+            // 显式用 TextBlock 承载文字并设置 Foreground，避免 MaterialDesignFlatButton 模板
+            // 不继承 Button.Foreground，导致深色底上文字变黑、看不见。
+            var tb = new TextBlock
+            {
+                Text = $"{rates[i]:0.##}x",
+                Foreground = i == currentIndex
+                    ? new SolidColorBrush(Color.FromRgb(0x7C, 0x4D, 0xFF))
+                    : Brushes.White,
+                FontSize = 13,
+                FontWeight = i == currentIndex ? FontWeights.Bold : FontWeights.Normal,
+                HorizontalAlignment = HorizontalAlignment.Left
+            };
+            var b = new Button
+            {
+                Content = tb,
+                Style = (Style)Application.Current.FindResource("MaterialDesignFlatButton"),
+                HorizontalContentAlignment = HorizontalAlignment.Left,
+                Padding = new Thickness(10, 5, 10, 5),
+                Margin = new Thickness(0, 1, 0, 1),
+                Cursor = System.Windows.Input.Cursors.Hand
+            };
+            RippleAssist.SetIsDisabled(b, true);
+            b.Click += (s, e) => { onSelect(idx); RatePanel.Visibility = Visibility.Collapsed; };
+            RateOptionList.Children.Add(b);
+        }
+        RatePanel.Visibility = Visibility.Visible;
+    }
+
     private RadioButton MakeTrackRadio(string name, int id, bool isChecked, Action<int> onSelect)
     {
+        // 显式 TextBlock + White，避免 RadioButton 模板不继承 Foreground，导致深色底上文字变黑看不见。
+        var tb = new TextBlock
+        {
+            Text = name,
+            Foreground = Brushes.White,
+            FontSize = 12
+        };
         var rb = new RadioButton
         {
-            Content = name,
-            Foreground = Brushes.White,
+            Content = tb,
             FontSize = 12,
             Margin = new Thickness(0, 2, 0, 2),
             IsChecked = isChecked,
             Tag = id
         };
+        RippleAssist.SetIsDisabled(rb, true);
         rb.Checked += (s, e) => onSelect(id);
         return rb;
     }
 
     private DispatcherTimer? _toastTimer;
+    private DateTime _lastTimeUpdate = DateTime.MinValue;
     public void ShowToast(string msg)
     {
         ToastText.Text = msg;
@@ -335,6 +512,7 @@ public partial class PlayerOverlayWindow : Window
         bool open = MorePanel.Visibility != Visibility.Visible;
         SubtitlePanel.Visibility = Visibility.Collapsed;
         AudioPanel.Visibility = Visibility.Collapsed;
+        RatePanel.Visibility = Visibility.Collapsed;
         PicturePanel.Visibility = Visibility.Collapsed;
         InfoPanel.Visibility = Visibility.Collapsed;
         MorePanel.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
@@ -490,14 +668,13 @@ public partial class PlayerOverlayWindow : Window
             };
             var btn = new Button
             {
-                Content = PlayerShortcuts.KeyLabel(kv.Value),
+                Content = new TextBlock { Text = PlayerShortcuts.KeyLabel(kv.Value), Foreground = Brushes.White, FontSize = 12 },
                 Style = (Style)FindResource("MaterialDesignFlatButton"),
-                Foreground = Brushes.White,
-                FontSize = 12,
                 HorizontalAlignment = HorizontalAlignment.Right,
                 Margin = new Thickness(8, 0, 0, 0),
                 Tag = action
             };
+            RippleAssist.SetIsDisabled(btn, true);
             btn.Click += (s, e) =>
             {
                 _listeningAction = action;
@@ -517,6 +694,9 @@ public partial class PlayerOverlayWindow : Window
     private static bool IsDescendantOf(DependencyObject? child, DependencyObject? parent)
     {
         if (child == null || parent == null) return false;
+        // 自身也算（点击面板的空白内边距时，OriginalSource 就是该面板 Border 自身，
+        // 不向上遍历，必须显式包含，否则空白点击会穿透到画面播放/暂停逻辑）。
+        if (ReferenceEquals(child, parent)) return true;
         var p = VisualTreeHelper.GetParent(child);
         while (p != null)
         {

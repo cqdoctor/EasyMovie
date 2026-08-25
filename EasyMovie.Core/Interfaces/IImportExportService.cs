@@ -26,6 +26,10 @@ public interface IImportExportService
     Task ExportMoviesToJsonAsync(string filePath);
     Task<ImportResult> ImportMoviesFromJsonAsync(string filePath);
 
+    // Excel / HTML
+    Task ExportMoviesToExcelAsync(string filePath);
+    Task ExportMoviesToHtmlAsync(string filePath);
+
     // 全量备份/还原
     Task ExportFullDataToJsonAsync(string filePath);
     Task<ImportResult> ImportFullDataFromJsonAsync(string filePath);

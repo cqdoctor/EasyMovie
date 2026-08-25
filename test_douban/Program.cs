@@ -4,7 +4,13 @@ using System.Text.Json;
 
 var http = new HttpClient(new HttpClientHandler { AutomaticDecompression = DecompressionMethods.All, UseCookies = false });
 http.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 Chrome/131.0.0.0");
-http.DefaultRequestHeaders.Add("Cookie", "bid=6_QIGVTJLa4; ck=qcMB; ***REMOVED***; push_doumail_num=0; push_noty_num=0");
+// 凭据从环境变量读取，绝不硬编码进源码/提交 git 历史。
+// 运行前： $env:DOUBAN_COOKIE = "bid=...; dbcl2=...; ck=..."
+var doubanCookie = Environment.GetEnvironmentVariable("DOUBAN_COOKIE");
+if (string.IsNullOrWhiteSpace(doubanCookie))
+    Console.WriteLine("[WARN] 未设置环境变量 DOUBAN_COOKIE，将以游客模式请求（部分接口会返回 403 need_login）。");
+else
+    http.DefaultRequestHeaders.Add("Cookie", doubanCookie);
 http.DefaultRequestHeaders.Referrer = new Uri("https://movie.douban.com/");
 var h = await http.GetStringAsync("https://movie.douban.com/subject_search?search_text=%E4%BF%9D%E6%8A%A4%E8%80%85");
 var idx = h.IndexOf("window.__DATA__ = {"); idx = h.IndexOf('{', idx);

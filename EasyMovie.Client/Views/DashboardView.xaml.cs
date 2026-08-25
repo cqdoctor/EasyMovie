@@ -7,6 +7,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using EasyMovie.Client.Services;
 using EasyMovie.Client.ViewModels;
 using EasyMovie.Core.Models;
 using EasyMovie.Data;
@@ -17,8 +18,8 @@ namespace EasyMovie.Client.Views;
 
 public partial class DashboardView : UserControl
 {
-    private readonly DashboardViewModel _vm;
-    private readonly MovieDbContext _context;
+    private DashboardViewModel? _vm;
+    private MovieDbContext? _context;
     private bool _isInitialized;
     private bool _isLoading;
 
@@ -38,14 +39,26 @@ public partial class DashboardView : UserControl
 
     public DashboardView()
     {
+        App.LogStartup("Dashboard 构造开始(InitializeComponent 前)");
         InitializeComponent();
-        _vm = App.Services?.GetService<DashboardViewModel>()
-              ?? new DashboardViewModel(DbHelper.CreateContext());
-        _context = _vm.Context;
+        App.LogStartup("Dashboard.InitializeComponent 完成");
         SetGreeting();
         Loaded += async (s, e) =>
         {
-            try { await InitializeAsync(); }
+            try
+            {
+                // DbContext 创建（含 EnsureInitialized 的迁移/清洗/种子）较重，放到后台线程，
+                // 避免阻塞主界面首屏
+                if (_vm == null)
+                {
+                    var ctx = await Task.Run(() => DbHelper.CreateContext());
+                    _vm = App.Services?.GetService<DashboardViewModel>()
+                          ?? new DashboardViewModel(ctx);
+                    _context = _vm.Context;
+                    App.LogStartup("Dashboard 已建 DbContext/ViewModel(后台)");
+                }
+                await InitializeAsync();
+            }
             catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Dashboard init error: {ex}"); }
         };
     }
@@ -195,6 +208,31 @@ public partial class DashboardView : UserControl
                 .ToListAsync();
             RecentWatchedList.ItemsSource = recentWatched;
 
+            // 继续观看：有播放进度（未看完）的电影，按最近一次观看时间排序
+            var continueWatching = await _context.Movies
+                .Where(m => m.PlaybackPosition > 0)
+                .Select(m => new { Movie = m, Last = m.WatchLogs.Max(w => (DateTime?)w.WatchDate) })
+                .OrderByDescending(x => x.Last)
+                .Take(10)
+                .Select(x => x.Movie)
+                .ToListAsync();
+            ContinueWatchingList.ItemsSource = continueWatching;
+            ContinueWatchingPanel.Visibility = continueWatching.Count > 0
+                ? Visibility.Visible : Visibility.Collapsed;
+
+            // 上映提醒：把"想看"清单与豆瓣热映/即将上映匹配（联网；失败静默；不修改任何数据）
+            if (AppSettings.ReleaseReminderEnabled)
+            {
+                var reminders = await Task.Run(() => ReminderService.GetUpcomingWatchlistAsync());
+                UpcomingReminderList.ItemsSource = reminders;
+                UpcomingReminderPanel.Visibility = reminders.Count > 0
+                    ? Visibility.Visible : Visibility.Collapsed;
+            }
+            else
+            {
+                UpcomingReminderPanel.Visibility = Visibility.Collapsed;
+            }
+
         // 设置卡片悬停效果
         Dispatcher.BeginInvoke(new Action(SetupCardHoverEffects),
             System.Windows.Threading.DispatcherPriority.Loaded);
@@ -342,6 +380,29 @@ public partial class DashboardView : UserControl
             {
                 mainWindow.NavigateTo("Movies");
                 mainWindow.ShowMovieDetail(movie);
+            }
+        }
+    }
+
+    /// <summary>继续观看卡片：直接播放，播放器会按 PlaybackPosition 自动续播到记录处。</summary>
+    private void ContinueWatchingCard_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is FrameworkElement el && el.DataContext is Movie movie)
+        {
+            var mainWindow = Application.Current.MainWindow as MainWindow;
+            mainWindow?.ShowMoviePlayer(movie);
+        }
+    }
+
+    private void UpcomingReminderCard_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is FrameworkElement el && el.DataContext is ReminderService.UpcomingReminder reminder)
+        {
+            var mainWindow = Application.Current.MainWindow as MainWindow;
+            if (mainWindow != null)
+            {
+                mainWindow.NavigateTo("Movies");
+                mainWindow.ShowMovieDetail(reminder.Movie);
             }
         }
     }

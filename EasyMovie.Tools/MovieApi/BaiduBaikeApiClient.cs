@@ -38,6 +38,22 @@ public class BaiduBaikeApiClient : IMovieApiClient
 
     public string SourceName => "baike";
 
+    private static DateTime _lastRequest = DateTime.MinValue;
+    private static readonly object _lock = new();
+    private const int MinIntervalMs = 500;
+    private static async Task ThrottleAsync()
+    {
+        TimeSpan wait;
+        lock (_lock)
+        {
+            var e = DateTime.UtcNow - _lastRequest;
+            wait = TimeSpan.FromMilliseconds(MinIntervalMs) - e;
+            if (wait <= TimeSpan.Zero) { _lastRequest = DateTime.UtcNow; return; }
+            _lastRequest = DateTime.UtcNow.Add(wait);
+        }
+        await Task.Delay(wait);
+    }
+
     private static readonly string[] InvalidLabels = { "人员", "人物", "演员", "主演", "导演", "暂无", "未知", "暂未录入", "更多" };
 
     // 导演黑名单：中英文职业标签，提取导演人名时需排除
@@ -109,6 +125,7 @@ public class BaiduBaikeApiClient : IMovieApiClient
     {
         try
         {
+            await ThrottleAsync();
             var keyword = Uri.EscapeDataString(req.Keyword);
             var html = await _http.GetStringAsync($"https://baike.baidu.com/search?word={keyword}", ct);
             var results = ParseSearch(html).Take(req.PageSize).ToList();
@@ -121,6 +138,7 @@ public class BaiduBaikeApiClient : IMovieApiClient
     {
         try
         {
+            await ThrottleAsync();
             var html = await _http.GetStringAsync($"https://baike.baidu.com/item/{Uri.EscapeDataString(externalId)}", ct);
             return ParseDetail(html, externalId);
         }

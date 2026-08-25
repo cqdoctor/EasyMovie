@@ -1,6 +1,9 @@
+using System.Net;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using EasyMovie.Core;
 using EasyMovie.Core.Interfaces;
+using System.Globalization;
 
 namespace EasyMovie.Tools.MovieApi;
 
@@ -21,8 +24,22 @@ public class OmdbApiClient : IMovieApiClient
     public OmdbApiClient(string apiKey = "", HttpClient? http = null)
     {
         _apiKey = apiKey ?? "";
-        // OMDb 在国内可访问，不需要代理
-        _http = http ?? new HttpClient
+        // OMDb 为国外站点，国内常被 GFW 拦截；若用户配置了全局代理则走代理。
+        var handler = new HttpClientHandler { AutomaticDecompression = DecompressionMethods.All };
+        var proxy = AppSettings.HttpProxy;
+        if (!string.IsNullOrWhiteSpace(proxy))
+        {
+            try
+            {
+                if (!proxy.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+                    !proxy.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                    proxy = "http://" + proxy;
+                handler.Proxy = new WebProxy(proxy, true);
+                handler.UseProxy = true;
+            }
+            catch (Exception ex) { Serilog.Log.Error(ex, "配置代理失败"); }
+        }
+        _http = http ?? new HttpClient(handler)
         {
             Timeout = TimeSpan.FromSeconds(10)
         };
@@ -39,9 +56,24 @@ public class OmdbApiClient : IMovieApiClient
         if (string.IsNullOrWhiteSpace(_apiKey))
             return new MovieSearchResponse();
 
+        // OMDb 是英文源（IMDb 包装），用中文片名必 0 结果。先按原关键词搜，
+        // 若落空且能从标题抽取英文名（如“寄生虫 Parasite”），自动回退英文名再搜一次。
+        var resp = await SearchByKeywordAsync(request.Keyword, request, ct);
+        if (resp.Results.Count > 0)
+            return resp;
+
+        var en = DoubanApiClient.ExtractEnglishHint(request.Keyword);
+        if (!string.IsNullOrWhiteSpace(en) && en != request.Keyword.Trim())
+            return await SearchByKeywordAsync(en, request, ct);
+
+        return resp;
+    }
+
+    private async Task<MovieSearchResponse> SearchByKeywordAsync(string keyword, MovieSearchRequest request, CancellationToken ct)
+    {
         try
         {
-            var encoded = Uri.EscapeDataString(request.Keyword);
+            var encoded = Uri.EscapeDataString(keyword);
             var url = $"{BaseUrl}?apikey={Uri.EscapeDataString(_apiKey)}&s={encoded}&type=movie";
             var json = await _http.GetStringAsync(url, ct);
             using var doc = JsonDocument.Parse(json);
@@ -160,7 +192,7 @@ public class OmdbApiClient : IMovieApiClient
         if (root.TryGetProperty("imdbRating", out var rProp) && rProp.ValueKind == JsonValueKind.String)
         {
             var rs = rProp.GetString();
-            if (!string.IsNullOrEmpty(rs) && rs != "N/A" && double.TryParse(rs, out var r)) rating = r;
+            if (!string.IsNullOrEmpty(rs) && rs != "N/A" && double.TryParse(rs, NumberStyles.Float, CultureInfo.InvariantCulture, out var r)) rating = r;
         }
 
         int? ratingCount = null;

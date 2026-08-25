@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using EasyMovie.Core;
 using EasyMovie.Core.Interfaces;
 using Serilog;
+using System.Globalization;
 
 namespace EasyMovie.Tools.MovieApi;
 
@@ -62,7 +63,7 @@ public class MaoyanApiClient : IMovieApiClient
             // 评分
             double? rating = null;
             var rateM = Regex.Match(html.Substring(m.Index, Math.Min(500, html.Length - m.Index)), @"score"">\s*(\d+\.?\d*)\s*<");
-            if (rateM.Success && double.TryParse(rateM.Groups[1].Value, out var r)) rating = r;
+            if (rateM.Success && double.TryParse(rateM.Groups[1].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var r)) rating = r;
 
             results.Add(new MovieSearchResult
             {
@@ -105,11 +106,11 @@ public class MaoyanApiClient : IMovieApiClient
         if (posterM.Success) r.PosterUrl = posterM.Groups[1].Value;
 
         var rateM = Regex.Match(html, @"电影评分[^<]*<[^>]*>([\d.]+)<");
-        if (rateM.Success && double.TryParse(rateM.Groups[1].Value, out var rate)) r.Rating = rate;
+        if (rateM.Success && double.TryParse(rateM.Groups[1].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var rate)) r.Rating = rate;
 
         // 猫眼评分 /10
         var rateM2 = Regex.Match(html, @"class=""star-num""[^>]*>([\d.]+)<");
-        if (rateM2.Success && double.TryParse(rateM2.Groups[1].Value, out var rate2)) r.Rating = rate2;
+        if (rateM2.Success && double.TryParse(rateM2.Groups[1].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var rate2)) r.Rating = rate2;
 
         var dirM = Regex.Match(html, @"导演[^<]*</span>\s*<[^>]*>\s*([^<]+)\s*<");
         if (dirM.Success)

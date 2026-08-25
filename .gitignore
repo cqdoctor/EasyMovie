@@ -86,3 +86,8 @@ query3.csx
 MpvHeadlessTest/*.jpg
 MpvHeadlessTest/*.png
 MpvHeadlessTest/out/
+
+## 本地临时测试/探针产物（非源码，勿提交）
+tmdb_search.json
+tmdb_test.json
+__probe.txt
