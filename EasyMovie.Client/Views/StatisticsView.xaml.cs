@@ -15,8 +15,8 @@ namespace EasyMovie.Client.Views;
 
 public partial class StatisticsView : UserControl
 {
-    private readonly MovieDbContext _context;
-    private readonly StatisticsViewModel _vm;
+    private MovieDbContext? _context;
+    private StatisticsViewModel? _vm;
 
     // 柱状图最大宽度（像素）
     private const double MaxBarWidth = 200;
@@ -49,6 +49,8 @@ public partial class StatisticsView : UserControl
     public async Task InitializeAsync()
     {
         if (_isInitialized) return;
+        // 确保数据库已在后台完成初始化（schema 迁移等），否则首次查询会因表不存在而失败。
+        await DbHelper.WarmupAsync();
         _isInitialized = true;
         await LoadAsync();
     }
@@ -57,7 +59,8 @@ public partial class StatisticsView : UserControl
     {
         try
         {
-            var d = await _vm.StatisticsService.GetStatisticsAsync();
+            if (_vm is null) return;
+            var d = await _vm!.StatisticsService.GetStatisticsAsync();
             TotalMoviesText.Text = d.TotalMovies.ToString();
             WatchedText.Text = d.Watched.ToString();
             WantWatchText.Text = d.WantToWatch.ToString();

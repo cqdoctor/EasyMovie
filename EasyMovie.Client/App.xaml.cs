@@ -14,6 +14,7 @@ using EasyMovie.Tools.AIChat;
 using EasyMovie.Tools.ImportExport;
 using EasyMovie.Tools.MovieApi;
 using EasyMovie.Client.ViewModels;
+using EasyMovie.Client.Views;
 using EasyMovie.Data;
 using EasyMovie.Data.Repositories;
 using MaterialDesignColors;
@@ -66,13 +67,16 @@ public partial class App : Application
             if (_splashScreen == null) return;
             var splash = _splashScreen;
             var dispatcher = Application.Current?.Dispatcher;
+            // 注意：必须用 TimeSpan.Zero（同步立即关闭），不能用淡出时间——淡出依赖 DispatcherTimer，
+            // 会被 PreWarmViews 等更高优先级任务饿死（实测：闪屏关闭逻辑执行了但窗口一直挂着）。
             if (dispatcher?.CheckAccess() == true)
-                splash.Close(TimeSpan.FromMilliseconds(250));
+                splash.Close(TimeSpan.Zero);
             else
-                dispatcher?.BeginInvoke(new Action(() => splash.Close(TimeSpan.FromMilliseconds(250))));
+                dispatcher?.BeginInvoke(new Action(() => splash.Close(TimeSpan.Zero)));
         }
         catch { }
         _splashScreen = null;
+        LogStartup("启动闪屏已关闭");
     }
 
     /// <summary>启动期里程碑日志：写入 exe 同级 logs/startup.log，带毫秒时间戳，用于跨会话定位卡顿阶段。</summary>
@@ -110,6 +114,14 @@ public partial class App : Application
         // 启动里程碑：写到 logs/startup.log，便于跨会话验证窗口是否真正建出（不依赖 Serilog 初始化时机）
         LogStartup($"OnStartup 开始 (PID={Environment.ProcessId})");
 
+        // 启动期并发后台任务多（DB 预热、海报迁移、首页预载、备份、文件夹监控等），
+        // .NET 线程池默认懒建线程（约 500ms/个），会把并发的 Task.Run 排队饿死 → 提前扩容最小线程数。
+        try { ThreadPool.SetMinThreads(16, 16); } catch { }
+
+        // 后台预热数据库（首次 EnsureCreated 约数十秒重活）。尽早启动，让首次迁移在后台线程跑，
+        // 避免被后续 UI 线程创建 DbContext 抢先触发、阻塞首帧渲染导致启动闪屏长时间不消失。
+        _ = DbHelper.WarmupAsync();
+
         base.OnStartup(e);
         LogStartup("base.OnStartup 完成(主窗口即将创建)");
 
@@ -144,19 +156,11 @@ public partial class App : Application
 
         Log.Information("EasyMovie 启动");
 
-        // 数据库初始化（schema 迁移 / 数据清洗 / 种子标签）较重，放到后台线程，
-        // 避免阻塞主界面首屏（实测同步执行约 24 秒）。
-        _ = Task.Run(() =>
-        {
-            try
-            {
-                using var context = DbHelper.CreateContext();
-                Log.Information("数据库就绪: {Path}", DbHelper.ConnectionString);
-                LogStartup("数据库就绪(后台线程)");
-            }
-            catch (Exception ex) { Log.Error(ex, "数据库初始化失败"); LogStartup("数据库初始化失败: " + ex.Message); }
-        });
-        LogStartup("数据库初始化已派发到后台线程");
+        // 数据库初始化（schema 迁移 / 数据清洗 / 种子标签）较重，已在 OnStartup 早期
+        // 通过 DbHelper.WarmupAsync() 派发到后台线程（见上方），避免阻塞首帧渲染。
+        // 此处复用同一预热任务并打印 DB 路径。
+        _ = DbHelper.WarmupAsync();
+        LogStartup($"数据库预热已派发后台线程: {DbHelper.ConnectionString}");
 
         AppDomain.CurrentDomain.UnhandledException += (s, args) =>
         {
@@ -216,6 +220,10 @@ public partial class App : Application
         }
         // 后台把历史海报写盘（磁盘缓存层），不阻塞启动；任何失败均被 PosterCache 内部吞掉
         _ = System.Threading.Tasks.Task.Run(EasyMovie.Client.Helpers.PosterCache.MigrateFromDb);
+
+        // 启动空闲期预载首页数据与海报：在闪屏/空闲阶段就把首页要显示的内容准备好，
+        // 用户进入首页即秒显，避免“进首页后再等几秒”（详见 DashboardView.EnsureDataLoadedAsync）
+        _ = DashboardView.EnsureDataLoadedAsync();
 
         // 若启用“定时同步在线信息”，启动周期计时器（首轮在间隔后触发，不阻塞启动）
         StartMetadataAutoSync();

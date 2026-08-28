@@ -7,6 +7,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using System.Windows.Interop;
 using System.IO;
 using System.Linq;
 using System.Collections.Generic;
@@ -113,14 +114,10 @@ public partial class VideoPlayerHost : UserControl
         _cursorTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
         _cursorTimer.Tick += CursorTimer_Tick;
 
-        if (_libVLC == null)
-        {
-            LibVLCSharp.Shared.Core.Initialize();
-            // 解码模式由 DecoderSettings 决定（默认 Hardware=d3d11va + direct3d11 输出，
-            // 既流畅又避开了 DXVA2 的白块/马赛克；遇个别 GPU 异常可切到 Software 纯软解）。
-            _libVLC = new LibVLC(DecoderSettings.ToLibVlcOptions());
-        }
-
+        // ⚠️ 关键：LibVLC 核心（Core.Initialize + new LibVLC）加载原生 VLC + 数百个插件模块，
+        // 实测首次约数十秒。此处【绝不能】在构造期同步初始化，否则 MainWindow.InitializeComponent
+        // 构造 VideoPlayerHost 时会把这段重活卡在 UI 线程，导致启动闪屏长时间不消失。
+        // 改为懒加载：仅在用户真正打开影片（StartPlayback）时才初始化（见 EnsureLibVLC）。
         // 载入用户快捷键（仅首次构造时）
         PlayerShortcuts.Load();
         _keyMap = PlayerShortcuts.BuildKeyMap();
@@ -375,9 +372,32 @@ public partial class VideoPlayerHost : UserControl
             StartPlayback();
     }
 
+    /// <summary>
+    /// 懒加载 LibVLC 核心（Core.Initialize + new LibVLC）。仅在用户真正打开影片时调用，
+    /// 避免启动期同步构造 VideoPlayerHost 时把"加载 VLC 原生模块"这数十秒重活卡在 UI 线程、
+    /// 拖垮启动闪屏。幂等：已初始化则直接返回。
+    /// </summary>
+    private void EnsureLibVLC()
+    {
+        if (_libVLC != null) return;
+        try
+        {
+            LibVLCSharp.Shared.Core.Initialize();
+            // 解码模式由 DecoderSettings 决定（默认 Hardware=d3d11va + direct3d11 输出，
+            // 既流畅又避开了 DXVA2 的白块/马赛克；遇个别 GPU 异常可切到 Software 纯软解）。
+            _libVLC = new LibVLC(DecoderSettings.ToLibVlcOptions());
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "LibVLC 懒加载初始化失败");
+        }
+    }
+
     private void StartPlayback()
     {
-        if (_movie == null || _libVLC == null) return;
+        if (_movie == null) return;
+        EnsureLibVLC();
+        if (_libVLC == null) return;
 
         Focus();
         EnsureOverlay();
@@ -1216,12 +1236,38 @@ public partial class VideoPlayerHost : UserControl
         var lib = _libVLC;
         _ = Task.Run(() =>
         {
+            // 独立的后台 MediaPlayer 若不做任何视频输出绑定，LibVLC 在 Windows 上会弹出原生视频窗口
+            // （正是用户反馈的“点击播放弹出一个大窗口”）。给它一个不可见的 1x1 宿主窗口句柄承载
+            // 输出即可——窗口不可见，但 vout 照常解码，TakeSnapshot 仍能取到真实帧。
+            // 同时强制软件解码，避免与主播放器争抢 GPU 硬件解码会话。
+            IntPtr hostHwnd = IntPtr.Zero;
+            Window? host = null;
+            try
+            {
+                Application.Current?.Dispatcher.Invoke(() =>
+                {
+                    host = new Window
+                    {
+                        Width = 1,
+                        Height = 1,
+                        WindowStyle = WindowStyle.None,
+                        ShowInTaskbar = false,
+                        Visibility = Visibility.Hidden,
+                        Background = System.Windows.Media.Brushes.Black
+                    };
+                    hostHwnd = new WindowInteropHelper(host).EnsureHandle();
+                });
+            }
+            catch { hostHwnd = IntPtr.Zero; host = null; }
+
             try
             {
                 var thumbDir = Path.Combine(Path.GetTempPath(), "EasyMovieThumbs", movieId.ToString());
                 Directory.CreateDirectory(thumbDir);
                 using var media = new Media(lib, filePath, FromType.FromPath);
+                media.AddOption(":avcodec-hw=none");   // 后台抽帧用软解，不抢主播放器硬件解码
                 using var gen = new MediaPlayer(media);
+                if (hostHwnd != IntPtr.Zero) { try { gen.Hwnd = hostHwnd; } catch { } }
                 gen.Play();
                 Thread.Sleep(500);                 // 等时长/首帧就绪
                 var len = gen.Length;              // 毫秒
@@ -1243,6 +1289,13 @@ public partial class VideoPlayerHost : UserControl
                 try { gen.Stop(); } catch { }
             }
             catch { }
+            finally
+            {
+                if (host != null)
+                {
+                    try { Application.Current?.Dispatcher.Invoke(() => host.Close()); } catch { }
+                }
+            }
         });
     }
 

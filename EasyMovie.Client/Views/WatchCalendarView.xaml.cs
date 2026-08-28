@@ -50,6 +50,19 @@ public partial class WatchCalendarView : UserControl
         _displayMonth = now.Month;
 
         Loaded += async (s, e) => await InitializeAsync();
+        // 每次页面变为可见（用户导航进入本页）都重新加载当前月份，保证新观影记录即时显示。
+        // 关键：PreWarmViews 在启动期把本页加入可视树（Visibility=Collapsed，也会触发 Loaded），
+        // 若只靠 _isInitialized 守卫，之后导航进入时数据永远是启动时的旧快照——今天新看的电影不会出现。
+        IsVisibleChanged += (s, e) =>
+        {
+            if (IsVisible) _ = RefreshAsync();
+        };
+    }
+
+    private async Task RefreshAsync()
+    {
+        try { await LoadCalendarAsync(); }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"WatchCalendar refresh error: {ex.Message}"); }
     }
 
     private async Task InitializeAsync()

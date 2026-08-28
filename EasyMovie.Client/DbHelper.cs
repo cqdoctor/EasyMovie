@@ -20,7 +20,11 @@ namespace EasyMovie.Client;
 public sealed class BusyTimeoutInterceptor : DbConnectionInterceptor
 {
     public static readonly BusyTimeoutInterceptor Instance = new();
-    private const string Pragma = "PRAGMA journal_mode=WAL; PRAGMA busy_timeout=3000;";
+    // journal_mode=WAL 是持久化的（写入 DB 文件头），只需首个连接设置一次；
+    // 每个连接都执行会反复获取 SQLite 锁（启动期多连接并发打开时实测会显著拖慢）。
+    private static int _walConfigured;
+    private const string PragmaAll = "PRAGMA journal_mode=WAL; PRAGMA busy_timeout=3000;";
+    private const string PragmaBusyOnly = "PRAGMA busy_timeout=3000;";
 
     public override void ConnectionOpened(DbConnection connection, ConnectionEndEventData eventData)
         => Execute(connection);
@@ -35,7 +39,7 @@ public sealed class BusyTimeoutInterceptor : DbConnectionInterceptor
             if (connection is SqliteConnection sqlite)
             {
                 using var cmd = sqlite.CreateCommand();
-                cmd.CommandText = Pragma;
+                cmd.CommandText = Interlocked.Exchange(ref _walConfigured, 1) == 0 ? PragmaAll : PragmaBusyOnly;
                 cmd.ExecuteNonQuery();
             }
         }
@@ -68,12 +72,37 @@ public static class DbHelper
 
     public static MovieDbContext CreateContext()
     {
-        EnsureInitialized();
-
+        // 注意：此处不再调用 EnsureInitialized()。数据库 schema 的首次初始化
+        // （迁移 / 数据清洗 / 种子标签，实测首次约数十秒）较重，统一由 WarmupAsync()
+        // 在后台线程负责，避免被 UI 线程创建 DbContext 时抢先触发、阻塞首帧渲染
+        // 导致启动闪屏长时间不消失。启动期需要立即查询数据库的视图，应在查询前 await DbHelper.WarmupAsync()。
         if (!Directory.Exists(DbDir)) Directory.CreateDirectory(DbDir);
         var context = new MovieDbContext(CreateOptions());
-        context.Database.EnsureCreated();
         return context;
+    }
+
+    /// <summary>
+    /// 在后台线程预热数据库（schema 迁移 / 数据清洗 / 种子标签，首次约数十秒）。
+    /// 应在 App 启动最早阶段调用一次，使首次初始化重活在后台线程执行，
+    /// 而非被 UI 线程创建 DbContext 时抢先触发、阻塞首帧渲染。
+    /// 幂等：无论调用多少次，实际初始化只执行一次（内部 EnsureInitialized 自带 _initialized 标志与锁）。
+    /// 任何启动期需立即查询数据库的视图，应在查询前 await 本方法。
+    /// </summary>
+    private static Task? _warmupTask;
+    public static Task WarmupAsync()
+    {
+        if (_warmupTask == null)
+        {
+            lock (_lock)
+            {
+                _warmupTask ??= Task.Run(() =>
+                {
+                    try { EnsureInitialized(); }
+                    catch (Exception ex) { Log.Error(ex, "数据库预热(EnsureInitialized)失败"); }
+                });
+            }
+        }
+        return _warmupTask;
     }
 
     private static void EnsureInitialized()
@@ -82,6 +111,17 @@ public static class DbHelper
         lock (_lock)
         {
             if (_initialized) return;
+
+            // 非首次启动快速路径：首次完整初始化（EnsureCreated + schema 检查 + 历史数据清洗 +
+            // 种子标签）完成后写 flag 文件；再次启动直接跳过全部重活（实测每次重跑约 2.2s，
+            // 且持 SQLite 写锁，会把启动期 Dashboard 预载查询阻塞 busy_timeout 3s）。
+            // flag 与 DB 一同生成，旧版本迁移（MigrateFromOldVersion）只发生一次，不受影响。
+            if (File.Exists(InitFlagPath))
+            {
+                _initialized = true;
+                App.LogStartup("数据库预热(EnsureInitialized)命中已初始化标记，跳过重活");
+                return;
+            }
 
             if (!Directory.Exists(DbDir)) Directory.CreateDirectory(DbDir);
 
@@ -226,9 +266,15 @@ public static class DbHelper
                 Log.Error(ex, "种子默认标签失败");
             }
 
+            // 首次完整初始化完成，写 flag + 里程碑日志
+            try { File.WriteAllText(InitFlagPath, DateTime.UtcNow.ToString("O")); } catch { }
+            App.LogStartup("数据库预热(EnsureInitialized)完成(首次)");
             _initialized = true;
         }
     }
+
+    private static readonly string InitFlagPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "EasyMovie", ".db_initialized_v1");
 
     private static void MigrateFromOldVersion()
     {

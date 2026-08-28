@@ -75,16 +75,25 @@ public static class PosterCache
         try
         {
             using var ctx = DbHelper.CreateContext();
-            // 先投影 Id + PosterData 并物化到内存，再用 Length 过滤（byte[].Length 无法翻译成 SQL）
-            var posters = ctx.Movies
+            // 性能关键：绝不能一次性把全部 PosterData 大 BLOB 物化进内存只为 Exists 检查——
+            // 290 部电影的原图海报可达数百 MB，会拖慢启动期并发进行的 Dashboard 预载查询。
+            // 只先取 Id（小行），磁盘已存在的直接跳过；仅对缺失的 Id 再查单行 BLOB 写盘。
+            var allIds = ctx.Movies
                 .Where(m => m.PosterData != null)
+                .Select(m => m.Id)
+                .ToList();
+
+            var missing = allIds.Where(id => !Exists(id)).ToList();
+            if (missing.Count == 0) return;
+
+            var posters = ctx.Movies
+                .Where(m => missing.Contains(m.Id))
                 .Select(m => new { m.Id, m.PosterData })
                 .AsEnumerable()
-                .Where(m => m.PosterData!.Length > 0);
-
+                .Where(m => m.PosterData != null && m.PosterData!.Length > 0);
             foreach (var p in posters)
             {
-                if (p.PosterData != null && !Exists(p.Id))
+                if (p.PosterData != null && p.PosterData.Length > 0)
                     Save(p.Id, p.PosterData);
             }
         }
