@@ -147,9 +147,9 @@ public partial class MainWindow : Window
         Loaded += OnLoaded;
         StateChanged += OnStateChanged;
         PlayerHost.Closed += PlayerHost_Closed;
-        // 自动备份会同步拷贝数据库（可能数十 MB），放到后台线程，避免阻塞主界面首屏
-        _ = Task.Run(() => { try { BackupService.EnsureAutoBackup(); } catch { } });
-        App.LogStartup("BackupService.EnsureAutoBackup 已派发到后台");
+        // 自动备份（同步拷贝整个数据库，可能数十 MB）不再于构造期派发——它会与启动期
+        // Dashboard 预载查询争抢 SQLite 文件锁，实测把预载查询拖慢 ~2s。改由
+        // MainWindow_ContentRendered（闪屏关闭后）再触发，避免拖慢首屏（见该处）。
         // 不在构造里同步创建 Dashboard（其 XAML 解析+首屏数据会拖长启动画面），
         // 改为窗口 Loaded 后再导航，让启动画面尽早关闭。
         App.LogStartup("MainWindow 构造完成(延迟 Dashboard 至 Loaded)");
@@ -179,13 +179,19 @@ public partial class MainWindow : Window
         RegisterNavButtons();
         // 先创建首屏 Dashboard（同步，让主窗口立即有内容）
         NavigateTo("Dashboard");
-        // 在闪屏仍盖着主窗口期间，把其余 9 个导航页一次性构造好并加入可视树。
-        // 这样用户点击任意导航项时页面早已存在，无需再在 UI 线程同步 new 控件而卡顿。
-        // 闪屏的关闭时机由 MainWindow_ContentRendered（主窗口首帧渲染完成后）精确控制。
-        // 注意：PreWarmViews 是 async void，作为语句直接调用即可，不能写成 `_ = PreWarmViews()`（void 不能赋给弃元）。
-        PreWarmViews();
-        // 主窗口完成首帧渲染后再平滑关闭闪屏，确保交接时无重叠、无空白闪烁。
-        ContentRendered += MainWindow_ContentRendered;
+        // 关闭闪屏采用“主路径 + ContentRendered 兜底”双保险：
+        // 主路径：等 Dashboard 首帧渲染完成（Render 优先级之后）经 ContextIdle 空闲优先级立即关闭。
+        // 兜底：ContentRendered 事件——它不可单独依赖：主窗口可能在 OnLoaded 之前已完成首帧渲染，
+        // 若该事件在注册前已触发则永远不会再触发（这正是“主界面都出来了启动画面还在”的根因：
+        // 上一轮把 PreWarmViews 改为空闲延迟后首帧渲染提前完成，触发了这个回归）。
+        ContentRendered += MainWindow_ContentRendered;   // 兜底（CloseSplash 幂等，重复调用无副作用）
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ContextIdle,
+            new Action(App.CloseSplash));               // 主路径
+        // 其余 9 个导航页延迟到闪屏关闭后（ContextIdle 空闲优先级，排在 CloseSplash 之后）再构造加入可视树，
+        // 保证首页数据绑定与闪屏关闭不被其同步构造阻塞。
+        // 注意：PreWarmViews 是 async void，不能写成 `_ = PreWarmViews()`（void 不能赋给弃元）。
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ContextIdle,
+            new Action(PreWarmViews));
 
         // 启动里程碑：窗口已加载（OnLoaded 触发说明 WPF 已成功创建并显示主窗口）
         try
@@ -225,7 +231,15 @@ public partial class MainWindow : Window
     private void MainWindow_ContentRendered(object? sender, EventArgs e)
     {
         ContentRendered -= MainWindow_ContentRendered;
+        App.LogStartup("ContentRendered 触发(关闭闪屏)");
         App.CloseSplash();
+        // 自动备份（同步拷贝整个数据库，可能数十 MB）延后 15 秒执行：彻底错开启动期
+        // Dashboard 预载查询与首页渲染，避免争抢 SQLite 文件锁 / 磁盘 IO。
+        _ = Task.Run(async () =>
+        {
+            try { await Task.Delay(TimeSpan.FromSeconds(15)); BackupService.EnsureAutoBackup(); }
+            catch { }
+        });
     }
 
     private async void PreWarmViews()
@@ -252,6 +266,9 @@ public partial class MainWindow : Window
         {
             foreach (var (key, create) in pages)
             {
+                // 每构造一个页面就让出 UI 线程：使主窗口首帧渲染与闪屏关闭不被“一次性构造 10 个页面”整体阻塞，
+                // 闪屏在首页渲染后立即关闭，其余页面在后台静默补充（NavigateTo 已支持按需懒构造，不会重复添加）。
+                await Task.Yield();
                 if (_pageCache.ContainsKey(key)) continue;
                 var view = create();
                 _pageCache[key] = view;

@@ -30,6 +30,15 @@ public partial class WatchHeatmapView : UserControl
         InitializeComponent();
         _vm = App.Services?.GetService<WatchHeatmapViewModel>()
               ?? new WatchHeatmapViewModel(DbHelper.CreateContext());
+        // 每次进入页面刷新热力图（PreWarm 预热后 Loaded 只触发一次，新观影记录即时呈现）
+        IsVisibleChanged += OnIsVisibleChanged;
+    }
+
+    private async void OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (!IsVisible) return;
+        try { await LoadHeatmapAsync(); }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Heatmap refresh error: {ex}"); }
     }
 
     private async void UserControl_Loaded(object sender, RoutedEventArgs e)

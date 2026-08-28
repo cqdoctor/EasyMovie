@@ -38,11 +38,24 @@ public partial class CategoryTagManageView : UserControl
                   new CategoryService(new CategoryRepository(_context)),
                   new TagService(new TagRepository(_context)));
         Loaded += async (s, e) => await InitializeAsync();
+        // 每次进入页面刷新分类/标签树（PreWarm 预热后 Loaded 只触发一次，同款修复见 Dashboard/Calendar）
+        IsVisibleChanged += (s, e) =>
+        {
+            if (IsVisible && _isInitialized) _ = RefreshAsync();
+        };
+    }
+
+    private async Task RefreshAsync()
+    {
+        try { await LoadTreeAsync(); await InitTagsAsync(); }
+        catch (Exception ex) { Log.Warning(ex, "分类标签页刷新失败"); }
     }
 
     public async Task InitializeAsync()
     {
         if (_isInitialized) return;
+        // 确保数据库已在后台完成初始化（schema 迁移等），否则首次查询会因表不存在而失败。
+        await DbHelper.WarmupAsync();
         _isInitialized = true;
         await LoadTreeAsync();
         await InitTagsAsync();

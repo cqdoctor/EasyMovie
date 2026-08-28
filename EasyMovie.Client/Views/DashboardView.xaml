@@ -5,6 +5,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
              xmlns:conv="clr-namespace:EasyMovie.Client.Converters"
+             xmlns:behaviors="clr-namespace:EasyMovie.Client.Behaviors"
              mc:Ignorable="d"
              d:DesignHeight="700" d:DesignWidth="900"
              UseLayoutRounding="True">
@@ -121,14 +122,72 @@
                 </Border>
             </Grid>
 
-            <!-- 继续观看 -->
-            <Border x:Name="ContinueWatchingPanel" CornerRadius="10" Padding="12,10" Margin="0,0,0,8"
-                    Background="{DynamicResource MaterialDesignCardBackground}" Visibility="Collapsed">
-                <StackPanel>
-                    <TextBlock Text="{DynamicResource Dashboard_ContinueWatching}" FontSize="15" FontWeight="SemiBold"
-                               Margin="4,0,0,6" Foreground="{DynamicResource MaterialDesignBody}" />
+            <!-- 继续观看 + 最近添加：同一行（左 继续观看 / 右 最近添加） -->
+            <Grid Margin="0,0,0,8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <!-- 左列：继续观看 -->
+                <Border Grid.Column="0" x:Name="ContinueWatchingPanel" CornerRadius="10" Padding="12,10" Margin="0,0,8,0"
+                        Background="{DynamicResource MaterialDesignCardBackground}" Visibility="Collapsed">
+                    <StackPanel>
+                        <TextBlock Text="{DynamicResource Dashboard_ContinueWatching}" FontSize="15" FontWeight="SemiBold"
+                                   Margin="4,0,0,6" Foreground="{DynamicResource MaterialDesignBody}" />
+                        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" Height="150">
+                            <ItemsControl x:Name="ContinueWatchingList">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Width="80" Height="130" Margin="0,0,8,0" CornerRadius="6"
+                                                Background="{DynamicResource MaterialDesignCardBackground}"
+                                                Cursor="Hand" MouseLeftButtonDown="ContinueWatchingCard_Click">
+                                            <StackPanel>
+                                                <Border Width="80" Height="110" CornerRadius="6,6,0,0"
+                                                        Background="{DynamicResource MaterialDesignDivider}">
+                                                    <Grid>
+                                                        <Image Stretch="UniformToFill"
+                                                               behaviors:PosterImageBehavior.Movie="{Binding}"
+                                                               behaviors:PosterImageBehavior.DecodeWidth="160"
+                                                               behaviors:PosterImageBehavior.DecodeHeight="240" />
+                                                        <Grid VerticalAlignment="Bottom" Height="5" Background="#40000000">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition>
+                                                                    <ColumnDefinition.Width>
+                                                                        <MultiBinding Converter="{StaticResource PlaybackProgressConverter}">
+                                                                            <Binding Path="PlaybackPosition" />
+                                                                            <Binding Path="Runtime" />
+                                                                        </MultiBinding>
+                                                                    </ColumnDefinition.Width>
+                                                                </ColumnDefinition>
+                                                                <ColumnDefinition Width="*" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <Border Grid.Column="0" Background="#FF4081" />
+                                                        </Grid>
+                                                    </Grid>
+                                                </Border>
+                                                <TextBlock Text="{Binding Title}" FontSize="10" Margin="4,2"
+                                                           TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </StackPanel>
+                </Border>
+
+                <!-- 右列：最近添加 -->
+                <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                    <TextBlock Text="{DynamicResource Dashboard_RecentlyAdded}" FontSize="15" FontWeight="SemiBold"
+                               Margin="4,0,0,4" Foreground="{DynamicResource MaterialDesignBody}" />
                     <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" Height="150">
-                        <ItemsControl x:Name="ContinueWatchingList">
+                        <ItemsControl x:Name="RecentAddedList">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
                                     <StackPanel Orientation="Horizontal" />
@@ -138,28 +197,14 @@
                                 <DataTemplate>
                                     <Border Width="80" Height="130" Margin="0,0,8,0" CornerRadius="6"
                                             Background="{DynamicResource MaterialDesignCardBackground}"
-                                            Cursor="Hand" MouseLeftButtonDown="ContinueWatchingCard_Click">
+                                            Cursor="Hand" MouseLeftButtonDown="MovieCard_Click">
                                         <StackPanel>
                                             <Border Width="80" Height="110" CornerRadius="6,6,0,0"
                                                     Background="{DynamicResource MaterialDesignDivider}">
-                                                <Grid>
-                                                    <Image Source="{Binding PosterData, Converter={StaticResource PosterImageConverter}}"
-                                                           Stretch="UniformToFill" />
-                                                    <Grid VerticalAlignment="Bottom" Height="5" Background="#40000000">
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition>
-                                                                <ColumnDefinition.Width>
-                                                                    <MultiBinding Converter="{StaticResource PlaybackProgressConverter}">
-                                                                        <Binding Path="PlaybackPosition" />
-                                                                        <Binding Path="Runtime" />
-                                                                    </MultiBinding>
-                                                                </ColumnDefinition.Width>
-                                                            </ColumnDefinition>
-                                                            <ColumnDefinition Width="*" />
-                                                        </Grid.ColumnDefinitions>
-                                                        <Border Grid.Column="0" Background="#FF4081" />
-                                                    </Grid>
-                                                </Grid>
+                                                <Image Stretch="UniformToFill"
+                                                       behaviors:PosterImageBehavior.Movie="{Binding}"
+                                                       behaviors:PosterImageBehavior.DecodeWidth="160"
+                                                       behaviors:PosterImageBehavior.DecodeHeight="240" />
                                             </Border>
                                             <TextBlock Text="{Binding Title}" FontSize="10" Margin="4,2"
                                                        TextTrimming="CharacterEllipsis" />
@@ -170,9 +215,61 @@
                         </ItemsControl>
                     </ScrollViewer>
                 </StackPanel>
-            </Border>
+            </Grid>
 
-            <!-- 即将上映·你的想看：把"想看"清单与豆瓣热映/即将上映标题匹配后的提醒 -->
+            <!-- 类型分布 + 最近观看：同一行（类型分布在左，最近观看在右；避免整页出现滚动条） -->
+            <Grid Margin="0,0,0,8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <!-- 左列：类型分布 -->
+                <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                    <TextBlock Text="{DynamicResource Dashboard_GenreDistribution}" FontSize="15" FontWeight="SemiBold"
+                               Margin="4,0,0,6" Foreground="{DynamicResource MaterialDesignBody}" />
+                    <Border CornerRadius="8" Padding="12,10"
+                            Background="{DynamicResource MaterialDesignCardBackground}">
+                        <StackPanel x:Name="GenreChartPanel" />
+                    </Border>
+                </StackPanel>
+
+                <!-- 右列：最近观看 -->
+                <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                    <TextBlock Text="{DynamicResource Dashboard_RecentlyWatched}" FontSize="15" FontWeight="SemiBold"
+                               Margin="4,0,0,4" Foreground="{DynamicResource MaterialDesignBody}" />
+                    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" Height="150">
+                        <ItemsControl x:Name="RecentWatchedList">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Width="80" Height="130" Margin="0,0,8,0" CornerRadius="6"
+                                            Background="{DynamicResource MaterialDesignCardBackground}"
+                                            Cursor="Hand" MouseLeftButtonDown="MovieCard_Click">
+                                        <StackPanel>
+                                            <Border Width="80" Height="110" CornerRadius="6,6,0,0"
+                                                    Background="{DynamicResource MaterialDesignDivider}">
+                                                <Image Stretch="UniformToFill"
+                                                       behaviors:PosterImageBehavior.Movie="{Binding}"
+                                                       behaviors:PosterImageBehavior.DecodeWidth="160"
+                                                       behaviors:PosterImageBehavior.DecodeHeight="240" />
+                                            </Border>
+                                            <TextBlock Text="{Binding Title}" FontSize="10" Margin="4,2"
+                                                       TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </StackPanel>
+            </Grid>
+
+            <!-- 即将上映·你的想看（全宽，默认折叠；有数据时才出现，不增加常态页面高度/滚动条） -->
             <Border x:Name="UpcomingReminderPanel" CornerRadius="10" Padding="12,10" Margin="0,0,0,8"
                     Background="{DynamicResource MaterialDesignCardBackground}" Visibility="Collapsed">
                 <StackPanel>
@@ -194,8 +291,10 @@
                                             <Border Width="80" Height="110" CornerRadius="6,6,0,0"
                                                     Background="{DynamicResource MaterialDesignDivider}">
                                                 <Grid>
-                                                    <Image Source="{Binding Movie.PosterData, Converter={StaticResource PosterImageConverter}}"
-                                                           Stretch="UniformToFill" />
+                                                    <Image Stretch="UniformToFill"
+                                                           behaviors:PosterImageBehavior.Movie="{Binding Movie}"
+                                                           behaviors:PosterImageBehavior.DecodeWidth="160"
+                                                           behaviors:PosterImageBehavior.DecodeHeight="240" />
                                                     <Border VerticalAlignment="Top" HorizontalAlignment="Right"
                                                             Margin="4" Padding="4,1" CornerRadius="3"
                                                             Background="#40000000" Visibility="{Binding Rating, Converter={StaticResource NullToCollapsedConverter}}">
@@ -214,87 +313,6 @@
                     </ScrollViewer>
                 </StackPanel>
             </Border>
-
-            <!-- 类型分布 + 最近添加 / 最近观看：双列布局 -->
-            <Grid Margin="0,0,0,8">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-
-                <!-- 左列：类型分布 -->
-                <StackPanel Grid.Column="0" Margin="0,0,8,0">
-                    <TextBlock Text="{DynamicResource Dashboard_GenreDistribution}" FontSize="15" FontWeight="SemiBold"
-                               Margin="4,0,0,6" Foreground="{DynamicResource MaterialDesignBody}" />
-                    <Border CornerRadius="8" Padding="12,10"
-                            Background="{DynamicResource MaterialDesignCardBackground}">
-                        <StackPanel x:Name="GenreChartPanel" />
-                    </Border>
-                </StackPanel>
-
-                <!-- 右列：最近添加 + 最近观看 -->
-                <StackPanel Grid.Column="1" Margin="8,0,0,0">
-                    <!-- 最近添加 -->
-                    <TextBlock Text="{DynamicResource Dashboard_RecentlyAdded}" FontSize="15" FontWeight="SemiBold"
-                               Margin="4,0,0,4" Foreground="{DynamicResource MaterialDesignBody}" />
-                    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" Height="150">
-                        <ItemsControl x:Name="RecentAddedList">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <StackPanel Orientation="Horizontal" />
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Border Width="80" Height="130" Margin="0,0,8,0" CornerRadius="6"
-                                            Background="{DynamicResource MaterialDesignCardBackground}"
-                                            Cursor="Hand" MouseLeftButtonDown="MovieCard_Click">
-                                        <StackPanel>
-                                            <Border Width="80" Height="110" CornerRadius="6,6,0,0"
-                                                    Background="{DynamicResource MaterialDesignDivider}">
-                                                <Image Source="{Binding PosterData, Converter={StaticResource PosterImageConverter}}"
-                                                       Stretch="UniformToFill" />
-                                            </Border>
-                                            <TextBlock Text="{Binding Title}" FontSize="10" Margin="4,2"
-                                                       TextTrimming="CharacterEllipsis" />
-                                        </StackPanel>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </ScrollViewer>
-
-                    <!-- 最近观看 -->
-                    <TextBlock Text="{DynamicResource Dashboard_RecentlyWatched}" FontSize="15" FontWeight="SemiBold"
-                               Margin="4,8,0,4" Foreground="{DynamicResource MaterialDesignBody}" />
-                    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" Height="150">
-                        <ItemsControl x:Name="RecentWatchedList">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <StackPanel Orientation="Horizontal" />
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Border Width="80" Height="130" Margin="0,0,8,0" CornerRadius="6"
-                                            Background="{DynamicResource MaterialDesignCardBackground}"
-                                            Cursor="Hand" MouseLeftButtonDown="MovieCard_Click">
-                                        <StackPanel>
-                                            <Border Width="80" Height="110" CornerRadius="6,6,0,0"
-                                                    Background="{DynamicResource MaterialDesignDivider}">
-                                                <Image Source="{Binding PosterData, Converter={StaticResource PosterImageConverter}}"
-                                                       Stretch="UniformToFill" />
-                                            </Border>
-                                            <TextBlock Text="{Binding Title}" FontSize="10" Margin="4,2"
-                                                       TextTrimming="CharacterEllipsis" />
-                                        </StackPanel>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </ScrollViewer>
-                </StackPanel>
-            </Grid>
 
         </StackPanel>
     </ScrollViewer>

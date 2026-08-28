@@ -73,6 +73,8 @@ public partial class MovieListView : UserControl
         _collectionService = new CollectionService(_context);
         Loaded += async (s, e) =>
         {
+            // 确保数据库已在后台完成初始化（schema 迁移等），避免首次查询表不存在
+            await DbHelper.WarmupAsync();
             if (_isFirstLoad)
             {
                 _isFirstLoad = false;
@@ -88,6 +90,17 @@ public partial class MovieListView : UserControl
                 await LoadMoviesAsync();
             }
         };
+        // 每次进入页面刷新当前列表（PreWarm 预热后 Loaded 只触发一次，看完电影/改状态/加片后回来自动更新）
+        IsVisibleChanged += (s, e) =>
+        {
+            if (IsVisible && !_isFirstLoad) _ = RefreshMoviesAsync();
+        };
+    }
+
+    private async Task RefreshMoviesAsync()
+    {
+        try { await LoadMoviesAsync(); }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"MovieList refresh error: {ex.Message}"); }
     }
 
     private void PreMeasureExpander()

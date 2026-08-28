@@ -91,3 +91,6 @@ MpvHeadlessTest/out/
 tmdb_search.json
 tmdb_test.json
 __probe.txt
+
+## Run-EasyMovie.bat 的启动打点标记（每次启动都会重新生成，勿提交）
+launched.txt
