@@ -231,18 +231,43 @@ public class DoubanApiClient : IMovieApiClient
         }
 
         /// <summary>去除标点/空白后（保留字母数字与汉字）判断两标题是否互相包含</summary>
+        /// <remarks>
+        /// 两个方向的包含，风险完全不同，必须区别对待：
+        ///   正向（结果标题包含搜索词）：安全。如搜「非诚勿扰」命中「非诚勿扰3」，是同一系列，放行。
+        ///   反向（搜索词包含结果标题）：危险。此时结果标题是搜索词的「子串」，
+        ///     越短越容易是无关片——实测搜「杀死比尔」会命中单字片「杀」，
+        ///     进而把无关影片的元数据写进 cache.db（观测到 680 条缓存中 177 条 Title 长度&lt;=3，
+        ///     样本为「爱」「杀」「我」「B」「S」，均为此类误匹配产物）。
+        /// 因此反向分支设两道门槛：子串至少 3 个字符，且长度比不低于 0.5。
+        /// 宁可判为「无匹配」跳过，也不能把错片写进缓存污染后续导入。
+        /// </remarks>
         private static bool TitleContains(string? haystack, string? needle)
         {
             if (string.IsNullOrWhiteSpace(haystack) || string.IsNullOrWhiteSpace(needle)) return false;
             var h = Normalize(haystack);
             var n = Normalize(needle);
             if (h.Length == 0 || n.Length == 0) return false;
-            return h.Contains(n, StringComparison.OrdinalIgnoreCase)
-                || n.Contains(h, StringComparison.OrdinalIgnoreCase);
+
+            if (h.Contains(n, StringComparison.OrdinalIgnoreCase)) return true;
+
+            if (n.Contains(h, StringComparison.OrdinalIgnoreCase))
+            {
+                const int MinSubstringLength = 3;
+                const double MinLengthRatio = 0.5;
+                return h.Length >= MinSubstringLength && (double)h.Length / n.Length >= MinLengthRatio;
+            }
+            return false;
         }
 
-        private static string Normalize(string s) =>
-            Regex.Replace(s, @"[^\p{L}\p{N}]", "").ToLowerInvariant();
+        /// <summary>归一化标题：只保留字母/数字/汉字，转小写。</summary>
+        /// <remarks>
+        /// 必须容忍 null：豆瓣 rexxar 搜索结果不含英文名（ParseRexxarSearch 里 OriginalTitle 恒为 null），
+        /// 而 PickBestMatch 会对每条结果调用 Normalize(r.OriginalTitle)。
+        /// 早期版本此处未判空，Regex.Replace(null) 直接抛 ArgumentNullException，
+        /// 导致只要搜索结果非空就崩溃——补全服务因此整体失效（实测复现）。
+        /// </remarks>
+        private static string Normalize(string? s) =>
+            Regex.Replace(s ?? "", @"[^\p{L}\p{N}]", "").ToLowerInvariant();
 
         private static readonly HashSet<string> StopWords = new(StringComparer.OrdinalIgnoreCase)
         {

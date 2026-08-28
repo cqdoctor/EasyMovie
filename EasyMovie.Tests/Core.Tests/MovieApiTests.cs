@@ -103,11 +103,25 @@ public class DoubanApiClientTests
         return new HttpClient(handler.Object);
     }
 
+    /// <summary>
+    /// 解析 rexxar 移动端搜索响应。
+    /// 样本取自 2026-08-28 抓到的真实响应结构（m.douban.com/rexxar/api/v2/search），
+    /// 字段类型与线上一致：id/year 均为字符串，rating 为对象，导演/主演来自 card_subtitle 第 3/4 段。
+    ///
+    /// 注意：不要改回网页版 window.__DATA__ 格式——DoubanApiClient 早已全面切到 rexxar，
+    /// 网页版解析路径已废弃（仅 MovieNewsService 抓新闻页时仍用 __DATA__，与本客户端无关）。
+    /// 用错格式会让本测试永远挂在「解析返回 0 条」上，掩盖真实回归。
+    /// </summary>
     [Fact]
-    public async Task SearchAsync_ShouldParseResults()
+    public async Task SearchAsync_ShouldParseRexxarResults()
     {
-        // 模拟豆瓣新版搜索页的 window.__DATA__ 数据格式
-        var json = @"window.__DATA__ = {""items"":[{""id"":1889243,""title"":""星际穿越 (2014)"",""abstract"":""美国 / 2014 / 剧情 科幻"",""abstract_2"":""克里斯托弗·诺兰 / 马修·麦康纳 / 安妮·海瑟薇"",""rating"":{""value"":9.4},""cover_url"":""https://img.douban.com/poster.jpg""}]}";
+        var json = @"{""subjects"":{""items"":[{""target"":{
+            ""title"":""星际穿越"",
+            ""id"":""1889243"",
+            ""year"":""2014"",
+            ""rating"":{""value"":9.4,""count"":2220848,""max"":10},
+            ""card_subtitle"":""美国 英国 加拿大 / 剧情 科幻 冒险 / 克里斯托弗·诺兰 / 马修·麦康纳 安妮·海瑟薇"",
+            ""cover_url"":""https://img.douban.com/poster.jpg""}}]}}";
 
         var client = new DoubanApiClient(CreateMockHttpClient(json));
         var response = await client.SearchAsync(new MovieSearchRequest { Keyword = "星际穿越" });
@@ -119,8 +133,29 @@ public class DoubanApiClientTests
         response.Results[0].Director.Should().Be("克里斯托弗·诺兰");
         response.Results[0].Cast.Should().Contain("马修·麦康纳");
         response.Results[0].Rating.Should().Be(9.4);
+        response.Results[0].RatingCount.Should().Be(2220848);
         response.Results[0].ExternalId.Should().Be("1889243");
         response.Results[0].Source.Should().Be("douban");
+    }
+
+    /// <summary>
+    /// 回归：PickBestMatch 不得因 OriginalTitle 为 null 而崩溃。
+    /// 豆瓣 rexxar 搜索结果不含英文名（OriginalTitle 恒为 null），
+    /// 早期 Normalize(string) 未判空，Regex.Replace(null) 抛 ArgumentNullException，
+    /// 导致只要搜索结果非空就崩、补全服务整体失效。
+    /// </summary>
+    [Fact]
+    public void PickBestMatch_ShouldNotThrow_WhenOriginalTitleIsNull()
+    {
+        var results = new List<MovieSearchResult>
+        {
+            new MovieSearchResult { Title = "星际穿越", OriginalTitle = null, Year = 2014, ExternalId = "1889243" }
+        };
+
+        var act = () => DoubanApiClient.PickBestMatch(results, "星际穿越", 2014);
+
+        act.Should().NotThrow();
+        act().Should().NotBeNull();
     }
 
     [Fact]
@@ -161,6 +196,54 @@ public class DoubanApiClientTests
     public void SourceName_ShouldBeDouban()
     {
         new DoubanApiClient().SourceName.Should().Be("douban");
+    }
+
+    /// <summary>
+    /// 实证：cache.db 短标题脏数据的产生路径。
+    /// 观测（2026-08-28）：cache.db 680 条中 177 条 Title 长度&lt;=3，样本为
+    /// 「爱」「杀」「我」「B」「S」「K」「法」「冷」「暗」——均非合法片名。
+    /// 假设：PickBestMatch 第 2 步 TitleContains 是双向包含，
+    /// 当「搜索词包含结果标题」时会让短片名截胡长片名（如搜「杀死比尔」命中「杀」）。
+    /// </summary>
+    [Theory]
+    [InlineData("杀死比尔", "杀")]
+    [InlineData("杀人回忆", "杀")]
+    [InlineData("爱情神话", "爱")]
+    [InlineData("速度与激情", "速")]
+    public void Diagnose_ShortTitleShouldNotSwallowLongTitle(string query, string shortTitle)
+    {
+        var results = new List<MovieSearchResult>
+        {
+            new MovieSearchResult { Title = shortTitle, Year = 2018, ExternalId = "short" },
+            new MovieSearchResult { Title = query, Year = 2023, ExternalId = "correct" }
+        };
+
+        var match = DoubanApiClient.PickBestMatch(results, query, null);
+
+        match.Should().NotBeNull();
+        match!.ExternalId.Should().Be("correct",
+            $"搜索「{query}」时应命中同名结果，不应被短片名「{shortTitle}」截胡");
+    }
+
+    /// <summary>
+    /// 实证：结果里只有短片名时，应判为「无可靠匹配」返回 null（跳过），
+    /// 而不是返回该短片名——后者会把无关影片的元数据写成脏缓存。
+    /// </summary>
+    [Theory]
+    [InlineData("杀死比尔", "杀")]
+    [InlineData("爱情神话", "爱")]
+    public void Diagnose_OnlyShortTitleShouldNotMatch(string query, string shortTitle)
+    {
+        var results = new List<MovieSearchResult>
+        {
+            new MovieSearchResult { Title = shortTitle, Year = 2018, ExternalId = "short" }
+        };
+
+        var match = DoubanApiClient.PickBestMatch(results, query, null);
+
+        match.Should().BeNull(
+            $"结果仅有短片名「{shortTitle}」而搜索词是「{query}」时，应判为无可靠匹配，" +
+            "否则会把无关影片写入缓存");
     }
 }
 
