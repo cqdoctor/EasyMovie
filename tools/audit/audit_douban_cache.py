@@ -85,11 +85,20 @@ def main():
     print(f"  Title 长度 <= {SHORT_TITLE_LEN} 的记录: {short_n} / {total}  ({ratio:.1f}%)")
     print(f"  阈值: {DIRTY_RATIO_LIMIT:.0f}%")
 
-    # 其中有多少同时缺关键字段 —— 这类最有可能是误匹配产物
-    cur.execute(f"SELECT COUNT(*) FROM CachedMovies WHERE LENGTH(Title) <= {SHORT_TITLE_LEN} "
+    # 高疑似误匹配：单字 + 无评分 + 无导演。
+    # 阈值取 1 而非 3 —— 中文 2~3 字片名大量合法（「潜伏」「神探」「蚁人」「驱魔人」），
+    # 把它们算作脏数据会误导后续清理，甚至误删真实缓存。
+    # 判定标准与 tools/audit/clean_douban_cache.py 保持一致。
+    cur.execute('SELECT COUNT(*) FROM CachedMovies WHERE LENGTH(Title) <= 1 '
                 'AND COALESCE("Rating",0) = 0 AND COALESCE("Director",\'\') = \'\'')
     junk = cur.fetchone()[0]
-    print(f"  其中「短标题 + 评分导演皆空」（高疑似误匹配）: {junk}")
+    print(f"  其中「单字 + 评分导演皆空」（高疑似误匹配）: {junk}")
+
+    cur.execute(f"SELECT COUNT(*) FROM CachedMovies WHERE LENGTH(Title) BETWEEN 2 AND {SHORT_TITLE_LEN} "
+                'AND COALESCE("Rating",0) = 0 AND COALESCE("Director",\'\') = \'\'')
+    ambiguous = cur.fetchone()[0]
+    print(f"  「2~3 字 + 评分导演皆空」（多为合法中文短片名，不建议删）: {ambiguous}")
+    print(f"  「短标题但有评分/导演」（合法短片名，必须保留）: {short_n - junk - ambiguous}")
 
     if args.list_dirty > 0:
         print(f"\n  --- 疑似脏数据样本（前 {args.list_dirty} 条）---")
@@ -109,9 +118,11 @@ def main():
         return 1
     print(f"  PASS —— 短标题占比 {ratio:.1f}% 在阈值内。")
     if junk > 0:
-        print(f"  提示：库里仍有 {junk} 条历史脏数据（短标题且关键字段为空）。")
-        print("       它们不会被自动删除（本脚本只读）。如需清理请人工确认后处理，")
-        print("       可用 --list-dirty 查看样本。清理前建议先备份 cache.db。")
+        print(f"  提示：仍有 {junk} 条单字脏数据可清理（本脚本只读，不删数据）。")
+        print("       执行：python tools/audit/clean_douban_cache.py --apply")
+    if ambiguous > 0:
+        print(f"  提示：{ambiguous} 条 2~3 字记录虽无评分/导演，但多为合法中文短片名"
+              "（如「潜伏」「神探」「蚁人」），建议保留——删掉会白耗豆瓣配额重新查询。")
     return 0
 
 
