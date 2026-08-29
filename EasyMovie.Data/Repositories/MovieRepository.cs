@@ -33,6 +33,68 @@ public class MovieRepository : IMovieRepository
             .ToListAsync();
     }
 
+    public async Task<List<Movie>> GetByIdsAsync(IEnumerable<int> ids)
+    {
+        var idList = ids as List<int> ?? ids.ToList();
+        if (idList.Count == 0) return new List<Movie>();
+
+        return await _context.Movies
+            .AsNoTracking()
+            .Where(m => idList.Contains(m.Id))
+            .Include(m => m.Category)
+            .Include(m => m.MovieTags)
+                .ThenInclude(mt => mt.Tag)
+            .ToListAsync();
+    }
+
+    /// <summary>
+    /// 推荐专用：一次取回算法所需的全部轻量数据。
+    /// 刻意不 Include 导航属性，改为分别查小表——避免 MovieTags 的 JOIN 笛卡尔积，
+    /// 也避免把 PosterData（实测占库 99.4%）读进内存。
+    /// </summary>
+    public async Task<RecommendationData> GetRecommendationDataAsync()
+    {
+        var movies = await _context.Movies
+            .AsNoTracking()
+            .Select(m => new MovieRecommendRow
+            {
+                Id = m.Id,
+                Year = m.Year,
+                Rating = m.Rating,
+                WatchStatus = m.WatchStatus,
+                IsFavorite = m.IsFavorite,
+                Director = m.Director,
+                Country = m.Country,
+                CategoryId = m.CategoryId,
+                CreatedAt = m.CreatedAt
+            })
+            .OrderByDescending(m => m.CreatedAt)
+            .ToListAsync();
+
+        var tagLinks = await _context.MovieTags
+            .AsNoTracking()
+            .Select(mt => new MovieTagLink { MovieId = mt.MovieId, TagId = mt.TagId })
+            .ToListAsync();
+
+        var categoryNames = await _context.Categories
+            .AsNoTracking()
+            .Select(c => new { c.Id, c.Name })
+            .ToDictionaryAsync(c => c.Id, c => c.Name);
+
+        var tagNames = await _context.Tags
+            .AsNoTracking()
+            .Select(t => new { t.Id, t.Name })
+            .ToDictionaryAsync(t => t.Id, t => t.Name);
+
+        return new RecommendationData
+        {
+            Movies = movies,
+            TagLinks = tagLinks,
+            CategoryNames = categoryNames,
+            TagNames = tagNames
+        };
+    }
+
     public async Task<List<Movie>> SearchAsync(
         string? keyword, int? categoryId, List<int>? tagIds,
         int? yearFrom, int? yearTo, int? ratingMin, int? ratingMax, WatchStatus? status,
