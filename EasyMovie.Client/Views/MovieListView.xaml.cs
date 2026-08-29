@@ -17,6 +17,7 @@ using EasyMovie.Client.Converters;
 using EasyMovie.Client.Helpers;
 using MaterialDesignThemes.Wpf;
 using EasyMovie.Core.Enums;
+using EasyMovie.Core.Helpers;
 using EasyMovie.Core.Interfaces;
 using EasyMovie.Core.Models;
 using EasyMovie.Core.Services;
@@ -376,7 +377,7 @@ public partial class MovieListView : UserControl
         var countries = allMovies
             .Where(m => !string.IsNullOrWhiteSpace(m.Country))
             .SelectMany(m => m.Country!.Split('/', ' ', '·', ','))
-            .Select(c => CleanHtmlFragment(c.Trim()))
+            .Select(c => TextCleaner.CleanHtmlFragment(c.Trim()))
             .Where(c => !string.IsNullOrEmpty(c) && IsValidCategoryName(c))
             .Distinct()
             .OrderBy(c => c)
@@ -388,7 +389,7 @@ public partial class MovieListView : UserControl
         var languages = allMovies
             .Where(m => !string.IsNullOrWhiteSpace(m.Language))
             .SelectMany(m => m.Language!.Split('/', ' ', '·', ','))
-            .Select(l => CleanHtmlFragment(l.Trim()))
+            .Select(l => TextCleaner.CleanHtmlFragment(l.Trim()))
             .Where(l => !string.IsNullOrEmpty(l))
             .Distinct()
             .OrderBy(l => l)
@@ -400,7 +401,7 @@ public partial class MovieListView : UserControl
         var directors = allMovies
             .Where(m => !string.IsNullOrWhiteSpace(m.Director))
             .SelectMany(m => m.Director!.Split('/', ','))
-            .Select(d => CleanHtmlFragment(d.Trim()))
+            .Select(d => TextCleaner.CleanHtmlFragment(d.Trim()))
             .Where(d => !string.IsNullOrEmpty(d))
             .Distinct()
             .OrderBy(d => d)
@@ -442,24 +443,8 @@ public partial class MovieListView : UserControl
         LoadSavedFilterList();
     }
 
-    /// <summary>清洗HTML标签碎片，如 "1338249-gary-dauberman'>加里·道伯曼<" → "加里·道伯曼"</summary>
-    private static string CleanHtmlFragment(string input)
-    {
-        if (string.IsNullOrEmpty(input)) return input;
-        // 移除所有 HTML 标签 <...>（包括不完整的如 <a>、</a>）
-        var result = System.Text.RegularExpressions.Regex.Replace(input, "</?[a-zA-Z][^>]*>", "");
-        // 移除 HTML 属性残留，如 "123-name'>张三" 或 "123-name\">张三" → "张三"
-        result = System.Text.RegularExpressions.Regex.Replace(result, @"[\d\-a-zA-Z_/]+['" + "\"" + @">]+", "");
-        // 移除残留的引号、尖括号
-        result = System.Text.RegularExpressions.Regex.Replace(result, "[<>\"']", "");
-        result = result.Trim(' ', ',', '/', '-', '=');
-        // 如果结果为空，跳过
-        if (string.IsNullOrWhiteSpace(result)) return "";
-        // 过滤掉看起来像 HTML 属性/URL 的值（纯英文数字-下划线串，且不含中文）
-        if (System.Text.RegularExpressions.Regex.IsMatch(result, @"^[\d\-a-zA-Z_=./&?]+$"))
-            return "";
-        return result.Trim();
-    }
+    // 原 CleanHtmlFragment 已抽到 EasyMovie.Core.Helpers.TextCleaner（行为逐字节一致），
+    // 以便纳入单元测试保护。行为由 Tests/Core.Tests/TextCleanerTests.cs 锁定。
 
     private void LoadSavedFilterList()
     {
