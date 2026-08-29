@@ -150,24 +150,15 @@ public partial class MovieListView : UserControl
         await _context.SaveChangesAsync();
     }
 
-    private static readonly HashSet<string> JunkCategoryNames = new(StringComparer.Ordinal)
-    {
-        "人收藏", "人评论", "人看", "人想看", "人看过", "人评价", "人关注", "人推荐"
-    };
-
-    private static bool IsValidCategoryName(string name)
-    {
-        if (string.IsNullOrWhiteSpace(name)) return false;
-        if (int.TryParse(name, out _)) return false;
-        if (JunkCategoryNames.Any(j => name.Contains(j))) return false;
-        return true;
-    }
+    // 原 IsValidCategoryName 与 JunkCategoryNames 已抽到
+    // EasyMovie.Core.Helpers.CategoryNameValidator（行为逐字节一致），
+    // 以便纳入单元测试保护。行为由 Tests/Core.Tests/CategoryNameValidatorTests.cs 锁定。
 
     /// <summary>批量清理无效分类并自动分配国家分类</summary>
     private async Task AutoAssignCountryCategoriesBatchAsync(List<Movie> movies, List<Category> allCats)
     {
         // 1. 清理无效分类
-        var invalidCats = allCats.Where(c => !IsValidCategoryName(c.Name)).ToList();
+        var invalidCats = allCats.Where(c => !CategoryNameValidator.IsValidCategoryName(c.Name)).ToList();
         foreach (var cat in invalidCats)
         {
             foreach (var m in movies.Where(m => m.CategoryId == cat.Id))
@@ -185,8 +176,8 @@ public partial class MovieListView : UserControl
         foreach (var movie in uncatMovies)
         {
             var firstCountry = movie.Country!.Split('/', '·')
-                .FirstOrDefault(c => IsValidCategoryName(c.Trim()))?.Trim();
-            if (string.IsNullOrEmpty(firstCountry) || !IsValidCategoryName(firstCountry)) continue;
+                .FirstOrDefault(c => CategoryNameValidator.IsValidCategoryName(c.Trim()))?.Trim();
+            if (string.IsNullOrEmpty(firstCountry) || !CategoryNameValidator.IsValidCategoryName(firstCountry)) continue;
             var existing = validCats.FirstOrDefault(c => c.Name == firstCountry);
             if (existing != null)
             {
@@ -378,7 +369,7 @@ public partial class MovieListView : UserControl
             .Where(m => !string.IsNullOrWhiteSpace(m.Country))
             .SelectMany(m => m.Country!.Split('/', ' ', '·', ','))
             .Select(c => TextCleaner.CleanHtmlFragment(c.Trim()))
-            .Where(c => !string.IsNullOrEmpty(c) && IsValidCategoryName(c))
+            .Where(c => !string.IsNullOrEmpty(c) && CategoryNameValidator.IsValidCategoryName(c))
             .Distinct()
             .OrderBy(c => c)
             .ToList();
@@ -525,52 +516,10 @@ public partial class MovieListView : UserControl
         dlg.ShowDialog();
     }
 
-    /// <summary>保存的筛选条件</summary>
-    private class SavedFilter
-    {
-        public string Name { get; set; } = "";
-        public string? Keyword { get; set; }
-        public int? CategoryId { get; set; }
-        public string? Status { get; set; }
-        public int? YearFrom { get; set; }
-        public int? YearTo { get; set; }
-        public int? RatingMin { get; set; }
-        public int? RatingMax { get; set; }
-        public List<string>? Countries { get; set; }
-        public List<string>? Languages { get; set; }
-        public int? RuntimeMin { get; set; }
-        public int? RuntimeMax { get; set; }
-        public List<string>? Directors { get; set; }
-        public string? SortBy { get; set; }
-        public bool SortDesc { get; set; }
-
-        private static readonly string SavePath = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "EasyMovie", "saved_filters.json");
-
-        public static List<SavedFilter> LoadAll()
-        {
-            try
-            {
-                if (!File.Exists(SavePath)) return new List<SavedFilter>();
-                var json = File.ReadAllText(SavePath);
-                return System.Text.Json.JsonSerializer.Deserialize<List<SavedFilter>>(json) ?? new List<SavedFilter>();
-            }
-            catch (Exception ex) { Log.Error(ex, "加载已保存筛选失败"); return new List<SavedFilter>(); }
-        }
-
-        public static void SaveAll(List<SavedFilter> filters)
-        {
-            try
-            {
-                var dir = Path.GetDirectoryName(SavePath);
-                if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
-                var json = System.Text.Json.JsonSerializer.Serialize(filters, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
-                File.WriteAllText(SavePath, json);
-            }
-            catch (Exception ex) { Log.Error(ex, "MovieListView 操作异常"); }
-        }
-    }
+    // 原嵌套类 SavedFilter 已抽到 EasyMovie.Core.Models.SavedFilter（行为一致），
+    // 以便纳入单元测试保护。因本文件已有 using EasyMovie.Core.Models，
+    // 下方调用点无需任何改动即可解析到新类型。
+    // 持久化行为由 Tests/Core.Tests/SavedFilterTests.cs 锁定（测试用临时目录，不碰用户数据）。
 
     private void SavedFilterCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
@@ -1146,8 +1095,8 @@ public partial class MovieListView : UserControl
 
                 if (!string.IsNullOrEmpty(info.Country) && !m.CategoryId.HasValue)
                 {
-                    var firstCountry = info.Country.Split('/', '·').FirstOrDefault(c => IsValidCategoryName(c.Trim()))?.Trim();
-                    if (!string.IsNullOrEmpty(firstCountry) && IsValidCategoryName(firstCountry))
+                    var firstCountry = info.Country.Split('/', '·').FirstOrDefault(c => CategoryNameValidator.IsValidCategoryName(c.Trim()))?.Trim();
+                    if (!string.IsNullOrEmpty(firstCountry) && CategoryNameValidator.IsValidCategoryName(firstCountry))
                     {
                         try { var category = await _categoryService.GetOrCreateByNameAsync(firstCountry); m.CategoryId = category.Id; } catch (Exception ex) { Log.Error(ex, "MovieListView 操作异常"); }
                     }
@@ -1459,8 +1408,8 @@ public partial class MovieListView : UserControl
                 if (!string.IsNullOrEmpty(info.Country))
                 {
                     // 按分隔符拆分国家，但不按空格拆分（英文国名如"United States of America"含空格）
-                    var firstCountry = info.Country.Split('/', '·').FirstOrDefault(c => IsValidCategoryName(c.Trim()))?.Trim();
-                    if (!string.IsNullOrEmpty(firstCountry) && IsValidCategoryName(firstCountry))
+                    var firstCountry = info.Country.Split('/', '·').FirstOrDefault(c => CategoryNameValidator.IsValidCategoryName(c.Trim()))?.Trim();
+                    if (!string.IsNullOrEmpty(firstCountry) && CategoryNameValidator.IsValidCategoryName(firstCountry))
                     {
                         try
                         {
@@ -1611,8 +1560,8 @@ public partial class MovieListView : UserControl
 
             if (!string.IsNullOrEmpty(info.Country) && !m.CategoryId.HasValue)
             {
-                var firstCountry = info.Country.Split('/', '·').FirstOrDefault(c => IsValidCategoryName(c.Trim()))?.Trim();
-                if (!string.IsNullOrEmpty(firstCountry) && IsValidCategoryName(firstCountry))
+                var firstCountry = info.Country.Split('/', '·').FirstOrDefault(c => CategoryNameValidator.IsValidCategoryName(c.Trim()))?.Trim();
+                if (!string.IsNullOrEmpty(firstCountry) && CategoryNameValidator.IsValidCategoryName(firstCountry))
                 {
                     try
                     {
@@ -1912,8 +1861,8 @@ public partial class MovieListView : UserControl
 
                             if (!string.IsNullOrEmpty(info.Country) && !m.CategoryId.HasValue)
                             {
-                                var firstCountry = info.Country.Split('/', '·').FirstOrDefault(c => IsValidCategoryName(c.Trim()))?.Trim();
-                                if (!string.IsNullOrEmpty(firstCountry) && IsValidCategoryName(firstCountry))
+                                var firstCountry = info.Country.Split('/', '·').FirstOrDefault(c => CategoryNameValidator.IsValidCategoryName(c.Trim()))?.Trim();
+                                if (!string.IsNullOrEmpty(firstCountry) && CategoryNameValidator.IsValidCategoryName(firstCountry))
                                 {
                                     try { var category = await _categoryService.GetOrCreateByNameAsync(firstCountry); m.CategoryId = category.Id; } catch (Exception ex) { Log.Error(ex, "MovieListView 操作异常"); }
                                 }
