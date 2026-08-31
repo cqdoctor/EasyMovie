@@ -1,7 +1,9 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 using System.Windows.Input;
+using Serilog;
 
 namespace EasyMovie.Client.Views;
 
@@ -57,7 +59,11 @@ public static class PlayerShortcuts
                 }
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            // 读不出来就全量回退默认键位，用户会以为"我改的快捷键丢了"，必须留痕
+            Log.Warning(ex, "读取快捷键配置失败，回退默认键位: {Path}", FilePath);
+        }
     }
 
     public static void Save()
@@ -68,7 +74,11 @@ public static class PlayerShortcuts
             if (dir != null) Directory.CreateDirectory(dir);
             File.WriteAllText(FilePath, JsonSerializer.Serialize(Current, new JsonSerializerOptions { WriteIndented = true }));
         }
-        catch { }
+        catch (Exception ex)
+        {
+            // 存不下 = 改完的键位下次启动就丢，属用户可见的数据丢失
+            Log.Warning(ex, "保存快捷键配置失败: {Path}", FilePath);
+        }
     }
 
     public static Dictionary<Key, PlayerAction> BuildKeyMap()

@@ -266,8 +266,10 @@ public static class DbHelper
                 Log.Error(ex, "种子默认标签失败");
             }
 
-            // 首次完整初始化完成，写 flag + 里程碑日志
-            try { File.WriteAllText(InitFlagPath, DateTime.UtcNow.ToString("O")); } catch { }
+            // 首次完整初始化完成，写 flag + 里程碑日志。
+            // flag 写不进去的后果：每次启动都重跑一遍完整初始化（含迁移/清洗），启动会明显变慢——值得留痕。
+            try { File.WriteAllText(InitFlagPath, DateTime.UtcNow.ToString("O")); }
+            catch (Exception ex) { Log.Warning(ex, "写入数据库初始化标志失败: {Path}", InitFlagPath); }
             App.LogStartup("数据库预热(EnsureInitialized)完成(首次)");
             _initialized = true;
         }

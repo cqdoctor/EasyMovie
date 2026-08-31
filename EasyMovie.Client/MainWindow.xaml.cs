@@ -201,7 +201,7 @@ public partial class MainWindow : Window
             System.IO.File.AppendAllText(System.IO.Path.Combine(dir, "startup.log"),
                 $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] MainWindow.OnLoaded 触发（主窗口已创建并显示）\n");
         }
-        catch { }
+        catch { /* 故意留空：里程碑日志写不进去只能放弃，此处再记仍会失败 */ }
 
         // 自测开关：--selftest <path> [fs] 自动加载影片并（全屏）播放，便于自动化截图验证 UI
         try
@@ -238,7 +238,7 @@ public partial class MainWindow : Window
         _ = Task.Run(async () =>
         {
             try { await Task.Delay(TimeSpan.FromSeconds(15)); BackupService.EnsureAutoBackup(); }
-            catch { }
+            catch (Exception ex) { Log.Warning(ex, "启动后自动备份失败"); }
         });
     }
 

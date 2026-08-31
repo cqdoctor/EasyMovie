@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Text.Json;
+using Serilog;
 
 namespace EasyMovie.Client.Views
 {
@@ -38,7 +39,12 @@ namespace EasyMovie.Client.Views
                         Current = m;
                 }
             }
-            catch { /* 损坏则用默认 Software */ }
+            catch (Exception ex)
+            {
+                // 文件损坏则回退默认 Hardware(d3d11va)。注意：本静态构造首次触发时机在播放前，
+                // 若早于 Serilog 初始化，此条会被静默丢弃（Serilog 默认 logger 不输出），不影响功能。
+                Log.Warning(ex, "读取解码模式配置失败，回退默认 {Mode}: {Path}", Current, Path);
+            }
         }
 
         public static void Set(Mode m)
@@ -49,7 +55,11 @@ namespace EasyMovie.Client.Views
                 Directory.CreateDirectory(System.IO.Path.GetDirectoryName(Path)!);
                 File.WriteAllText(Path, JsonSerializer.Serialize(Current.ToString()));
             }
-            catch { }
+            catch (Exception ex)
+            {
+                // 存不下 = 用户在设置里切的解码模式下次启动就丢，白块问题会"复发"
+                Log.Warning(ex, "保存解码模式配置失败: {Path}", Path);
+            }
         }
 
         /// <summary>生成 LibVLC 启动参数（稳定输出模块 + 合理硬件后端 + 本地缓存）。</summary>
