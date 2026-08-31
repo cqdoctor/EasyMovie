@@ -46,6 +46,25 @@ public static class MovieCreditCleaner
             "制片人", "制片", "摄影", "剪辑", "音乐", "视觉效果", "艺术指导", "服装设计"
         }.OrderBy(x => x, StringComparer.Ordinal).ToList());
 
+    /// <summary>
+    /// 整个字段就是这些词时，说明抓到的是**表头标签**而非人名，应整个丢弃。
+    ///
+    /// 合并自 2 份逐字相同的私有副本（MovieApiService、DbHelper）。
+    /// 与 <see cref="DirectorBlacklistTerms"/> 的区别：这里是**整串精确匹配**（如字段值恰好是
+    /// "导演"、"暂无"），而后者是**子串包含匹配**（如 "张三 (编剧)"）。
+    ///
+    /// 补齐了原有副本缺失的职位标签：原表里有「导演」却没有「编剧」「原著」「角色」等，
+    /// 实测库中已产生 1 条导演字段值为「编剧」的脏数据（#207 幽灵 Phantom AC3）。
+    /// </summary>
+    public static readonly IReadOnlyCollection<string> InvalidPersonLabels =
+        new ReadOnlyCollection<string>(new[]
+        {
+            // 原有 9 项（表头/占位词）
+            "人员", "人物", "演员", "主演", "导演", "暂无", "未知", "暂未录入", "更多",
+            // 补齐：职位标签（与 DirectorBlacklistTerms 中的中文项对齐）
+            "编剧", "原著", "角色", "制片人", "制片", "摄影", "剪辑", "视觉效果", "艺术指导", "服装设计"
+        });
+
     /// <summary>多个导演的分隔符：斜杠、反斜杠、竖线、换行、逗号，以及中文顿号。</summary>
     private static readonly char[] NameSeparators = { '/', '\\', '|', '\n', '\r', ',', '、' };
 

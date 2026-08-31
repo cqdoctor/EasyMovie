@@ -246,7 +246,7 @@ public class MovieInfoFetcher
             if (!string.IsNullOrEmpty(merged.Synopsis))
                 merged.Synopsis = Regex.Replace(merged.Synopsis, @"<[^>]+>", "").Trim();
             if (!string.IsNullOrEmpty(merged.Director))
-                merged.Director = Regex.Replace(merged.Director, @"<[^>]+>", "").Trim();
+                merged.Director = MovieCreditCleaner.CleanDirector(merged.Director);
             if (!string.IsNullOrEmpty(merged.Cast))
                 merged.Cast = Regex.Replace(merged.Cast, @"<[^>]+>", "").Trim();
 

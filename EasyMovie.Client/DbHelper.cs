@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using EasyMovie.Core.Helpers;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -374,13 +375,11 @@ public static class DbHelper
         return string.IsNullOrEmpty(result) ? null : result;
     }
 
-    private static readonly string[] InvalidPersonLabels = { "人员", "人物", "演员", "主演", "导演", "暂无", "未知", "暂未录入", "更多" };
-
     private static bool ContainsTemplateOrLabel(string? value)
     {
         if (string.IsNullOrEmpty(value)) return false;
         if (Regex.IsMatch(value, @"\$\{.*?\}|\$\(data\.\w+\)|\{\{.*?\}\}|<%.*?%>")) return true;
-        if (InvalidPersonLabels.Contains(value.Trim())) return true;
+        if (MovieCreditCleaner.InvalidPersonLabels.Contains(value.Trim())) return true;
         return false;
     }
 
