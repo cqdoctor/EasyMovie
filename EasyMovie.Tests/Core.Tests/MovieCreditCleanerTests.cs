@@ -196,4 +196,47 @@ public class MovieCreditCleanerTests
         => Assert.All(
             MovieCreditCleaner.DirectorBlacklistTerms.ToList(),
             term => Assert.False(MovieCreditCleaner.IsPlausibleDirector(term)));
+
+    // ───────────────────── InvalidPersonLabels ─────────────────────
+
+    /// <summary>
+    /// 原 2 份副本（MovieApiService / DbHelper）各有 9 项，缺「编剧」等职位标签——
+    /// 实测库中已产生 1 条导演字段值为「编剧」的脏数据（#207 幽灵 Phantom AC3）。
+    /// 本表补齐后应覆盖原 9 项 + 10 个职位标签。
+    /// </summary>
+    [Theory]
+    [InlineData("人员")]
+    [InlineData("人物")]
+    [InlineData("演员")]
+    [InlineData("主演")]
+    [InlineData("导演")]
+    [InlineData("暂无")]
+    [InlineData("未知")]
+    [InlineData("暂未录入")]
+    [InlineData("更多")]
+    [InlineData("编剧")]      // 原来缺失，正是 #207 的成因
+    [InlineData("原著")]
+    [InlineData("角色")]
+    [InlineData("制片人")]
+    [InlineData("摄影")]
+    [InlineData("剪辑")]
+    [InlineData("艺术指导")]
+    [InlineData("服装设计")]
+    public void InvalidPersonLabels_CoversOriginalTermsAndJobTitles(string label)
+        => Assert.Contains(label, MovieCreditCleaner.InvalidPersonLabels);
+
+    [Fact]
+    public void InvalidPersonLabels_Has19Terms()
+        => Assert.Equal(19, MovieCreditCleaner.InvalidPersonLabels.Count);
+
+    /// <summary>
+    /// 这是**整串精确匹配**表，与 DirectorBlacklistTerms 的**子串包含匹配**不同：
+    /// "编剧" 是标签（整串命中），但 "张三 编剧" 不是——后者应由 CleanDirector 处理。
+    /// </summary>
+    [Fact]
+    public void InvalidPersonLabels_IsWholeStringMatch_NotSubstring()
+    {
+        Assert.Contains("编剧", MovieCreditCleaner.InvalidPersonLabels);
+        Assert.DoesNotContain("张三 编剧", MovieCreditCleaner.InvalidPersonLabels);
+    }
 }

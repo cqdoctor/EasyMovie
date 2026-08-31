@@ -1,5 +1,6 @@
-﻿﻿﻿﻿using System.Net;
+﻿using System.Net;
 using System.Text.RegularExpressions;
+using EasyMovie.Core.Helpers;
 using EasyMovie.Core.Interfaces;
 using EasyMovie.Core.Models;
 
@@ -110,8 +111,6 @@ public class MovieApiService
         return string.IsNullOrEmpty(result) ? null : result;
     }
 
-    private static readonly string[] InvalidPersonLabels = { "人员", "人物", "演员", "主演", "导演", "暂无", "未知", "暂未录入", "更多" };
-
     internal static string? StripTemplateVariables(string? input)
     {
         if (string.IsNullOrEmpty(input)) return input;
@@ -125,7 +124,7 @@ public class MovieApiService
         if (string.IsNullOrEmpty(input)) return input;
         var cleaned = StripHtml(input);
         if (cleaned == null) return null;
-        if (InvalidPersonLabels.Contains(cleaned)) return null;
+        if (MovieCreditCleaner.InvalidPersonLabels.Contains(cleaned)) return null;
         return cleaned;
     }
 }
