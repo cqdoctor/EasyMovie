@@ -2,6 +2,7 @@ using System.Net;
 using System.Text.RegularExpressions;
 using System.Web;
 using EasyMovie.Core;
+using EasyMovie.Core.Helpers;
 using EasyMovie.Core.Interfaces;
 using Serilog;
 
@@ -57,12 +58,7 @@ public class BaiduBaikeApiClient : IMovieApiClient
     private static readonly string[] InvalidLabels = { "人员", "人物", "演员", "主演", "导演", "暂无", "未知", "暂未录入", "更多" };
 
     // 导演黑名单：中英文职业标签，提取导演人名时需排除
-    private static readonly HashSet<string> DirectorBlacklistTerms = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "screenplay", "story", "characters", "writer", "novel", "producer", "editor", "music", "composer",
-        "制片人", "制片", "编剧", "摄影", "剪辑", "音乐", "视觉效果", "艺术指导", "服装设计"
-    };
-
+    
     private static bool IsTemplateOrLabel(string value)
     {
         if (string.IsNullOrWhiteSpace(value)) return true;
@@ -72,55 +68,8 @@ public class BaiduBaikeApiClient : IMovieApiClient
     }
 
     /// <summary>移除 HTML 标签并去除首尾空白</summary>
-    private static string StripHtml(string value)
-    {
-        if (string.IsNullOrEmpty(value)) return value;
-        return Regex.Replace(value, @"<[^>]+>", "").Trim();
-    }
-
-    /// <summary>
-    /// 清理导演字段：去掉 HTML 标签、职业说明、非导演人员、日期，只保留人名。
-    /// 多个导演以 / 分隔，取前 3 个。
-    /// </summary>
-    private static string CleanDirector(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value)) return value;
-        value = StripHtml(value);
-
-        var parts = value.Split(new[] { '/', '\\', '|', '\n', '\r', ',', '、' }, StringSplitOptions.RemoveEmptyEntries)
-            .Select(p => p.Trim())
-            .Where(p => !string.IsNullOrWhiteSpace(p))
-            .ToList();
-
-        // 过滤：职业标签、日期格式(1963-02-17)、纯年份、长度不在 2-30 范围
-        var names = parts.Where(p =>
-            !DirectorBlacklistTerms.Any(b => p.Contains(b, StringComparison.OrdinalIgnoreCase)) &&
-            !Regex.IsMatch(p, @"^\d{4}-\d{2}-\d{2}$") &&
-            !Regex.IsMatch(p, @"^\d{4}$") &&
-            p.Length >= 2 && p.Length <= 30
-        ).ToList();
-
-        // 兜底：从含职业说明的片段中截取人名前缀
-        if (names.Count == 0)
-        {
-            foreach (var part in parts)
-            {
-                var firstBlackIdx = DirectorBlacklistTerms
-                    .Select(b => part.IndexOf(b, StringComparison.OrdinalIgnoreCase))
-                    .Where(i => i >= 0)
-                    .DefaultIfEmpty(-1)
-                    .Min();
-                if (firstBlackIdx > 0)
-                {
-                    var name = part.Substring(0, firstBlackIdx).Trim();
-                    if (!string.IsNullOrWhiteSpace(name) && name.Length <= 30 && !Regex.IsMatch(name, @"^\d{4}")) names.Add(name);
-                }
-            }
-        }
-
-        return string.Join(" / ", names.Take(3));
-    }
-
+    
+    
     public async Task<MovieSearchResponse> SearchAsync(MovieSearchRequest req, CancellationToken ct = default)
     {
         try
@@ -188,12 +137,12 @@ public class BaiduBaikeApiClient : IMovieApiClient
 
         // 导演
         if (info.TryGetValue("导演", out var director))
-            r.Director = CleanDirector(director);
+            r.Director = MovieCreditCleaner.CleanDirector(director);
 
         // 主演
         if (info.TryGetValue("主演", out var cast))
         {
-            var castClean = CleanDirector(cast);
+            var castClean = MovieCreditCleaner.CleanDirector(cast);
             if (!string.IsNullOrWhiteSpace(castClean)) r.Cast = castClean;
         }
 
@@ -201,7 +150,7 @@ public class BaiduBaikeApiClient : IMovieApiClient
         if (info.TryGetValue("制片地区", out var country)
             || info.TryGetValue("国家/地区", out country)
             || info.TryGetValue("国家地区", out country))
-            r.Country = HttpUtility.HtmlDecode(StripHtml(country)).Trim();
+            r.Country = HttpUtility.HtmlDecode(TextCleaner.StripHtml(country)).Trim();
 
         // 上映时间：提取年份
         if (info.TryGetValue("上映时间", out var release))
@@ -219,7 +168,7 @@ public class BaiduBaikeApiClient : IMovieApiClient
 
         // 语言
         if (info.TryGetValue("语言", out var lang))
-            r.Language = HttpUtility.HtmlDecode(StripHtml(lang)).Trim();
+            r.Language = HttpUtility.HtmlDecode(TextCleaner.StripHtml(lang)).Trim();
 
         // 简介：剧情简介 / 内容简介
         r.Synopsis = ParseSynopsis(html);
@@ -246,7 +195,7 @@ public class BaiduBaikeApiClient : IMovieApiClient
         var count = Math.Min(dtMatches.Count, ddMatches.Count);
         for (int i = 0; i < count; i++)
         {
-            var key = StripHtml(dtMatches[i].Groups[1].Value).Trim();
+            var key = TextCleaner.StripHtml(dtMatches[i].Groups[1].Value).Trim();
             var val = ddMatches[i].Groups[1].Value;
             if (!string.IsNullOrEmpty(key) && !dict.ContainsKey(key))
                 dict[key] = val;
@@ -267,7 +216,7 @@ public class BaiduBaikeApiClient : IMovieApiClient
                 sm = Regex.Match(html, $@"{heading}[\s\S]*?<p[^>]*>([\s\S]*?)</p>");
             if (sm.Success)
             {
-                var text = HttpUtility.HtmlDecode(StripHtml(sm.Groups[1].Value)).Trim();
+                var text = HttpUtility.HtmlDecode(TextCleaner.StripHtml(sm.Groups[1].Value)).Trim();
                 if (!string.IsNullOrWhiteSpace(text)) return text;
             }
         }

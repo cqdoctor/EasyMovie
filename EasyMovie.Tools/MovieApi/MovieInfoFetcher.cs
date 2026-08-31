@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
 using EasyMovie.Core;
+using EasyMovie.Core.Helpers;
 using EasyMovie.Core.Interfaces;
 using EasyMovie.Core.Models;
 using Serilog;
@@ -392,36 +393,20 @@ public class MovieInfoFetcher
     }
 
     // 导演黑名单职业标签（中英文）
-    private static readonly HashSet<string> DirectorBlacklistTerms = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "screenplay", "story", "characters", "writer", "novel", "based on", "book",
-        "director of photography", "editor", "producer", "executive producer",
-        "music", "composer", "sound", "visual effects",
-        "编剧", "原著", "角色", "制片人", "制片", "摄影", "剪辑", "音乐", "视觉效果", "艺术指导", "服装设计"
-    };
-
+    
     /// <summary>判断导演字符串是否有效（非空、非日期、非年份、非职业标签）</summary>
-    private static bool IsDirectorValid(string? director)
-    {
-        if (string.IsNullOrWhiteSpace(director)) return false;
-        if (Regex.IsMatch(director, @"^\d{4}-\d{2}-\d{2}$")) return false;  // 日期
-        if (Regex.IsMatch(director, @"^\d{4}$")) return false;              // 纯年份
-        if (DirectorBlacklistTerms.Any(b => director.Contains(b, StringComparison.OrdinalIgnoreCase))) return false;
-        if (director.Length < 2 || director.Length > 60) return false;
-        return true;
-    }
-
+    
     /// <summary>判断是否需要继续搜索（导演无效或关键字段缺失）</summary>
     private static bool NeedsMoreData(MovieSearchResult r)
     {
-        return !IsDirectorValid(r.Director);
+        return !MovieCreditCleaner.IsPlausibleDirector(r.Director);
     }
 
     /// <summary>合并数据源结果：只补充缺失或无效的字段</summary>
     private static void MergeResult(MovieSearchResult target, MovieSearchResult source)
     {
         // 导演：目标无效时用源数据（源数据也需有效）
-        if (!IsDirectorValid(target.Director) && IsDirectorValid(source.Director))
+        if (!MovieCreditCleaner.IsPlausibleDirector(target.Director) && MovieCreditCleaner.IsPlausibleDirector(source.Director))
             target.Director = source.Director;
 
         // 其他字段：目标为空时用源数据

@@ -978,12 +978,12 @@ public partial class MovieListView : UserControl
                 bool dirInvalid = string.IsNullOrEmpty(m.Director) ||
                     Regex.IsMatch(m.Director ?? "", @"^\d{4}-\d{2}-\d{2}$") ||
                     Regex.IsMatch(m.Director ?? "", @"^\d{4}$");
-                var fetchCleanedDir = CleanDirector(StripHtmlTags(info.Director ?? ""));
+                var fetchCleanedDir = MovieCreditCleaner.CleanDirector(TextCleaner.StripHtml(info.Director ?? ""));
                 if (!string.IsNullOrEmpty(fetchCleanedDir) && fetchCleanedDir != m.Director) m.Director = fetchCleanedDir;
                 else if (dirInvalid && string.IsNullOrEmpty(fetchCleanedDir)) m.Director = "";
-                if (!string.IsNullOrEmpty(info.Cast) && info.Cast != m.Cast) m.Cast = StripHtmlTags(info.Cast);
+                if (!string.IsNullOrEmpty(info.Cast) && info.Cast != m.Cast) m.Cast = TextCleaner.StripHtml(info.Cast);
                 if (!string.IsNullOrEmpty(info.Country) && info.Country != m.Country) m.Country = info.Country;
-                if (!string.IsNullOrEmpty(info.Synopsis) && info.Synopsis != m.Synopsis) m.Synopsis = StripHtmlTags(info.Synopsis);
+                if (!string.IsNullOrEmpty(info.Synopsis) && info.Synopsis != m.Synopsis) m.Synopsis = TextCleaner.StripHtml(info.Synopsis);
                 if (!string.IsNullOrEmpty(info.PosterUrl) && info.PosterUrl != m.PosterUrl)
                 {
                     m.PosterUrl = info.PosterUrl;
@@ -1284,14 +1284,14 @@ public partial class MovieListView : UserControl
 
                 var updated = false;
                 // 判断当前导演是否无效（日期、职业标签、空值等）—— 用 CleanDirector 清理后为空即无效
-                var currentCleanedDir = CleanDirector(StripHtmlTags(m.Director ?? ""));
+                var currentCleanedDir = MovieCreditCleaner.CleanDirector(TextCleaner.StripHtml(m.Director ?? ""));
                 bool currentDirInvalid = string.IsNullOrEmpty(currentCleanedDir);
                 // 先清理新导演数据，再比较
-                var cleanedDir = CleanDirector(StripHtmlTags(info.Director ?? ""));
+                var cleanedDir = MovieCreditCleaner.CleanDirector(TextCleaner.StripHtml(info.Director ?? ""));
                 if (!string.IsNullOrEmpty(cleanedDir) && cleanedDir != currentCleanedDir) { m.Director = cleanedDir; updated = true; }
                 // 当前导演无效但新数据也没有有效导演时，清空无效值
                 else if (currentDirInvalid && string.IsNullOrEmpty(cleanedDir) && !string.IsNullOrEmpty(m.Director)) { m.Director = ""; updated = true; }
-                if (!string.IsNullOrEmpty(info.Cast) && info.Cast != m.Cast) { m.Cast = StripHtmlTags(info.Cast); updated = true; }
+                if (!string.IsNullOrEmpty(info.Cast) && info.Cast != m.Cast) { m.Cast = TextCleaner.StripHtml(info.Cast); updated = true; }
                 if (!string.IsNullOrEmpty(info.Country) && info.Country != m.Country) { m.Country = info.Country; updated = true; }
                 if (!string.IsNullOrEmpty(info.Language) && info.Language != m.Language) { m.Language = info.Language; updated = true; }
                 if (!string.IsNullOrEmpty(info.Synopsis) && info.Synopsis != m.Synopsis) { m.Synopsis = info.Synopsis; updated = true; }
@@ -1437,16 +1437,16 @@ public partial class MovieListView : UserControl
 
             // 清理 Synopsis 中的 HTML 标签
             if (!string.IsNullOrEmpty(info.Synopsis))
-                info.Synopsis = StripHtmlTags(info.Synopsis);
+                info.Synopsis = TextCleaner.StripHtml(info.Synopsis);
 
             // 判断当前导演是否无效（日期、空值等）
             bool batchDirInvalid = string.IsNullOrEmpty(m.Director) ||
                 Regex.IsMatch(m.Director ?? "", @"^\d{4}-\d{2}-\d{2}$") ||
                 Regex.IsMatch(m.Director ?? "", @"^\d{4}$");
-            var batchCleanedDir = CleanDirector(StripHtmlTags(info.Director ?? ""));
+            var batchCleanedDir = MovieCreditCleaner.CleanDirector(TextCleaner.StripHtml(info.Director ?? ""));
             if (!string.IsNullOrEmpty(batchCleanedDir) && batchCleanedDir != m.Director) m.Director = batchCleanedDir;
             else if (batchDirInvalid && string.IsNullOrEmpty(batchCleanedDir)) m.Director = "";
-            if (!string.IsNullOrEmpty(info.Cast) && info.Cast != m.Cast) m.Cast = StripHtmlTags(info.Cast);
+            if (!string.IsNullOrEmpty(info.Cast) && info.Cast != m.Cast) m.Cast = TextCleaner.StripHtml(info.Cast);
             if (!string.IsNullOrEmpty(info.Country) && info.Country != m.Country) m.Country = info.Country;
             if (!string.IsNullOrEmpty(info.Language) && info.Language != m.Language) m.Language = info.Language;
             if (!string.IsNullOrEmpty(info.Synopsis) && info.Synopsis != m.Synopsis) m.Synopsis = info.Synopsis;
@@ -1519,61 +1519,9 @@ public partial class MovieListView : UserControl
         await RefreshCategoryFilterAsync();
     }
 
-    private static string StripHtmlTags(string html)
-    {
-        if (string.IsNullOrEmpty(html)) return html;
-        return Regex.Replace(html, @"<[^>]+>", "").Trim();
-    }
-
-    private static readonly HashSet<string> DirectorBlacklistTerms = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "screenplay", "story", "characters", "writer", "novel", "based on", "book",
-        "director of photography", "editor", "producer", "executive producer",
-        "music", "composer", "sound", "visual effects", "编剧", "原著", "角色",
-        // 中文职业标签
-        "制片人", "制片", "摄影", "剪辑", "音乐", "视觉效果", "艺术指导", "服装设计"
-    };
-
-    /// <summary>
-    /// 清理导演字段：去掉 HTML 标签、职业说明、非导演人员、日期，只保留人名。
-    /// </summary>
-    private static string CleanDirector(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value)) return value;
-        value = StripHtmlTags(value);
-
-        var parts = value.Split(new[] { '/', '\\', '|', '\n', '\r', ',' }, StringSplitOptions.RemoveEmptyEntries)
-            .Select(p => p.Trim())
-            .Where(p => !string.IsNullOrWhiteSpace(p))
-            .ToList();
-
-        var names = parts.Where(p =>
-            !DirectorBlacklistTerms.Any(b => p.Contains(b, StringComparison.OrdinalIgnoreCase)) &&
-            !Regex.IsMatch(p, @"^\d{4}-\d{2}-\d{2}$") &&
-            !Regex.IsMatch(p, @"^\d{4}$") &&
-            p.Length >= 2 && p.Length <= 30
-        ).ToList();
-
-        if (names.Count == 0)
-        {
-            foreach (var part in parts)
-            {
-                var firstBlackIdx = DirectorBlacklistTerms
-                    .Select(b => part.IndexOf(b, StringComparison.OrdinalIgnoreCase))
-                    .Where(i => i >= 0)
-                    .DefaultIfEmpty(-1)
-                    .Min();
-                if (firstBlackIdx > 0)
-                {
-                    var name = part.Substring(0, firstBlackIdx).Trim();
-                    if (!string.IsNullOrWhiteSpace(name) && name.Length <= 30 && !Regex.IsMatch(name, @"^\d{4}")) names.Add(name);
-                }
-            }
-        }
-
-        return string.Join(" / ", names.Take(3));
-    }
-
+    
+    
+    
     private static async Task<MovieSearchResult?> TryFetchFromDoubanAsync(DoubanApiClient? douban, Movie m, string? engHint, CancellationToken ct = default)
     {
         if (douban == null) return null;
@@ -1748,10 +1696,10 @@ public partial class MovieListView : UserControl
                         if (sr.Results.Count > 0)
                         {
                             var info = await api.GetDetailAsync(sr.Results[0].ExternalId ?? "", sr.Results[0].Source) ?? sr.Results[0];
-                            if (!string.IsNullOrEmpty(info.Director)) m.Director = CleanDirector(StripHtmlTags(info.Director));
-                            if (!string.IsNullOrEmpty(info.Cast)) m.Cast = StripHtmlTags(info.Cast);
+                            if (!string.IsNullOrEmpty(info.Director)) m.Director = MovieCreditCleaner.CleanDirector(TextCleaner.StripHtml(info.Director));
+                            if (!string.IsNullOrEmpty(info.Cast)) m.Cast = TextCleaner.StripHtml(info.Cast);
                             if (!string.IsNullOrEmpty(info.Country)) m.Country = info.Country;
-                            if (!string.IsNullOrEmpty(info.Synopsis)) m.Synopsis = StripHtmlTags(info.Synopsis);
+                            if (!string.IsNullOrEmpty(info.Synopsis)) m.Synopsis = TextCleaner.StripHtml(info.Synopsis);
                             if (!string.IsNullOrEmpty(info.PosterUrl))
                             {
                                 m.PosterUrl = info.PosterUrl;

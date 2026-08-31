@@ -1,7 +1,8 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.Net;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.Net;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Web;
+using EasyMovie.Core.Helpers;
 using EasyMovie.Core.Interfaces;
 using Serilog;
 
@@ -43,15 +44,7 @@ public class TmdbApiClient : IMovieApiClient
 
     private static readonly string[] InvalidLabels = { "人员", "人物", "演员", "主演", "导演", "暂无", "未知", "暂未录入", "更多" };
 
-    private static readonly HashSet<string> DirectorBlacklistTerms = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "screenplay", "story", "characters", "writer", "novel", "based on", "book",
-        "director of photography", "editor", "producer", "executive producer",
-        "music", "composer", "sound", "visual effects",
-        // 中文职业标签
-        "制片人", "制片", "编剧", "原著", "摄影", "剪辑", "音乐", "视觉效果", "艺术指导", "服装设计"
-    };
-
+    
     private static bool IsTemplateOrLabel(string value)
     {
         if (string.IsNullOrWhiteSpace(value)) return true;
@@ -60,57 +53,8 @@ public class TmdbApiClient : IMovieApiClient
         return false;
     }
 
-    private static string StripHtml(string value)
-    {
-        if (string.IsNullOrEmpty(value)) return value;
-        return Regex.Replace(value, @"<[^>]+>", "").Trim();
-    }
-
-    /// <summary>
-    /// 清理导演字段：去掉 HTML 标签、职业说明、非导演人员、日期，只保留人名。
-    /// </summary>
-    private static string CleanDirector(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value)) return value;
-        value = StripHtml(value);
-
-        // 按常见分隔符分行/分段
-        var parts = value.Split(new[] { '/', '\\', '|', '\n', '\r', ',' }, StringSplitOptions.RemoveEmptyEntries)
-            .Select(p => p.Trim())
-            .Where(p => !string.IsNullOrWhiteSpace(p))
-            .ToList();
-
-        // 过滤掉包含职业标签或日期格式的段落
-        var names = parts.Where(p =>
-            !DirectorBlacklistTerms.Any(b => p.Contains(b, StringComparison.OrdinalIgnoreCase)) &&
-            !Regex.IsMatch(p, @"^\d{4}-\d{2}-\d{2}$") &&  // 日期如 1963-02-17
-            !Regex.IsMatch(p, @"^\d{4}$") &&                // 纯年份
-            p.Length >= 2 && p.Length <= 30                  // 人名长度合理范围
-        ).ToList();
-
-        // 如果段落被职业标签污染，尝试取标签前的人名
-        if (names.Count == 0)
-        {
-            foreach (var part in parts)
-            {
-                var firstBlackIdx = DirectorBlacklistTerms
-                    .Select(b => part.IndexOf(b, StringComparison.OrdinalIgnoreCase))
-                    .Where(i => i >= 0)
-                    .DefaultIfEmpty(-1)
-                    .Min();
-                if (firstBlackIdx > 0)
-                {
-                    var name = part.Substring(0, firstBlackIdx).Trim();
-                    if (!string.IsNullOrWhiteSpace(name) && name.Length <= 30 && !Regex.IsMatch(name, @"^\d{4}")) names.Add(name);
-                }
-            }
-        }
-
-        // 合并前 3 个导演，用 / 分隔
-        var result = string.Join(" / ", names.Take(3));
-        return result;
-    }
-
+    
+    
     public string SourceName => "tmdb";
 
     public async Task<MovieSearchResponse> SearchAsync(MovieSearchRequest request, CancellationToken ct = default)
@@ -293,7 +237,7 @@ public class TmdbApiClient : IMovieApiClient
                         var nameM = Regex.Match(profileHtml, @"<a[^>]*href=""/person/[^""]*""[^>]*>(.*?)</a>", RegexOptions.Singleline);
                         if (nameM.Success)
                         {
-                            var name = StripHtml(WebUtility.HtmlDecode(nameM.Groups[1].Value.Trim()));
+                            var name = TextCleaner.StripHtml(WebUtility.HtmlDecode(nameM.Groups[1].Value.Trim()));
                             if (!IsTemplateOrLabel(name) && !dirNames.Contains(name))
                                 dirNames.Add(name);
                         }
@@ -303,7 +247,7 @@ public class TmdbApiClient : IMovieApiClient
             }
 
             // 最后清理：去掉 HTML 标签、职业说明、非导演人员
-            director = CleanDirector(director);
+            director = MovieCreditCleaner.CleanDirector(director);
 
             // 演员：优先新版结构 <ol class="people scroller"><li class="card">...<p><a href="/person/x">名字</a></p></li>
             var castList = new List<string>();
@@ -312,7 +256,7 @@ public class TmdbApiClient : IMovieApiClient
             {
                 foreach (Match cm in Regex.Matches(scrollerM.Groups[1].Value, @"<p><a href=""/person/[^""]*""[^>]*>(.*?)</a></p>", RegexOptions.Singleline))
                 {
-                    var name = StripHtml(WebUtility.HtmlDecode(cm.Groups[1].Value.Trim()));
+                    var name = TextCleaner.StripHtml(WebUtility.HtmlDecode(cm.Groups[1].Value.Trim()));
                     if (!IsTemplateOrLabel(name)) castList.Add(name);
                     if (castList.Count >= 8) break;
                 }
@@ -324,7 +268,7 @@ public class TmdbApiClient : IMovieApiClient
                 var castMatches = Regex.Matches(html, @"class=""name""[^>]*>\s*<a[^>]*>(.*?)</a>");
                 foreach (Match cm in castMatches.Take(5))
                 {
-                    var name = StripHtml(WebUtility.HtmlDecode(cm.Groups[1].Value.Trim()));
+                    var name = TextCleaner.StripHtml(WebUtility.HtmlDecode(cm.Groups[1].Value.Trim()));
                     if (!IsTemplateOrLabel(name)) castList.Add(name);
                 }
             }
