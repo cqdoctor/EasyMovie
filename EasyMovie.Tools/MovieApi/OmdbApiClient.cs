@@ -2,6 +2,7 @@ using System.Net;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using EasyMovie.Core;
+using EasyMovie.Core.Helpers;
 using EasyMovie.Core.Interfaces;
 using System.Globalization;
 
@@ -13,14 +14,7 @@ public class OmdbApiClient : IMovieApiClient
     private readonly string _apiKey;
     private const string BaseUrl = "http://www.omdbapi.com/";
 
-    private static readonly HashSet<string> DirectorBlacklistTerms = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "screenplay", "story", "characters", "writer", "novel",
-        "producer", "editor", "music", "composer",
-        // 中文职业标签
-        "制片人", "制片", "编剧", "摄影", "剪辑", "音乐", "视觉效果"
-    };
-
+    
     public OmdbApiClient(string apiKey = "", HttpClient? http = null)
     {
         _apiKey = apiKey ?? "";
@@ -173,7 +167,7 @@ public class OmdbApiClient : IMovieApiClient
             if (ys.Success) year = int.Parse(ys.Value);
         }
 
-        var director = CleanDirector(GetString(root, "Director"));
+        var director = MovieCreditCleaner.CleanDirector(GetString(root, "Director"));
 
         var actors = GetString(root, "Actors");
         var cast = (string.IsNullOrEmpty(actors) || actors == "N/A") ? null : actors;
@@ -237,12 +231,7 @@ public class OmdbApiClient : IMovieApiClient
         return 0;
     }
 
-    private static string StripHtml(string value)
-    {
-        if (string.IsNullOrEmpty(value)) return value;
-        return Regex.Replace(value, @"<[^>]+>", "").Trim();
-    }
-
+    
     /// <summary>英文国家名映射为中文</summary>
     private static readonly Dictionary<string, string> CountryMap = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -275,49 +264,4 @@ public class OmdbApiClient : IMovieApiClient
         return string.Join(" / ", parts);
     }
 
-    /// <summary>
-    /// 清理导演字段：去掉 HTML 标签、职业说明、非导演人员、日期，只保留人名。
-    /// </summary>
-    private static string CleanDirector(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value)) return value;
-        value = StripHtml(value);
-        if (value == "N/A") return "";
-
-        // 按常见分隔符分行/分段（OMDb 通常用 ", " 分隔多个导演）
-        var parts = value.Split(new[] { '/', '\\', '|', '\n', '\r', ',' }, StringSplitOptions.RemoveEmptyEntries)
-            .Select(p => p.Trim())
-            .Where(p => !string.IsNullOrWhiteSpace(p))
-            .ToList();
-
-        // 过滤掉包含职业标签或日期格式的段落
-        var names = parts.Where(p =>
-            !DirectorBlacklistTerms.Any(b => p.Contains(b, StringComparison.OrdinalIgnoreCase)) &&
-            !Regex.IsMatch(p, @"^\d{4}-\d{2}-\d{2}$") &&  // 日期如 1963-02-17
-            !Regex.IsMatch(p, @"^\d{4}$") &&                // 纯年份
-            p.Length >= 2 && p.Length <= 30                  // 人名长度合理范围
-        ).ToList();
-
-        // 如果段落被职业标签污染，尝试取标签前的人名
-        if (names.Count == 0)
-        {
-            foreach (var part in parts)
-            {
-                var firstBlackIdx = DirectorBlacklistTerms
-                    .Select(b => part.IndexOf(b, StringComparison.OrdinalIgnoreCase))
-                    .Where(i => i >= 0)
-                    .DefaultIfEmpty(-1)
-                    .Min();
-                if (firstBlackIdx > 0)
-                {
-                    var name = part.Substring(0, firstBlackIdx).Trim();
-                    if (!string.IsNullOrWhiteSpace(name) && name.Length <= 30 && !Regex.IsMatch(name, @"^\d{4}")) names.Add(name);
-                }
-            }
-        }
-
-        // 合并前 3 个导演，用 / 分隔
-        var result = string.Join(" / ", names.Take(3));
-        return result;
     }
-}

@@ -15,11 +15,27 @@ namespace EasyMovie.Core.Helpers;
 /// </summary>
 public static class TextCleaner
 {
+    /// <summary>任意 HTML 标签（含 <c>&lt;br/&gt;</c> 这类自闭合标签）。</summary>
+    private static readonly Regex AnyHtmlTag = new("<[^>]+>", RegexOptions.Compiled);
+
     /// <summary>HTML 标签（含不完整的 &lt;a&gt;、&lt;/a&gt;）。</summary>
     private static readonly Regex HtmlTag = new("</?[a-zA-Z][^>]*>", RegexOptions.Compiled);
 
     /// <summary>HTML 属性残留，如 "123-name'&gt;张三" 或 "123-name\"&gt;张三"。</summary>
     private static readonly Regex AttributeResidue = new(@"[\d\-a-zA-Z_/]+['" + "\"" + @">]+", RegexOptions.Compiled);
+
+    /// <summary>
+    /// 去掉所有 HTML 标签并 Trim（不解码实体、不处理属性残留）。
+    ///
+    /// 与 <see cref="CleanHtmlFragment"/> 的区别：本方法只做"剥标签"这一件事，
+    /// 适用于简介 / 演员 / 国家这类本来就是正文的字段；
+    /// <see cref="CleanHtmlFragment"/> 还会清理属性残留并剔除疑似属性的值，用于人名等短字段。
+    ///
+    /// 于 2026-08-31 合并自 4 处逐字节相同的私有实现（MovieListView.StripHtmlTags 与
+    /// TmdbApiClient / OmdbApiClient / BaiduBaikeApiClient 的 StripHtml），行为未变。
+    /// </summary>
+    public static string StripHtml(string? value)
+        => string.IsNullOrEmpty(value) ? value! : AnyHtmlTag.Replace(value, "").Trim();
 
     /// <summary>残留的引号、尖括号。</summary>
     private static readonly Regex QuoteAndBracket = new("[<>\"']", RegexOptions.Compiled);
