@@ -12,6 +12,14 @@ namespace EasyMovie.Client.Views;
 public partial class WatchHeatmapView : UserControl
 {
     private readonly WatchHeatmapViewModel _vm;
+
+    /// <summary>本页涉及的 影片Id→标题 映射。避免为拿一个标题把整部电影（含海报）加载进来。</summary>
+    private Dictionary<int, string> _movieTitles = new();
+
+    /// <summary>取影片标题；查不到（影片已删除或脏关联）时返回 null，等价于原 log.Movie?.Title。</summary>
+    private string? TitleOf(int movieId)
+        => _movieTitles.TryGetValue(movieId, out var title) ? title : null;
+
     private const int CellSize = 14;
     private const int CellGap = 2;
     private const int WeeksToShow = 53;
@@ -67,10 +75,20 @@ public partial class WatchHeatmapView : UserControl
         if (daysSinceMonday < 0) daysSinceMonday += 7;
         startDate = startDate.AddDays(-daysSinceMonday);
 
+        // 只加载观影记录本体（WatchLog 无大字段），影片标题另行窄投影查询。
+        // 原实现 Include(w => w.Movie) 会把每部电影的**完整实体（含平均 86 KB 的海报）**
+        // 加载进来，而这里只用到 Title —— 观影记录变多后就是每部 86 KB 的白白开销
+        // （使用点：热力图 tooltip 与单日 Top 列表）。
         var watchLogs = await ctx.WatchLogs
-            .Include(w => w.Movie)
             .Where(w => w.WatchDate >= startDate && w.WatchDate <= endDate)
             .ToListAsync();
+
+        var movieIds = watchLogs.Select(w => w.MovieId).Distinct().ToList();
+        _movieTitles = movieIds.Count == 0
+            ? new Dictionary<int, string>()
+            : await ctx.Movies.Where(m => movieIds.Contains(m.Id))
+                              .Select(m => new { m.Id, m.Title })
+                              .ToDictionaryAsync(m => m.Id, m => m.Title);
 
         var dailyCounts = watchLogs
             .GroupBy(w => w.WatchDate.Date)
@@ -248,7 +266,8 @@ public partial class WatchHeatmapView : UserControl
         }
     }
 
-    private static object BuildTooltip(DateTime date, int count, List<EasyMovie.Core.Models.WatchLog>? logs)
+    // 原为 static，改为实例方法以便复用 _movieTitles（避免为取标题加载整部电影实体）
+    private object BuildTooltip(DateTime date, int count, List<EasyMovie.Core.Models.WatchLog>? logs)
     {
         var sp = new StackPanel();
         var dayIdx = (int)date.DayOfWeek == 0 ? 6 : (int)date.DayOfWeek - 1;
@@ -271,7 +290,7 @@ public partial class WatchHeatmapView : UserControl
             foreach (var log in logs.Take(5))
                 sp.Children.Add(new TextBlock
                 {
-                    Text = $"  - {log.Movie?.Title ?? L("Heatmap_Unknown")}",
+                    Text = $"  - {TitleOf(log.MovieId) ?? L("Heatmap_Unknown")}",
                     FontSize = 11,
                     Foreground = Brushes.Gray
                 });
@@ -335,7 +354,7 @@ public partial class WatchHeatmapView : UserControl
             {
                 DateStr = g.Key.ToString("yyyy-MM-dd"),
                 Count = g.Count(),
-                Titles = string.Join(" / ", g.Select(w => w.Movie?.Title ?? "未知").Take(4))
+                Titles = string.Join(" / ", g.Select(w => TitleOf(w.MovieId) ?? "未知").Take(4))
             })
             .ToList();
 
