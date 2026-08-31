@@ -118,82 +118,26 @@ public partial class MovieListView : UserControl
     {
         try
         {
-            // 只查一次数据库，后续所有方法复用这份数据
-            var allMovies = await _movieService.GetAllAsync();
-            var allCats = await _categoryService.GetAllAsync();
+            // 引导数据（分类、搜索索引补全、筛选选项）统一由 MovieBootstrapService 准备：
+            // 窄投影 + 桩实体写入，全程不读取 PosterData。不要改回 _movieService.GetAllAsync()。
+            var bootstrap = await new MovieBootstrapService(_context).BootstrapAsync();
 
-            await RebuildSearchIndexBatchAsync(allMovies);
-            await AutoAssignCountryCategoriesBatchAsync(allMovies, allCats);
-
-            // 数据可能已变更，重新加载
-            allCats = await _categoryService.GetAllAsync();
-
-            // 只在有电影的分类才显示在筛选下拉框中（批量操作仍保留全部分类）
-            var usedCategoryIds = allMovies.Where(m => m.CategoryId.HasValue).Select(m => m.CategoryId!.Value).Distinct().ToHashSet();
-            var catsWithMovies = allCats.Where(c => usedCategoryIds.Contains(c.Id)).ToList();
-            bool hasUncategorized = allMovies.Any(m => !m.CategoryId.HasValue);
-            PopulateCategoryFilter(catsWithMovies, hasUncategorized);
-            PopulateBatchCategoryCombo(allCats);
-            PopulateYearFilter(allMovies);
-            PopulateAdvancedFilterOptions(allMovies);
+            PopulateCategoryFilter(bootstrap.CategoriesWithMovies, bootstrap.HasUncategorized);
+            PopulateBatchCategoryCombo(bootstrap.AllCategories);
+            PopulateFilterOptions(bootstrap.FilterOptions);
         }
         catch (Exception ex) { AppMessageBox.ShowError(LanguageManager.GetString("Msg_LoadFailed") + ex.Message); }
     }
 
-    /// <summary>批量重建搜索索引（一次 SaveChanges）</summary>
-    private async Task RebuildSearchIndexBatchAsync(List<Movie> movies)
-    {
-        var needUpdate = movies.Where(m => string.IsNullOrEmpty(m.SearchIndex)).ToList();
-        if (needUpdate.Count == 0) return;
-        foreach (var m in needUpdate)
-            m.SearchIndex = PinyinIndexHelper.BuildSearchIndex(m.Title, m.OriginalTitle, m.Director, m.Cast);
-        await _context.SaveChangesAsync();
-    }
-
+    // 原 RebuildSearchIndexBatchAsync / AutoAssignCountryCategoriesBatchAsync 已下沉到
+    // EasyMovie.Data.MovieBootstrapService：改用窄投影 + 桩实体单列更新，全程不读取
+    // PosterData。原实现每次窗口 Loaded 都把全库海报读进内存，只为填几个下拉框
+    // （实测 290 部 165 ms / 25.62 MB，2000 部 1522 ms / 176 MB）。
+    // 语义由 Tests/Core.Tests/MovieBootstrapTests.cs 的 Oracle（优化前全量实现）逐字段守护。
+    //
     // 原 IsValidCategoryName 与 JunkCategoryNames 已抽到
     // EasyMovie.Core.Helpers.CategoryNameValidator（行为逐字节一致），
     // 以便纳入单元测试保护。行为由 Tests/Core.Tests/CategoryNameValidatorTests.cs 锁定。
-
-    /// <summary>批量清理无效分类并自动分配国家分类</summary>
-    private async Task AutoAssignCountryCategoriesBatchAsync(List<Movie> movies, List<Category> allCats)
-    {
-        // 1. 清理无效分类
-        var invalidCats = allCats.Where(c => !CategoryNameValidator.IsValidCategoryName(c.Name)).ToList();
-        foreach (var cat in invalidCats)
-        {
-            foreach (var m in movies.Where(m => m.CategoryId == cat.Id))
-                m.CategoryId = null;
-            _context.Categories.Remove(cat);
-        }
-        if (invalidCats.Count > 0) await _context.SaveChangesAsync();
-
-        // 2. 为有国家信息但无分类的电影自动分配分类
-        var uncatMovies = movies.Where(m => !m.CategoryId.HasValue && !string.IsNullOrWhiteSpace(m.Country)).ToList();
-        if (uncatMovies.Count == 0) return;
-
-        // 重新加载分类（可能已删除无效分类）
-        var validCats = await _categoryService.GetAllAsync();
-        foreach (var movie in uncatMovies)
-        {
-            var firstCountry = movie.Country!.Split('/', '·')
-                .FirstOrDefault(c => CategoryNameValidator.IsValidCategoryName(c.Trim()))?.Trim();
-            if (string.IsNullOrEmpty(firstCountry) || !CategoryNameValidator.IsValidCategoryName(firstCountry)) continue;
-            var existing = validCats.FirstOrDefault(c => c.Name == firstCountry);
-            if (existing != null)
-            {
-                movie.CategoryId = existing.Id;
-            }
-            else
-            {
-                var newCat = new Category { Name = firstCountry, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
-                _context.Categories.Add(newCat);
-                await _context.SaveChangesAsync();
-                validCats.Add(newCat);
-                movie.CategoryId = newCat.Id;
-            }
-        }
-        await _context.SaveChangesAsync();
-    }
 
     private void PopulateCategoryFilter(List<Category> categories, bool hasUncategorized = true)
     {
@@ -248,14 +192,8 @@ public partial class MovieListView : UserControl
         }
     }
 
-    private void PopulateYearFilter(List<Movie> allMovies)
-    {
-        YearFilter.Items.Clear();
-        YearFilter.Items.Add(new ComboBoxItem { Content = LanguageManager.GetString("MovieLib_AllYears") });
-        var years = allMovies.Where(m => m.Year > 0).Select(m => m.Year).Distinct().OrderByDescending(y => y).ToList();
-        foreach (var year in years) YearFilter.Items.Add(new ComboBoxItem { Content = year.ToString(), Tag = year });
-        YearFilter.SelectedIndex = 0;
-    }
+    // 原 PopulateYearFilter 已并入 PopulateFilterOptions：年份选项改由
+    // MovieBootstrapService 派生（可单元测试），View 只负责把值塞进 ComboBox。
 
     public async Task RefreshCurrentPageAsync()
     {
@@ -361,57 +299,38 @@ public partial class MovieListView : UserControl
         return items.Count > 0 ? items : null;
     }
 
-    private void PopulateAdvancedFilterOptions(List<Movie> allMovies)
+    /// <summary>
+    /// 填充年份/国家/语言/导演下拉框与范围滑块。
+    /// 数据由 MovieBootstrapService.BuildFilterOptions 派生（纯数据，可单元测试），
+    /// 这里只做 WPF 控件赋值。
+    /// </summary>
+    private void PopulateFilterOptions(MovieFilterOptions o)
     {
+        // 年份
+        YearFilter.Items.Clear();
+        YearFilter.Items.Add(new ComboBoxItem { Content = LanguageManager.GetString("MovieLib_AllYears") });
+        foreach (var year in o.Years) YearFilter.Items.Add(new ComboBoxItem { Content = year.ToString(), Tag = year });
+        YearFilter.SelectedIndex = 0;
+
         // 国家
         CountryFilter.Items.Clear();
-        var countries = allMovies
-            .Where(m => !string.IsNullOrWhiteSpace(m.Country))
-            .SelectMany(m => m.Country!.Split('/', ' ', '·', ','))
-            .Select(c => TextCleaner.CleanHtmlFragment(c.Trim()))
-            .Where(c => !string.IsNullOrEmpty(c) && CategoryNameValidator.IsValidCategoryName(c))
-            .Distinct()
-            .OrderBy(c => c)
-            .ToList();
-        foreach (var c in countries) CountryFilter.Items.Add(new ComboBoxItem { Content = c, Tag = c });
+        foreach (var c in o.Countries) CountryFilter.Items.Add(new ComboBoxItem { Content = c, Tag = c });
 
         // 语言
         LanguageFilter.Items.Clear();
-        var languages = allMovies
-            .Where(m => !string.IsNullOrWhiteSpace(m.Language))
-            .SelectMany(m => m.Language!.Split('/', ' ', '·', ','))
-            .Select(l => TextCleaner.CleanHtmlFragment(l.Trim()))
-            .Where(l => !string.IsNullOrEmpty(l))
-            .Distinct()
-            .OrderBy(l => l)
-            .ToList();
-        foreach (var l in languages) LanguageFilter.Items.Add(new ComboBoxItem { Content = l, Tag = l });
+        foreach (var l in o.Languages) LanguageFilter.Items.Add(new ComboBoxItem { Content = l, Tag = l });
 
         // 导演
         DirectorFilter.Items.Clear();
-        var directors = allMovies
-            .Where(m => !string.IsNullOrWhiteSpace(m.Director))
-            .SelectMany(m => m.Director!.Split('/', ','))
-            .Select(d => TextCleaner.CleanHtmlFragment(d.Trim()))
-            .Where(d => !string.IsNullOrEmpty(d))
-            .Distinct()
-            .OrderBy(d => d)
-            .ToList();
-        foreach (var d in directors) DirectorFilter.Items.Add(new ComboBoxItem { Content = d, Tag = d });
+        foreach (var d in o.Directors) DirectorFilter.Items.Add(new ComboBoxItem { Content = d, Tag = d });
 
-        // 根据实际数据设置范围滑块的 Minimum/Maximum
-        var currentYear = DateTime.Now.Year;
-        var validYears = allMovies
-            .Where(m => m.Year >= 1880 && m.Year <= currentYear + 1)
-            .Select(m => (double)m.Year).ToList();
-        if (validYears.Count > 0)
+        // 年份范围滑块（无有效年份时保留 XAML 默认值）
+        if (o.HasYearRange)
         {
-            var minY = Math.Floor(validYears.Min() / 10.0) * 10;
-            var maxY = Math.Min(currentYear, Math.Ceiling(validYears.Max() / 10.0) * 10);
-            YearRangeSlider.Minimum = minY;
-            YearRangeSlider.Maximum = maxY;
-            YearRangeSlider.LowerValue = minY;
-            YearRangeSlider.UpperValue = maxY;
+            YearRangeSlider.Minimum = o.YearMin;
+            YearRangeSlider.Maximum = o.YearMax;
+            YearRangeSlider.LowerValue = o.YearMin;
+            YearRangeSlider.UpperValue = o.YearMax;
         }
 
         RatingRangeSlider.Minimum = 0;
@@ -419,15 +338,13 @@ public partial class MovieListView : UserControl
         RatingRangeSlider.LowerValue = 0;
         RatingRangeSlider.UpperValue = 10;
 
-        var validRuntimes = allMovies.Where(m => m.Runtime > 0 && m.Runtime < 600).Select(m => (double)m.Runtime).ToList();
-        if (validRuntimes.Count > 0)
+        // 片长范围滑块（无有效片长时保留 XAML 默认值）
+        if (o.HasRuntimeRange)
         {
-            var minRT = Math.Floor(validRuntimes.Min() / 30.0) * 30;
-            var maxRT = Math.Ceiling(validRuntimes.Max() / 30.0) * 30;
-            RuntimeRangeSlider.Minimum = minRT;
-            RuntimeRangeSlider.Maximum = maxRT;
-            RuntimeRangeSlider.LowerValue = minRT;
-            RuntimeRangeSlider.UpperValue = maxRT;
+            RuntimeRangeSlider.Minimum = o.RuntimeMin;
+            RuntimeRangeSlider.Maximum = o.RuntimeMax;
+            RuntimeRangeSlider.LowerValue = o.RuntimeMin;
+            RuntimeRangeSlider.UpperValue = o.RuntimeMax;
         }
 
         // 加载已保存筛选列表
@@ -1799,7 +1716,8 @@ public partial class MovieListView : UserControl
             var addedIds = new List<int>();
 
             // 阶段1: 快速导入所有文件 (跳过已存在的)
-            var existingPaths = new HashSet<string>((await _movieService.GetAllAsync()).Where(m => m.FilePath != null).Select(m => m.FilePath!));
+            // 只需要 FilePath 一列做去重，不要改回 GetAllAsync()（会连全库海报一起读进来）
+            var existingPaths = await new MovieBootstrapService(_context).GetExistingFilePathsAsync();
             for (int i = 0; i < files.Count; i++)
             {
                 if (existingPaths.Contains(files[i])) { _mainWindow?.SetStatus("(" + (i + 1) + "/" + files.Count + ") 跳过重复: " + Path.GetFileName(files[i]), true); continue; }
