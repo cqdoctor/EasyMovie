@@ -229,6 +229,7 @@ public partial class VideoPlayerHost : UserControl
                 return true;
             }
         }
+        // 媒体尚未解析完成时 Size() 会抛，属预期中间态；调用方按 false 走默认宽高比
         catch { }
         return false;
     }
@@ -412,6 +413,7 @@ public partial class VideoPlayerHost : UserControl
             // 应用跨电影记忆的偏好
             _aspectMode = _lastAspectMode;
             _rateIndex = _lastRateIndex;
+            // 播放器刚建出、音频输出未就绪时设音量会抛，属预期；下方 overlay 仍会显示目标音量
             try { _mediaPlayer.Volume = _lastVolume; } catch { }
             _overlay?.SetVolumeDisplay(_lastVolume);
             _overlay?.SetAspectDisplay(AspectModeShortLabel(_aspectMode));
@@ -714,7 +716,7 @@ public partial class VideoPlayerHost : UserControl
             System.IO.File.AppendAllText(System.IO.Path.Combine(dir, "debug.log"),
                 $"[{DateTime.Now:HH:mm:ss.fff}] {msg}\n");
         }
-        catch { }
+        catch { /* 故意留空：日志器自身的兜底，写不进去只能放弃（再记就会递归） */ }
     }
 
     /// <summary>播放区铺满整个 RootGrid（全屏/迷你模式用）。</summary>
@@ -960,7 +962,11 @@ public partial class VideoPlayerHost : UserControl
                 if (hit != null) return hit;
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            // 外挂字幕扫不到只影响字幕，不阻断播放；但失败原因（目录不可访问/权限）用户无从得知，留痕
+            Log.Warning(ex, "扫描外挂字幕失败: {Path}", moviePath);
+        }
         return null;
     }
 
@@ -1085,6 +1091,7 @@ public partial class VideoPlayerHost : UserControl
     {
         if (_mediaPlayer == null) return;
         _audioDelay += deltaMs * 1000L; // SetAudioDelay 单位为微秒
+        // 高频快捷键路径，失败只表现为音画不同步未修正，不记日志避免刷屏
         try { _mediaPlayer.SetAudioDelay(_audioDelay); } catch { }
         _overlay?.SetAudioDelayDisplay(_audioDelay);
     }
@@ -1112,12 +1119,17 @@ public partial class VideoPlayerHost : UserControl
             var next = list[idx + 1];
             Movie? nextMovie = null;
             try { using var ctx = DbHelper.CreateContext(); nextMovie = ctx.Movies.FirstOrDefault(m => m.FilePath == next); }
+            // 查不到库记录就退化为临时 Movie（仍能播，只是没有进度/元数据），属可接受的降级
             catch { }
             _movie = nextMovie ?? new Movie { FilePath = next, Title = Path.GetFileNameWithoutExtension(next) };
             _overlay?.SetTitle(_movie.Title ?? Path.GetFileNameWithoutExtension(next));
             StartPlayback();
         }
-        catch { }
+        catch (Exception ex)
+        {
+            // 连播失败表现为"播完就停住，什么都不发生"，用户完全无从判断，必须留痕
+            Log.Warning(ex, "自动连播下一部失败: {Path}", _movie?.FilePath);
+        }
     }
 
     #endregion
@@ -1178,6 +1190,7 @@ public partial class VideoPlayerHost : UserControl
             _isPlaying = false;
             _overlay?.SetPlaying(false);
         }
+        // 逐帧在未缓冲到该帧时会抛，属高频交互中的预期抖动，不记日志
         try { _mediaPlayer.NextFrame(); } catch { }
     }
 
@@ -1258,6 +1271,7 @@ public partial class VideoPlayerHost : UserControl
                     hostHwnd = new WindowInteropHelper(host).EnsureHandle();
                 });
             }
+            // 离屏窗口建不出就退回无窗口抽帧，仍可能出图，属预期降级
             catch { hostHwnd = IntPtr.Zero; host = null; }
 
             try
@@ -1267,7 +1281,7 @@ public partial class VideoPlayerHost : UserControl
                 using var media = new Media(lib, filePath, FromType.FromPath);
                 media.AddOption(":avcodec-hw=none");   // 后台抽帧用软解，不抢主播放器硬件解码
                 using var gen = new MediaPlayer(media);
-                if (hostHwnd != IntPtr.Zero) { try { gen.Hwnd = hostHwnd; } catch { } }
+                if (hostHwnd != IntPtr.Zero) { try { gen.Hwnd = hostHwnd; } catch { } }  // 绑定窗口失败仍可抽帧
                 gen.Play();
                 Thread.Sleep(500);                 // 等时长/首帧就绪
                 var len = gen.Length;              // 毫秒
@@ -1278,6 +1292,7 @@ public partial class VideoPlayerHost : UserControl
                 {
                     if (_genMovieId != expected) return;   // 切换影片，打断旧任务
                     var t = (long)(len * (i + 0.5) / count);
+                    // 以下两处在逐帧循环内（最多 48 次/部），单帧失败只丢一张缩略图，记日志得不偿失
                     try { gen.Time = t; } catch { }
                     Thread.Sleep(160);                    // 等该位置帧渲染
                     var path = Path.Combine(thumbDir, $"t{i}.png");
@@ -1286,13 +1301,18 @@ public partial class VideoPlayerHost : UserControl
                     while (!File.Exists(path) && wait < 600) { Thread.Sleep(20); wait += 20; }
                     lock (_thumbLock) _thumbnails.Add((t, path));
                 }
-                try { gen.Stop(); } catch { }
+                try { gen.Stop(); } catch { }   // 停止失败仅影响资源回收，帧已抽完
             }
-            catch { }
+            catch (Exception ex)
+            {
+                // 抽帧整体失败 = 进度条缩略图条全空，是最容易被当成"功能没做"的静默失败，必须留痕
+                Log.Warning(ex, "生成缩略图失败: {Path}", filePath);
+            }
             finally
             {
                 if (host != null)
                 {
+                    // 关闭离屏窗口失败 = 残留一个 1×1 隐藏窗口，不影响功能
                     try { Application.Current?.Dispatcher.Invoke(() => host.Close()); } catch { }
                 }
             }
@@ -1426,7 +1446,11 @@ public partial class VideoPlayerHost : UserControl
                     }
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                // 解析失败会回退成"解析中，请稍后再试"，用户会以为只是没准备好，留痕好区分
+                Log.Warning(ex, "读取媒体信息失败");
+            }
         }
         if (list.Count == 0) list.Add(("提示", "媒体信息解析中，请稍后再试"));
         return list;

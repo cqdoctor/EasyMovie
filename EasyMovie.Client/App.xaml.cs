@@ -74,7 +74,11 @@ public partial class App : Application
             else
                 dispatcher?.BeginInvoke(new Action(() => splash.Close(TimeSpan.Zero)));
         }
-        catch { }
+        catch (Exception ex)
+        {
+            // 闪屏关不掉会挡住主窗口，属启动可视性故障，必须留痕
+            LogStartup("启动闪屏关闭失败: " + ex.Message);
+        }
         _splashScreen = null;
         LogStartup("启动闪屏已关闭");
     }
@@ -89,7 +93,7 @@ public partial class App : Application
             File.AppendAllText(Path.Combine(dir, "startup.log"),
                 $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] {msg}\n");
         }
-        catch { }
+        catch { /* 故意留空：这里再调用日志会无限递归（logs 不可写时唯一可靠的处置就是放弃） */ }
     }
 
     /// <summary>模块初始化器：CLR 加载本程序集后、任何类型静态构造之前立即执行，用于探测"OnStartup 之前"的极早期耗时。</summary>
@@ -106,6 +110,7 @@ public partial class App : Application
         if (!createdNew)
         {
             LogStartup($"已有实例运行，本实例退出 (PID={Environment.ProcessId})");
+            // 即将 Shutdown，Dispose 只是尽力清理；失败不影响本实例退出
             try { _singleInstanceMutex.Dispose(); _singleInstanceMutex = null; } catch { }
             Shutdown();
             return;
@@ -116,7 +121,9 @@ public partial class App : Application
 
         // 启动期并发后台任务多（DB 预热、海报迁移、首页预载、备份、文件夹监控等），
         // .NET 线程池默认懒建线程（约 500ms/个），会把并发的 Task.Run 排队饿死 → 提前扩容最小线程数。
-        try { ThreadPool.SetMinThreads(16, 16); } catch { }
+        // 最小线程数设置失败 = 后续并发 Task.Run 会被懒建线程拖慢，直接影响启动体感，需留痕
+        try { ThreadPool.SetMinThreads(16, 16); }
+        catch (Exception ex) { LogStartup($"线程池最小线程数设置失败: {ex.Message}"); }
 
         // 后台预热数据库（首次 EnsureCreated 约数十秒重活）。尽早启动，让首次迁移在后台线程跑，
         // 避免被后续 UI 线程创建 DbContext 抢先触发、阻塞首帧渲染导致启动闪屏长时间不消失。
@@ -167,6 +174,7 @@ public partial class App : Application
             var ex = args.ExceptionObject as Exception;
             DumpCrash("AppDomain.UnhandledException", ex);
             Log.Fatal(ex, "未处理的异常");
+            // 异常本体已由 DumpCrash 落盘 crash.log；弹窗只是给用户看的提示，失败不必再记
             try { AppMessageBox.ShowError($"严重错误: {ex?.Message}", "错误"); } catch { }
         };
 
@@ -174,6 +182,7 @@ public partial class App : Application
         {
             DumpCrash("DispatcherUnhandledException", args.Exception);
             Log.Error(args.Exception, "UI线程异常");
+            // 同上：异常已进日志，弹窗失败无需再记
             try { AppMessageBox.ShowWarning(args.Exception.Message, "错误"); } catch { }
             args.Handled = true;
         };
@@ -245,6 +254,7 @@ public partial class App : Application
             _singleInstanceMutex?.Dispose();
             _singleInstanceMutex = null;
         }
+        // 进程即将退出，未释放的具名互斥体会由 OS 回收；此处失败不影响退出
         catch { }
         Log.Information("EasyMovie 退出");
         Log.CloseAndFlush();
@@ -334,7 +344,11 @@ public partial class App : Application
             if (key?.GetValue("AppsUseLightTheme") is int v)
                 return v == 0; // 0 表示系统使用深色
         }
-        catch { }
+        catch (Exception ex)
+        {
+            // 读不到注册表会静默回退到"夜间时间判定"，表现为系统主题跟随失灵——留痕好查
+            Log.Warning(ex, "读取系统深浅色注册表失败，回退夜间时间判定");
+        }
         return AppSettings.IsNightTime();
     }
 
@@ -359,7 +373,10 @@ public partial class App : Application
             _lastSystemDark = nowDark;
             Current.Dispatcher.Invoke(() => ApplyTheme(nowDark));
         }
-        catch { }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "系统主题变化后应用主题失败");
+        }
     }
 
     /// <summary>加载指定皮肤，写入刷子 + 切换主色调</summary>
