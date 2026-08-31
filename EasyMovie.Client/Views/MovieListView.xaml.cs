@@ -247,27 +247,22 @@ public partial class MovieListView : UserControl
         }
     }
 
+    // 以下四个方法的**解析逻辑**已抽到 EasyMovie.Core.Helpers.MovieQueryBuilder（纯函数，可单元测试），
+    // 这里只保留 WPF 控件读取。行为逐项等价，由 Tests/Core.Tests/MovieQueryBuilderTests.cs 锁定。
+
     private (string? keyword, int? categoryId, WatchStatus? status) GetFilterValues()
     {
-        string? keyword = string.IsNullOrWhiteSpace(SearchBox.Text) ? null : SearchBox.Text.Trim();
-        int? categoryId = null;
-        if (CategoryFilter.SelectedItem is ComboBoxItem ci && ci.Tag is int cid) categoryId = cid;
-        WatchStatus? status = null;
-        if (StatusFilter.SelectedItem is ComboBoxItem si && si.Tag is string st) status = st switch { "NotWatched" => WatchStatus.NotWatched, "WantToWatch" => WatchStatus.WantToWatch, "Watched" => WatchStatus.Watched, _ => null };
+        var keyword = MovieQueryBuilder.NormalizeKeyword(SearchBox.Text);
+        var categoryId = CategoryFilter.SelectedItem is ComboBoxItem ci ? MovieQueryBuilder.ParseIdTag(ci.Tag) : null;
+        var status = StatusFilter.SelectedItem is ComboBoxItem si ? MovieQueryBuilder.ParseStatusTag(si.Tag) : null;
         return (keyword, categoryId, status);
     }
 
     private int? GetYearFilter()
-    {
-        if (YearFilter.SelectedItem is ComboBoxItem yi && yi.Tag is int y) return y;
-        return null;
-    }
+        => YearFilter.SelectedItem is ComboBoxItem yi ? MovieQueryBuilder.ParseIdTag(yi.Tag) : null;
 
     private (string? sortBy, bool sortDesc) GetSortInfo()
-    {
-        if (SortFilter.SelectedItem is ComboBoxItem si && si.Tag is string st) { var p = st.Split('_'); if (p.Length == 2) return (p[0], p[1] == "desc"); }
-        return ("createdat", true);
-    }
+        => MovieQueryBuilder.ParseSortTag(SortFilter.SelectedItem is ComboBoxItem si ? si.Tag : null);
 
     /// <summary>高级筛选参数</summary>
     private record AdvancedFilterValues(
@@ -276,12 +271,12 @@ public partial class MovieListView : UserControl
 
     private AdvancedFilterValues GetAdvancedFilterValues()
     {
-        int? yearFrom = YearRangeSlider.LowerValue > YearRangeSlider.Minimum ? (int)YearRangeSlider.LowerValue : null;
-        int? yearTo = YearRangeSlider.UpperValue < YearRangeSlider.Maximum ? (int)YearRangeSlider.UpperValue : null;
-        int? ratingMin = RatingRangeSlider.LowerValue > RatingRangeSlider.Minimum ? (int)RatingRangeSlider.LowerValue : null;
-        int? ratingMax = RatingRangeSlider.UpperValue < RatingRangeSlider.Maximum ? (int)RatingRangeSlider.UpperValue : null;
-        int? runtimeMin = RuntimeRangeSlider.LowerValue > RuntimeRangeSlider.Minimum ? (int)RuntimeRangeSlider.LowerValue : null;
-        int? runtimeMax = RuntimeRangeSlider.UpperValue < RuntimeRangeSlider.Maximum ? (int)RuntimeRangeSlider.UpperValue : null;
+        int? yearFrom = MovieQueryBuilder.LowerBound(YearRangeSlider.LowerValue, YearRangeSlider.Minimum);
+        int? yearTo = MovieQueryBuilder.UpperBound(YearRangeSlider.UpperValue, YearRangeSlider.Maximum);
+        int? ratingMin = MovieQueryBuilder.LowerBound(RatingRangeSlider.LowerValue, RatingRangeSlider.Minimum);
+        int? ratingMax = MovieQueryBuilder.UpperBound(RatingRangeSlider.UpperValue, RatingRangeSlider.Maximum);
+        int? runtimeMin = MovieQueryBuilder.LowerBound(RuntimeRangeSlider.LowerValue, RuntimeRangeSlider.Minimum);
+        int? runtimeMax = MovieQueryBuilder.UpperBound(RuntimeRangeSlider.UpperValue, RuntimeRangeSlider.Maximum);
 
         var countries = GetMultiSelectValues(CountryFilter);
         var languages = GetMultiSelectValues(LanguageFilter);
@@ -291,13 +286,8 @@ public partial class MovieListView : UserControl
     }
 
     private static List<string>? GetMultiSelectValues(System.Windows.Controls.ListBox listBox)
-    {
-        var items = listBox.SelectedItems.Cast<ComboBoxItem>()
-            .Where(ci => ci.Tag is string s && s != "_all")
-            .Select(ci => (string)ci.Tag)
-            .ToList();
-        return items.Count > 0 ? items : null;
-    }
+        => MovieQueryBuilder.NormalizeMultiSelect(
+            listBox.SelectedItems.Cast<ComboBoxItem>().Select(ci => ci.Tag));
 
     /// <summary>
     /// 填充年份/国家/语言/导演下拉框与范围滑块。
