@@ -341,7 +341,7 @@ public class MovieBootstrapService
 
         // 片长范围滑块
         var validRuntimes = rows.Where(r => r.Runtime > 0 && r.Runtime < 600)
-                                .Select(r => (double)r.Runtime)
+                                .Select(r => (double)r.Runtime!.Value)
                                 .ToList();
         if (validRuntimes.Count > 0)
         {

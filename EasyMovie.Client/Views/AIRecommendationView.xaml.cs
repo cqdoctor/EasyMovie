@@ -53,68 +53,38 @@ public partial class AIRecommendationView : UserControl
     {
         try
         {
-            var ctx = _vm.Context;
-            var movies = await ctx.Movies
-                .Include(m => m.Category)
-                .Include(m => m.MovieTags).ThenInclude(mt => mt.Tag)
-                .ToListAsync();
-
-            var total = movies.Count;
-            var watched = movies.Count(m => m.WatchStatus == WatchStatus.Watched);
-            var wantToWatch = movies.Count(m => m.WatchStatus == WatchStatus.WantToWatch);
-            var favorites = movies.Count(m => m.IsFavorite);
-
-            var categories = movies.Where(m => m.Category != null)
-                .GroupBy(m => m.Category!.Name)
-                .OrderByDescending(g => g.Count()).Take(10)
-                .Select(g => $"{g.Key}({g.Count()}部)");
-
-            var topDirectors = movies.Where(m => !string.IsNullOrEmpty(m.Director))
-                .SelectMany(m => m.Director!.Split('/', ',').Select(d => d.Trim()))
-                .GroupBy(d => d).OrderByDescending(g => g.Count()).Take(10)
-                .Select(g => $"{g.Key}({g.Count()}部)");
-
-            var tags = movies.SelectMany(m => m.MovieTags.Select(mt => mt.Tag?.Name))
-                .Where(n => n != null).GroupBy(n => n).OrderByDescending(g => g.Count()).Take(10)
-                .Select(g => $"{g.Key}({g.Count()}部)");
-
-            var watchedMovies = movies.Where(m => m.WatchStatus == WatchStatus.Watched && m.Rating.HasValue)
-                .OrderByDescending(m => m.Rating).Take(15)
-                .Select(m => $"- {m.Title} ({m.Year}) ⭐{m.Rating} | {m.Director?.Split('/').FirstOrDefault() ?? ""} | {m.Category?.Name ?? ""}");
-
-            var wantWatchList = movies.Where(m => m.WatchStatus == WatchStatus.WantToWatch)
-                .Take(20).Select(m => $"- {m.Title} ({m.Year}) | {m.Category?.Name ?? ""}");
-
-            var unwatched = movies.Where(m => m.WatchStatus == WatchStatus.NotWatched && m.Rating.HasValue)
-                .OrderByDescending(m => m.Rating).Take(20)
-                .Select(m => $"- {m.Title} ({m.Year}) ⭐{m.Rating} | {m.Director?.Split('/').FirstOrDefault() ?? ""} | {m.Category?.Name ?? ""}");
+            // 影库概况由 AiLibrarySummaryService 准备：SQL 计数 + 窄投影 + 小表内存分组，
+            // 全程不读取 PosterData。原实现在这里全量加载（含 24 MB 海报 + 标签 JOIN），
+            // 而生成的 prompt 里一个字节的海报都不需要。
+            // 语义由 Tests/Core.Tests/AiLibrarySummaryTests.cs 的 Oracle 逐字段守护。
+            var summary = await new AiLibrarySummaryService(_vm.Context).BuildAsync();
 
             _cachedSystemPrompt = $"""
 你是 EasyMovie 的 AI 电影推荐助手。你了解用户的电影库，可以根据用户的偏好智能推荐电影。
 
 ## 用户的电影库概况
-- 总电影数: {total} 部
-- 已看: {watched} 部
-- 想看: {wantToWatch} 部
-- 收藏: {favorites} 部
+- 总电影数: {summary.Total} 部
+- 已看: {summary.Watched} 部
+- 想看: {summary.WantToWatch} 部
+- 收藏: {summary.Favorites} 部
 
 ### 类型分布
-{string.Join("\n", categories)}
+{string.Join("\n", summary.Categories)}
 
 ### 最爱导演
-{string.Join("\n", topDirectors)}
+{string.Join("\n", summary.TopDirectors)}
 
 ### 常用标签
-{string.Join("\n", tags)}
+{string.Join("\n", summary.Tags)}
 
 ### 已看且评分高的电影 (Top 15)
-{string.Join("\n", watchedMovies)}
+{string.Join("\n", summary.WatchedTop)}
 
 ### 用户标记"想看"的电影
-{string.Join("\n", wantWatchList)}
+{string.Join("\n", summary.WantWatchList)}
 
 ### 库中高分未看 (Top 20)
-{string.Join("\n", unwatched)}
+{string.Join("\n", summary.UnwatchedHighRated)}
 
 ## 你的任务
 1. 根据用户用自然语言描述的需求，从上述电影库中推荐合适的电影

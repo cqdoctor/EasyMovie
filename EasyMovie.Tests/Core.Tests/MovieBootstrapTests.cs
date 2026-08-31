@@ -283,7 +283,7 @@ public class MovieBootstrapTests : IDisposable
         }
 
         var validRuntimes = allMovies.Where(m => m.Runtime > 0 && m.Runtime < 600)
-                                     .Select(m => (double)m.Runtime).ToList();
+                                     .Select(m => (double)m.Runtime!.Value).ToList();
         double rMin = 0, rMax = 0;
         bool hasR = validRuntimes.Count > 0;
         if (hasR)
