@@ -21,7 +21,12 @@ namespace EasyMovie.Tests.Core.Tests;
 ///   1. 性能基线：产出可复现的耗时 / 托管堆分配数字（290 → 1000 → 2000 部劣化曲线）
 ///   2. 契约 Oracle：保留优化前的全量内存实现作为参考实现，与新实现逐字段比对
 ///   3. 复杂度护栏：2000 部规模下耗时设上限，防止 O(n²) 实现回归
+///
+/// 【必须串行】GC.GetTotalAllocatedBytes 是进程级全局计数器，基准测试类彼此并行会
+/// 把其他类的分配计入本类测量值。与 MovieBootstrapTests / RecommendationBenchmarkTests
+/// 同属 "Benchmark" Collection。
 /// </summary>
+[Collection("Benchmark")]
 public class StatisticsBenchmarkTests : IDisposable
 {
     private readonly ITestOutputHelper _out;
