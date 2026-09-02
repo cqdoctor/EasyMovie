@@ -82,4 +82,38 @@ public class MovieFilterState
 
     /// <summary>重置到首页（筛选/快速筛选变化时调用）。对应各处 <c>_currentPage = 1</c>。</summary>
     public void ResetToFirstPage() => _currentPage = 1;
+
+    // ───────────────── 视图模式（原 _isCardView / _isPosterView / _isCollectionView 三互斥标志） ─────────────────
+
+    private ViewMode _viewMode = ViewMode.Table;
+
+    /// <summary>当前视图呈现模式。原三互斥 bool 标志的等价表示（全 false = Table）。</summary>
+    public ViewMode ViewMode
+    {
+        get => _viewMode;
+        set => _viewMode = value;
+    }
+
+    /// <summary>切到表格视图。对应 TableViewBtn_Click。</summary>
+    public void SetTable() => _viewMode = ViewMode.Table;
+    /// <summary>切到卡片视图。对应 CardViewBtn_Click。</summary>
+    public void SetCard() => _viewMode = ViewMode.Card;
+    /// <summary>切到海报墙。对应 PosterViewBtn_Click。</summary>
+    public void SetPoster() => _viewMode = ViewMode.Poster;
+    /// <summary>切到合集视图。对应 CollectionView_Click。</summary>
+    public void SetCollection() => _viewMode = ViewMode.Collection;
+
+    /// <summary>
+    /// 视图模式循环切换：Table → Card → Poster → Collection → Table。
+    /// 逐字节复刻原 <c>CycleView()</c> 的四分支 if/else（当前 Table 时落 Card，Card→Poster，
+    /// Poster→Collection，其余即 Collection→Table）。
+    /// </summary>
+    public void CycleViewMode() => _viewMode = _viewMode switch
+    {
+        ViewMode.Table => ViewMode.Card,
+        ViewMode.Card => ViewMode.Poster,
+        ViewMode.Poster => ViewMode.Collection,
+        ViewMode.Collection => ViewMode.Table,
+        _ => ViewMode.Table,
+    };
 }
