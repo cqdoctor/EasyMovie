@@ -43,9 +43,7 @@ public partial class MovieListView : UserControl
     private readonly IRecommendationService _recommendationService;
     private readonly CollectionService _collectionService;
     private readonly MainWindow? _mainWindow;
-    private int _currentPage = 1;
-    private const int PageSize = 20;
-    private int _totalCount;
+    private readonly MovieFilterState _filterState = new();
     private bool _isCardView;
     private bool _isPosterView;
     private bool _isCollectionView;
@@ -212,16 +210,16 @@ public partial class MovieListView : UserControl
             adv.yearFrom ?? year, adv.yearTo ?? year,
             adv.ratingMin, adv.ratingMax, effectiveStatus,
             adv.countries, adv.languages, adv.runtimeMin, adv.runtimeMax, adv.directors,
-            sortInfo.sortBy, sortInfo.sortDesc, _currentPage, PageSize,
+            sortInfo.sortBy, sortInfo.sortDesc, _filterState.CurrentPage, _filterState.PageSize,
             _quickFilterFavorites ? true : null);
-        _totalCount = total;
+        _filterState.TotalCount = total;
         if (_isCardView) RenderCardView(movies); else if (_isPosterView) PosterWall.ItemsSource = movies; else MovieDataGrid.ItemsSource = movies;
-        var totalPages = (int)Math.Ceiling((double)total / PageSize);
-        PageInfo.Text = string.Format(LanguageManager.GetString("Msg_PageInfo"), total, _currentPage, Math.Max(1, totalPages));
-        PrevPageBtn.IsEnabled = _currentPage > 1;
-        NextPageBtn.IsEnabled = _currentPage < totalPages;
-        FirstPageBtn.IsEnabled = _currentPage > 1;
-        LastPageBtn.IsEnabled = _currentPage < totalPages;
+        var totalPages = _filterState.TotalPages;
+        PageInfo.Text = string.Format(LanguageManager.GetString("Msg_PageInfo"), total, _filterState.CurrentPage, Math.Max(1, totalPages));
+        PrevPageBtn.IsEnabled = _filterState.CurrentPage > 1;
+        NextPageBtn.IsEnabled = _filterState.CurrentPage < totalPages;
+        FirstPageBtn.IsEnabled = _filterState.CurrentPage > 1;
+        LastPageBtn.IsEnabled = _filterState.CurrentPage < totalPages;
         var hasMovies = movies.Any();
         MovieDataGrid.Visibility = !_isCardView && !_isPosterView && !_isCollectionView && hasMovies ? Visibility.Visible : Visibility.Collapsed;
         CardList.Visibility = _isCardView && hasMovies ? Visibility.Visible : Visibility.Collapsed;
@@ -356,7 +354,7 @@ public partial class MovieListView : UserControl
 
     private async void ApplyAdvancedFilter_Click(object sender, RoutedEventArgs e)
     {
-        _currentPage = 1;
+        _filterState.ResetToFirstPage();
         await LoadMoviesAsync();
     }
 
@@ -371,7 +369,7 @@ public partial class MovieListView : UserControl
         CountryFilter.SelectedItems.Clear();
         LanguageFilter.SelectedItems.Clear();
         DirectorFilter.SelectedItems.Clear();
-        _currentPage = 1;
+        _filterState.ResetToFirstPage();
         await LoadMoviesAsync();
     }
 
@@ -465,7 +463,7 @@ public partial class MovieListView : UserControl
         ApplyMultiSelect(DirectorFilter, filter.Directors);
 
         DeleteFilterBtn.Visibility = Visibility.Visible;
-        _currentPage = 1;
+        _filterState.ResetToFirstPage();
         _ = LoadMoviesAsync();
     }
 
@@ -1043,17 +1041,17 @@ public partial class MovieListView : UserControl
     private async Task SearchDebouncedAsync()
     {
         _isSearching = true;
-        try { _currentPage = 1; await LoadMoviesAsync(); }
+        try { _filterState.ResetToFirstPage(); await LoadMoviesAsync(); }
         finally { _isSearching = false; }
     }
-    private async void Filter_Changed(object sender, SelectionChangedEventArgs e) { if (_isPopulatingFilter) return; _currentPage = 1; await LoadMoviesAsync(); }
+    private async void Filter_Changed(object sender, SelectionChangedEventArgs e) { if (_isPopulatingFilter) return; _filterState.ResetToFirstPage(); await LoadMoviesAsync(); }
 
     private async void QuickFilter_Changed(object sender, RoutedEventArgs e)
     {
         if (_movieService == null) return;
         _quickFilterFavorites = QuickFilterFavorites.IsChecked == true;
         _quickFilterWatchlist = QuickFilterWatchlist.IsChecked == true;
-        _currentPage = 1;
+        _filterState.ResetToFirstPage();
         await LoadMoviesAsync();
     }
     private async void TableViewBtn_Click(object sender, RoutedEventArgs e) { _isCardView = false; _isPosterView = false; _isCollectionView = false; UpdateViewButtons(); await LoadMoviesAsync(); }
@@ -1623,10 +1621,10 @@ public partial class MovieListView : UserControl
         }
         catch (Exception ex) { Log.Error(ex, "TMDB 获取详情失败"); return null; }
     }
-    private async void FirstPage_Click(object sender, RoutedEventArgs e) { if (_currentPage > 1) { _currentPage = 1; await LoadMoviesAsync(); } }
-    private async void PrevPage_Click(object sender, RoutedEventArgs e) { if (_currentPage > 1) { _currentPage--; await LoadMoviesAsync(); } }
-    private async void NextPage_Click(object sender, RoutedEventArgs e) { var tp = (int)Math.Ceiling((double)_totalCount / PageSize); if (_currentPage < tp) { _currentPage++; await LoadMoviesAsync(); } }
-    private async void LastPage_Click(object sender, RoutedEventArgs e) { var tp = (int)Math.Ceiling((double)_totalCount / PageSize); if (_currentPage < tp) { _currentPage = tp; await LoadMoviesAsync(); } }
+    private async void FirstPage_Click(object sender, RoutedEventArgs e) { if (_filterState.CanGoPrev) { _filterState.GoToFirst(); await LoadMoviesAsync(); } }
+    private async void PrevPage_Click(object sender, RoutedEventArgs e) { if (_filterState.CanGoPrev) { _filterState.GoToPrev(); await LoadMoviesAsync(); } }
+    private async void NextPage_Click(object sender, RoutedEventArgs e) { if (_filterState.CanGoNext) { _filterState.GoToNext(); await LoadMoviesAsync(); } }
+    private async void LastPage_Click(object sender, RoutedEventArgs e) { if (_filterState.CanGoNext) { _filterState.GoToLast(); await LoadMoviesAsync(); } }
 
     private void PageJumpBox_PreviewTextInput(object sender, TextCompositionEventArgs e)
     {
@@ -1644,10 +1642,7 @@ public partial class MovieListView : UserControl
     {
         if (int.TryParse(PageJumpBox.Text, out var page))
         {
-            var totalPages = (int)Math.Ceiling((double)_totalCount / PageSize);
-            if (page < 1) page = 1;
-            if (page > totalPages) page = totalPages;
-            _currentPage = page;
+            _filterState.GoToPage(page);
             PageJumpBox.Text = string.Empty;
             await LoadMoviesAsync();
         }
@@ -1994,7 +1989,7 @@ public partial class MovieListView : UserControl
 
     public async void RefreshData()
     {
-        _currentPage = 1;
+        _filterState.ResetToFirstPage();
         await LoadMoviesAsync();
         await RefreshCategoryFilterAsync();
     }
