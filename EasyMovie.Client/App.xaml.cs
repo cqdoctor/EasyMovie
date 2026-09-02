@@ -7,6 +7,7 @@ using System.Windows.Media;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Windows.Threading;
+using EasyMovie.Core.Helpers;
 using EasyMovie.Core.Interfaces;
 using EasyMovie.Core.Models;
 using EasyMovie.Core.Services;
@@ -472,10 +473,10 @@ public partial class App : Application
                             movie.Title = apiResult.Title;
                             movie.OriginalTitle = apiResult.OriginalTitle;
                             movie.Year = apiResult.Year > 0 ? apiResult.Year : (year ?? 0);
-                            movie.Director = apiResult.Director;
-                            movie.Cast = apiResult.Cast;
-                            movie.Country = apiResult.Country;
-                            movie.Synopsis = apiResult.Synopsis;
+                            movie.Director = MovieCreditCleaner.CleanDirector(apiResult.Director);
+                            movie.Cast = TextCleaner.StripHtml(apiResult.Cast);
+                            movie.Country = TextCleaner.StripHtml(apiResult.Country);
+                            movie.Synopsis = TextCleaner.StripHtml(apiResult.Synopsis);
                             movie.PosterUrl = apiResult.PosterUrl;
                             movie.Runtime = apiResult.Runtime;
                             movie.DoubanId = apiResult.ExternalId;
@@ -486,10 +487,10 @@ public partial class App : Application
                                 var detail = await douban.GetDetailAsync(apiResult.ExternalId ?? "");
                                 if (detail != null)
                                 {
-                                    movie.Synopsis ??= detail.Synopsis;
+                                    movie.Synopsis ??= TextCleaner.StripHtml(detail.Synopsis);
                                     movie.Runtime ??= detail.Runtime;
-                                    movie.Director ??= detail.Director;
-                                    movie.Cast ??= detail.Cast;
+                                    movie.Director ??= MovieCreditCleaner.CleanDirector(detail.Director);
+                                    movie.Cast ??= TextCleaner.StripHtml(detail.Cast);
                                     movie.Country ??= detail.Country;
                                 }
                             }

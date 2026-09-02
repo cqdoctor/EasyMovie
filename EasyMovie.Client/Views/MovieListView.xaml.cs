@@ -736,9 +736,10 @@ public partial class MovieListView : UserControl
         if (!string.IsNullOrEmpty(statusText))
             detailPanel.Children.Add(new TextBlock { Text = statusText, FontSize = 11, Foreground = new SolidColorBrush(Color.FromRgb(255, 215, 0)), Margin = new Thickness(0, 0, 0, 2) });
 
-        // 简介
+        // 简介。显示侧兜底剥 HTML（与 MainWindow 详情面板同一原则：UI 不假设数据干净），
+        // 否则推荐卡上会露出 <p> 这类原始标签。
         if (!string.IsNullOrEmpty(movie.Synopsis))
-            detailPanel.Children.Add(new TextBlock { Text = movie.Synopsis, FontSize = 10, Foreground = hintBrush, TextWrapping = TextWrapping.Wrap, MaxHeight = 48, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 2, 0, 0) });
+            detailPanel.Children.Add(new TextBlock { Text = TextCleaner.StripHtml(movie.Synopsis), FontSize = 10, Foreground = hintBrush, TextWrapping = TextWrapping.Wrap, MaxHeight = 48, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 2, 0, 0) });
 
         // 推荐理由
         if (!string.IsNullOrEmpty(rec.Reason))
@@ -981,9 +982,14 @@ public partial class MovieListView : UserControl
                 var fetchCleanedDir = MovieCreditCleaner.CleanDirector(TextCleaner.StripHtml(info.Director ?? ""));
                 if (!string.IsNullOrEmpty(fetchCleanedDir) && fetchCleanedDir != m.Director) m.Director = fetchCleanedDir;
                 else if (dirInvalid && string.IsNullOrEmpty(fetchCleanedDir)) m.Director = "";
-                if (!string.IsNullOrEmpty(info.Cast) && info.Cast != m.Cast) m.Cast = TextCleaner.StripHtml(info.Cast);
-                if (!string.IsNullOrEmpty(info.Country) && info.Country != m.Country) m.Country = info.Country;
-                if (!string.IsNullOrEmpty(info.Synopsis) && info.Synopsis != m.Synopsis) m.Synopsis = TextCleaner.StripHtml(info.Synopsis);
+                // 先清洗再比较（导演字段已是这个写法）：拿原始值比较、写入清洗值会让两者永远不等，
+                // 每次刷新都把同一批电影重复判定为已更新并回写。
+                var fetchedCast = TextCleaner.StripHtml(info.Cast);
+                if (!string.IsNullOrEmpty(fetchedCast) && fetchedCast != m.Cast) m.Cast = fetchedCast;
+                var fetchedCountry = TextCleaner.StripHtml(info.Country);
+                if (!string.IsNullOrEmpty(fetchedCountry) && fetchedCountry != m.Country) m.Country = fetchedCountry;
+                var fetchedSynopsis = TextCleaner.StripHtml(info.Synopsis);
+                if (!string.IsNullOrEmpty(fetchedSynopsis) && fetchedSynopsis != m.Synopsis) m.Synopsis = fetchedSynopsis;
                 if (!string.IsNullOrEmpty(info.PosterUrl) && info.PosterUrl != m.PosterUrl)
                 {
                     m.PosterUrl = info.PosterUrl;
@@ -1291,10 +1297,15 @@ public partial class MovieListView : UserControl
                 if (!string.IsNullOrEmpty(cleanedDir) && cleanedDir != currentCleanedDir) { m.Director = cleanedDir; updated = true; }
                 // 当前导演无效但新数据也没有有效导演时，清空无效值
                 else if (currentDirInvalid && string.IsNullOrEmpty(cleanedDir) && !string.IsNullOrEmpty(m.Director)) { m.Director = ""; updated = true; }
-                if (!string.IsNullOrEmpty(info.Cast) && info.Cast != m.Cast) { m.Cast = TextCleaner.StripHtml(info.Cast); updated = true; }
-                if (!string.IsNullOrEmpty(info.Country) && info.Country != m.Country) { m.Country = info.Country; updated = true; }
+                // 先清洗再比较（与导演字段同一套写法）：若拿原始值比较、写入清洗值，
+                // 两者永远不等 → 每次手动刷新都会把同一批电影重复判定为已更新并回写。
+                var cleanCast = TextCleaner.StripHtml(info.Cast);
+                if (!string.IsNullOrEmpty(cleanCast) && cleanCast != m.Cast) { m.Cast = cleanCast; updated = true; }
+                var cleanCountry = TextCleaner.StripHtml(info.Country);
+                if (!string.IsNullOrEmpty(cleanCountry) && cleanCountry != m.Country) { m.Country = cleanCountry; updated = true; }
                 if (!string.IsNullOrEmpty(info.Language) && info.Language != m.Language) { m.Language = info.Language; updated = true; }
-                if (!string.IsNullOrEmpty(info.Synopsis) && info.Synopsis != m.Synopsis) { m.Synopsis = info.Synopsis; updated = true; }
+                var cleanSynopsis = TextCleaner.StripHtml(info.Synopsis);
+                if (!string.IsNullOrEmpty(cleanSynopsis) && cleanSynopsis != m.Synopsis) { m.Synopsis = cleanSynopsis; updated = true; }
                 if (!string.IsNullOrEmpty(info.PosterUrl) && info.PosterUrl != m.PosterUrl)
                 {
                     m.PosterUrl = info.PosterUrl;
@@ -1446,8 +1457,12 @@ public partial class MovieListView : UserControl
             var batchCleanedDir = MovieCreditCleaner.CleanDirector(TextCleaner.StripHtml(info.Director ?? ""));
             if (!string.IsNullOrEmpty(batchCleanedDir) && batchCleanedDir != m.Director) m.Director = batchCleanedDir;
             else if (batchDirInvalid && string.IsNullOrEmpty(batchCleanedDir)) m.Director = "";
-            if (!string.IsNullOrEmpty(info.Cast) && info.Cast != m.Cast) m.Cast = TextCleaner.StripHtml(info.Cast);
-            if (!string.IsNullOrEmpty(info.Country) && info.Country != m.Country) m.Country = info.Country;
+            // 先清洗再比较（Synopsis 已在上面就地清洗过，可直比）：
+            // 拿原始值比较、写入清洗值会让两者永远不等，每次批量刷新都重复判定为已更新。
+            var batchCleanedCast = TextCleaner.StripHtml(info.Cast);
+            if (!string.IsNullOrEmpty(batchCleanedCast) && batchCleanedCast != m.Cast) m.Cast = batchCleanedCast;
+            var batchCleanedCountry = TextCleaner.StripHtml(info.Country);
+            if (!string.IsNullOrEmpty(batchCleanedCountry) && batchCleanedCountry != m.Country) m.Country = batchCleanedCountry;
             if (!string.IsNullOrEmpty(info.Language) && info.Language != m.Language) m.Language = info.Language;
             if (!string.IsNullOrEmpty(info.Synopsis) && info.Synopsis != m.Synopsis) m.Synopsis = info.Synopsis;
             if (!string.IsNullOrEmpty(info.PosterUrl) && info.PosterUrl != m.PosterUrl)
@@ -1495,11 +1510,11 @@ public partial class MovieListView : UserControl
                 var dbMovie = await ctx.Movies.FindAsync(movie.Id);
                 if (dbMovie != null)
                 {
-                    dbMovie.Director = movie.Director;
-                    dbMovie.Cast = movie.Cast;
-                    dbMovie.Country = movie.Country;
+                    dbMovie.Director = MovieCreditCleaner.CleanDirector(movie.Director);
+                    dbMovie.Cast = TextCleaner.StripHtml(movie.Cast);
+                    dbMovie.Country = TextCleaner.StripHtml(movie.Country);
                     dbMovie.Language = movie.Language;
-                    dbMovie.Synopsis = movie.Synopsis;
+                    dbMovie.Synopsis = TextCleaner.StripHtml(movie.Synopsis);
                     dbMovie.PosterUrl = movie.PosterUrl;
                     dbMovie.PosterData = movie.PosterData;
                     if (movie.PosterData != null) EasyMovie.Client.Helpers.PosterCache.Save(dbMovie.Id, movie.PosterData);
@@ -1698,7 +1713,7 @@ public partial class MovieListView : UserControl
                             var info = await api.GetDetailAsync(sr.Results[0].ExternalId ?? "", sr.Results[0].Source) ?? sr.Results[0];
                             if (!string.IsNullOrEmpty(info.Director)) m.Director = MovieCreditCleaner.CleanDirector(TextCleaner.StripHtml(info.Director));
                             if (!string.IsNullOrEmpty(info.Cast)) m.Cast = TextCleaner.StripHtml(info.Cast);
-                            if (!string.IsNullOrEmpty(info.Country)) m.Country = info.Country;
+                            if (!string.IsNullOrEmpty(info.Country)) m.Country = TextCleaner.StripHtml(info.Country);
                             if (!string.IsNullOrEmpty(info.Synopsis)) m.Synopsis = TextCleaner.StripHtml(info.Synopsis);
                             if (!string.IsNullOrEmpty(info.PosterUrl))
                             {

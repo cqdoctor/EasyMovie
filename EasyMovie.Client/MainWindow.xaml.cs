@@ -13,6 +13,7 @@ using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using EasyMovie.Client.Views;
 using EasyMovie.Core.Enums;
+using EasyMovie.Core.Helpers;
 using EasyMovie.Core.Models;
 using EasyMovie.Data;
 using MaterialDesignThemes.Wpf;
@@ -534,7 +535,11 @@ public partial class MainWindow : Window
         DetailDirector.Text = string.IsNullOrEmpty(movie.Director) ? "" : "🎬 " + movie.Director;
         DetailCountry.Text = string.IsNullOrEmpty(movie.Country) ? "" : "🌍 " + movie.Country;
         DetailCast.Text = string.IsNullOrEmpty(movie.Cast) ? "" : "🎭 " + movie.Cast;
-        DetailSynopsis.Text = movie.Synopsis ?? "";
+        // 显示侧兜底剥 HTML：UI 不假设数据库一定干净。
+        // 实测（290 部）：116 条简介带 <p> 等标签，另有 25 条仅含多余空白/HTML 实体，
+        // 合计 141 条经 StripHtml 后内容会变化。不剥就会把 <p> 原样渲染给用户。
+        // 写入侧已统一清洗、v3 迁移会重写存量，这里再兜一层以防未覆盖的写入路径。
+        DetailSynopsis.Text = TextCleaner.StripHtml(movie.Synopsis) ?? "";
         DetailStatus.Text = movie.WatchStatus switch
         {
             WatchStatus.WantToWatch => LanguageManager.GetString("WatchStatus_WantToWatch"),

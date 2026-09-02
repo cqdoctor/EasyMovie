@@ -4,6 +4,7 @@ using System.Linq;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
+using EasyMovie.Core.Helpers;
 using EasyMovie.Client.Helpers;
 using Microsoft.EntityFrameworkCore;
 using EasyMovie.Core;
@@ -44,11 +45,18 @@ public static class MetadataSyncService
         var updated = false;
 
         // 以下更新逻辑与 MovieListView 的刷新元数据保持一致，且刻意不修改个人评分/状态/笔记/片名。
-        if (!string.IsNullOrEmpty(info.Director) && info.Director != m.Director) { m.Director = info.Director; updated = true; }
-        if (!string.IsNullOrEmpty(info.Cast) && info.Cast != m.Cast) { m.Cast = info.Cast; updated = true; }
-        if (!string.IsNullOrEmpty(info.Country) && info.Country != m.Country) { m.Country = info.Country; updated = true; }
+        // 必须先清洗、再比较。若"拿原始值比较、写入清洗值"，原始值与清洗值永远不相等，
+        // 于是每个同步周期都会把同一批电影重复判定为 updated 并回写。
+        // 实测库中有 116 部简介带 HTML 标签，这条顺序错误会白产生 116 次无意义 UPDATE / 周期。
+        var cleanDirector = MovieCreditCleaner.CleanDirector(info.Director);
+        if (!string.IsNullOrEmpty(cleanDirector) && cleanDirector != m.Director) { m.Director = cleanDirector; updated = true; }
+        var cleanCast = TextCleaner.StripHtml(info.Cast);
+        if (!string.IsNullOrEmpty(cleanCast) && cleanCast != m.Cast) { m.Cast = cleanCast; updated = true; }
+        var cleanCountry = TextCleaner.StripHtml(info.Country);
+        if (!string.IsNullOrEmpty(cleanCountry) && cleanCountry != m.Country) { m.Country = cleanCountry; updated = true; }
         if (!string.IsNullOrEmpty(info.Language) && info.Language != m.Language) { m.Language = info.Language; updated = true; }
-        if (!string.IsNullOrEmpty(info.Synopsis) && info.Synopsis != m.Synopsis) { m.Synopsis = info.Synopsis; updated = true; }
+        var cleanSynopsis = TextCleaner.StripHtml(info.Synopsis);
+        if (!string.IsNullOrEmpty(cleanSynopsis) && cleanSynopsis != m.Synopsis) { m.Synopsis = cleanSynopsis; updated = true; }
         if (info.Runtime.HasValue && info.Runtime != m.Runtime) { m.Runtime = info.Runtime; updated = true; }
         if (info.Year > 0 && info.Year != m.Year) { m.Year = info.Year; updated = true; }
 
