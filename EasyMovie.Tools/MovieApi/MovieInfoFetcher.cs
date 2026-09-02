@@ -112,6 +112,13 @@ public class MovieInfoFetcher
             // 批量补图会顶穿豆瓣封禁阈值）。显式开启时才补；正常导入不做，避免重蹈封号。
             if (EnablePosterBackfill && string.IsNullOrEmpty(offline.PosterUrl))
                 await TryBackfillPosterAsync(movie, offline, ct);
+            // 离线命中必须**同样过一遍清洗**：本方法在汇合点之前提前 return，
+            // 若不过清洗，cache.db 里的脏数据会绕过下方 CleanMerged 直灌个人库。
+            // cache.db 的写入方还有 SeedImporter（种子导入只 Trim）与 DoubanBackfillService
+            // （写豆瓣原始结果），都不走本文件的汇合点，因此读侧这一道不可省。
+            // 实测 2026-08-31：669 条缓存当前 0 条带 HTML、0 条导演为职位标签 —— 属**潜在**缺口，
+            // 不是现网故障，但补齐后写入路径再回退也不会污染个人库。
+            CleanMerged(offline);
             return new FetchResult { Info = offline, Source = "cache" };
         }
 
@@ -242,13 +249,9 @@ public class MovieInfoFetcher
 
         if (foundAny)
         {
-            // 最终清理
-            if (!string.IsNullOrEmpty(merged.Synopsis))
-                merged.Synopsis = Regex.Replace(merged.Synopsis, @"<[^>]+>", "").Trim();
-            if (!string.IsNullOrEmpty(merged.Director))
-                merged.Director = MovieCreditCleaner.CleanDirector(merged.Director);
-            if (!string.IsNullOrEmpty(merged.Cast))
-                merged.Cast = Regex.Replace(merged.Cast, @"<[^>]+>", "").Trim();
+            // 汇合点是全项目清洗的**唯一正确位置**：Douban / 1905 / 猫眼 / 种子导入 /
+            // FolderImport 等所有数据源的结果最终都流到这里，在此清洗即可一次性覆盖全部来源。
+            CleanMerged(merged);
 
             result.Info = merged;
             _cache[cacheKey] = result;
@@ -265,6 +268,7 @@ public class MovieInfoFetcher
                 Year = merged.Year,
                 Director = merged.Director,
                 Cast = merged.Cast,
+                // 已在上方 CleanMerged 清洗过，回写 cache.db 的同样是干净值
                 Country = merged.Country,
                 Language = merged.Language,
                 PosterUrl = merged.PosterUrl,
@@ -275,6 +279,28 @@ public class MovieInfoFetcher
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// 文本字段清洗的唯一实现：剥 HTML、导演另过职位标签黑名单。
+    ///
+    /// 原先各 API 客户端各存一份 Regex.Replace("&lt;[^&gt;]+&gt;") 副本并已发生漂移（分隔符/黑名单不一致），
+    /// 这里统一改用 TextCleaner.StripHtml（同语义）与 MovieCreditCleaner.CleanDirector。
+    /// 调用点有且只有两处：① 下方联网合并后的汇合点；② 上方 cache.db 离线命中的提前 return。
+    /// 新增任何数据源都不需要自己清洗，只要结果能流到这两个出口之一即可。
+    /// </summary>
+    private static void CleanMerged(MovieSearchResult m)
+    {
+        if (!string.IsNullOrEmpty(m.Synopsis))
+            m.Synopsis = TextCleaner.StripHtml(m.Synopsis);
+        if (!string.IsNullOrEmpty(m.Director))
+            m.Director = MovieCreditCleaner.CleanDirector(m.Director);
+        if (!string.IsNullOrEmpty(m.Cast))
+            m.Cast = TextCleaner.StripHtml(m.Cast);
+        // Country 一并剥 HTML：来源（1905/猫眼网页抓取）同样可能带标签。
+        // 实测主库 Country 当前 0 条脏，属防御性补齐，与 v3 迁移对该字段的处理保持一致。
+        if (!string.IsNullOrEmpty(m.Country))
+            m.Country = TextCleaner.StripHtml(m.Country);
     }
 
     /// <summary>构建通用搜索词列表</summary>

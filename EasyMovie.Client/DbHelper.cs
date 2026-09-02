@@ -300,79 +300,31 @@ public static class DbHelper
         }
     }
 
+    /// <summary>
+    /// 一次性 HTML / 导演清洗迁移的完成标志。
+    ///
+    /// **升版本号的语义**：本迁移只跑一次，标志文件一存在就永远跳过。
+    /// 后果是**迁移之后新写入的脏数据再也不会被清理**——实测（2026-08-31）库中
+    /// 290 部有 116 部简介仍带 &lt;p&gt; 等 HTML 标签，就是 v2 迁移跑完之后
+    /// 由文件夹监控自动入库 / 定时同步等未清洗路径写进去的。
+    /// 因此每次**扩大清洗范围**（本次加入了导演字段的职位标签清洗）都必须升版本号，
+    /// 让存量数据再过一遍。v3 = 在 v2 基础上增加 Director 的 MovieCreditCleaner 清洗。
+    ///
+    /// 迁移本体在 <see cref="EasyMovie.Data.TextCleanupMigration"/>（Data 层，可测试）。
+    /// </summary>
     private static readonly string HtmlCleanFlagPath = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "EasyMovie", ".html_cleaned_v2");
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "EasyMovie", ".html_cleaned_v3");
 
     private static readonly string DirtyDataFlagPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "EasyMovie", ".dirty_data_cleaned_v2");
 
     private static void CleanHtmlInExistingData()
     {
-        if (File.Exists(HtmlCleanFlagPath)) return;
-
-        var options = DbHelper.CreateOptions();
-        using var ctx = new MovieDbContext(options);
-
-        // 只投影需要的文本字段，避免把 PosterData 等大 BLOB 整行加载进内存
-        var rows = ctx.Movies
-            .Select(m => new { m.Id, m.Synopsis, m.Director, m.Cast, m.Country, m.Notes })
-            .AsNoTracking()
-            .ToList();
-        var changed = false;
-        foreach (var row in rows)
-        {
-            var cleanSynopsis = StripHtml(row.Synopsis);
-            var cleanDirector = StripHtml(row.Director);
-            var cleanCast = StripHtml(row.Cast);
-            var cleanCountry = StripHtml(row.Country);
-            var cleanNotes = StripHtml(row.Notes);
-
-            if (cleanSynopsis == row.Synopsis && cleanDirector == row.Director &&
-                cleanCast == row.Cast && cleanCountry == row.Country && cleanNotes == row.Notes)
-                continue;
-
-            // 仅附载主键，按列标脏回写变化字段，绝不触碰 PosterData 等其它列
-            var tracked = new Movie { Id = row.Id };
-            ctx.Attach(tracked);
-            if (cleanSynopsis != row.Synopsis)
-            {
-                ctx.Entry(tracked).Property(x => x.Synopsis).CurrentValue = cleanSynopsis;
-                ctx.Entry(tracked).Property(x => x.Synopsis).IsModified = true;
-            }
-            if (cleanDirector != row.Director)
-            {
-                ctx.Entry(tracked).Property(x => x.Director).CurrentValue = cleanDirector;
-                ctx.Entry(tracked).Property(x => x.Director).IsModified = true;
-            }
-            if (cleanCast != row.Cast)
-            {
-                ctx.Entry(tracked).Property(x => x.Cast).CurrentValue = cleanCast;
-                ctx.Entry(tracked).Property(x => x.Cast).IsModified = true;
-            }
-            if (cleanCountry != row.Country)
-            {
-                ctx.Entry(tracked).Property(x => x.Country).CurrentValue = cleanCountry;
-                ctx.Entry(tracked).Property(x => x.Country).IsModified = true;
-            }
-            if (cleanNotes != row.Notes)
-            {
-                ctx.Entry(tracked).Property(x => x.Notes).CurrentValue = cleanNotes;
-                ctx.Entry(tracked).Property(x => x.Notes).IsModified = true;
-            }
-            changed = true;
-        }
-        if (changed) ctx.SaveChanges();
-
-        File.WriteAllText(HtmlCleanFlagPath, DateTime.UtcNow.ToString("O"));
-    }
-
-    private static string? StripHtml(string? input)
-    {
-        if (string.IsNullOrEmpty(input)) return input;
-        var result = Regex.Replace(input, @"<[^>]+>", "");
-        result = System.Net.WebUtility.HtmlDecode(result);
-        result = Regex.Replace(result, @"\s+", " ").Trim();
-        return string.IsNullOrEmpty(result) ? null : result;
+        // 真实实现在 Data 层：Client 是 WPF 项目、零测试覆盖，这段"改写用户真实数据"的
+        // 逻辑留在这里就只能靠启动一次 GUI 才能验证。搬走后可以拿临时 SQLite 库跑真实迁移。
+        // 标志文件语义（只跑一次、扩范围必须升版本号）见 TextCleanupMigration 的注释。
+        var changed = TextCleanupMigration.CleanHtmlInExistingData(CreateOptions(), HtmlCleanFlagPath);
+        if (changed > 0) Log.Information("文本清洗迁移完成：重写 {Count} 行", changed);
     }
 
     private static bool ContainsTemplateOrLabel(string? value)

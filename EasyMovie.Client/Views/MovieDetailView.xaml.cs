@@ -3,12 +3,12 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using EasyMovie.Core.Enums;
+using EasyMovie.Core.Helpers;
 using EasyMovie.Core.Interfaces;
 using EasyMovie.Core.Models;
 using EasyMovie.Tools.MovieApi;
@@ -70,8 +70,11 @@ public partial class MovieDetailView : UserControl
         if (_movie == null) return;
         TitleBox.Text = _movie.Title; OriginalTitleBox.Text = _movie.OriginalTitle ?? "";
         YearBox.Text = _movie.Year > 0 ? _movie.Year.ToString() : ""; RuntimeBox.Text = _movie.Runtime?.ToString() ?? "";
-        DirectorBox.Text = _movie.Director ?? ""; CountryBox.Text = _movie.Country ?? "";
-        CastBox.Text = _movie.Cast ?? ""; SynopsisBox.Text = _movie.Synopsis ?? "";
+        // 显示侧兜底剥 HTML：UI 不假设数据库一定干净。
+        // 实测（290 部）：116 条简介带 <p> 等标签（另有 25 条仅多空白），不剥就会原样渲染给用户。
+        // 本页是可编辑表单，这里剥掉后用户保存时会顺带把干净值写回（自愈）。
+        DirectorBox.Text = TextCleaner.StripHtml(_movie.Director) ?? ""; CountryBox.Text = TextCleaner.StripHtml(_movie.Country) ?? "";
+        CastBox.Text = TextCleaner.StripHtml(_movie.Cast) ?? ""; SynopsisBox.Text = TextCleaner.StripHtml(_movie.Synopsis) ?? "";
         for (var i = 0; i < CategoryCombo.Items.Count; i++) if (CategoryCombo.Items[i] is ComboBoxItem ci && ci.Tag is int cid && cid == _movie.CategoryId) { CategoryCombo.SelectedIndex = i; break; }
         foreach (var t in await _tagService.GetTagsForMovieAsync(_movie.Id)) _selectedTagIds.Add(t.Id);
         BuildTags();
@@ -208,13 +211,15 @@ public partial class MovieDetailView : UserControl
 
             if (info == null) { ShowFetchStatus("未找到电影信息，请手动填写"); await Task.Delay(3000); ShowFetchStatus(""); return; }
 
-            // 清理 HTML 标签
+            // 清理 HTML 标签。原先此处内联了 3 份 Regex.Replace("<[^>]+>")，
+            // 与 TextCleaner.StripHtml 是同一逻辑的三份副本——统一改用共享实现，避免再次漂移。
+            // 导演另外过职位标签黑名单（与 MovieCreditCleaner 的收口约定一致）。
             if (!string.IsNullOrEmpty(info.Synopsis))
-                info.Synopsis = Regex.Replace(info.Synopsis, @"<[^>]+>", "").Trim();
+                info.Synopsis = TextCleaner.StripHtml(info.Synopsis);
             if (!string.IsNullOrEmpty(info.Director))
-                info.Director = Regex.Replace(info.Director, @"<[^>]+>", "").Trim();
+                info.Director = MovieCreditCleaner.CleanDirector(info.Director);
             if (!string.IsNullOrEmpty(info.Cast))
-                info.Cast = Regex.Replace(info.Cast, @"<[^>]+>", "").Trim();
+                info.Cast = TextCleaner.StripHtml(info.Cast);
 
             // 填充表单（仅当字段为空时，避免覆盖用户输入）
             if (string.IsNullOrWhiteSpace(OriginalTitleBox.Text) && !string.IsNullOrEmpty(info.OriginalTitle))

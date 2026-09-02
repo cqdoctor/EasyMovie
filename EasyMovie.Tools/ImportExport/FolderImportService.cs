@@ -1,4 +1,5 @@
 using EasyMovie.Core;
+using EasyMovie.Core.Helpers;
 using EasyMovie.Core.Interfaces;
 using EasyMovie.Core.Models;
 using EasyMovie.Tools.MovieApi;
@@ -80,10 +81,10 @@ public class FolderImportService : IFolderImportService
                             movie.Title = apiResult.Title;
                             movie.OriginalTitle = apiResult.OriginalTitle;
                             movie.Year = apiResult.Year > 0 ? apiResult.Year : (year ?? 0);
-                            movie.Director = apiResult.Director;
-                            movie.Cast = apiResult.Cast;
-                            movie.Country = apiResult.Country;
-                            movie.Synopsis = apiResult.Synopsis;
+                            movie.Director = MovieCreditCleaner.CleanDirector(apiResult.Director);
+                            movie.Cast = TextCleaner.StripHtml(apiResult.Cast);
+                            movie.Country = TextCleaner.StripHtml(apiResult.Country);
+                            movie.Synopsis = TextCleaner.StripHtml(apiResult.Synopsis);
                             movie.PosterUrl = apiResult.PosterUrl;
                             movie.Runtime = apiResult.Runtime;
 
