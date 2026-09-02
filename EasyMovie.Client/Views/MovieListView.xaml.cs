@@ -44,9 +44,6 @@ public partial class MovieListView : UserControl
     private readonly CollectionService _collectionService;
     private readonly MainWindow? _mainWindow;
     private readonly MovieFilterState _filterState = new();
-    private bool _isCardView;
-    private bool _isPosterView;
-    private bool _isCollectionView;
 
     private bool _isFirstLoad = true;
     private bool _isPopulatingFilter; // 填充分类下拉框时屏蔽 Filter_Changed，避免多余查询
@@ -213,7 +210,7 @@ public partial class MovieListView : UserControl
             sortInfo.sortBy, sortInfo.sortDesc, _filterState.CurrentPage, _filterState.PageSize,
             _quickFilterFavorites ? true : null);
         _filterState.TotalCount = total;
-        if (_isCardView) RenderCardView(movies); else if (_isPosterView) PosterWall.ItemsSource = movies; else MovieDataGrid.ItemsSource = movies;
+        if ((_filterState.ViewMode == ViewMode.Card)) RenderCardView(movies); else if ((_filterState.ViewMode == ViewMode.Poster)) PosterWall.ItemsSource = movies; else MovieDataGrid.ItemsSource = movies;
         var totalPages = _filterState.TotalPages;
         PageInfo.Text = string.Format(LanguageManager.GetString("Msg_PageInfo"), total, _filterState.CurrentPage, Math.Max(1, totalPages));
         PrevPageBtn.IsEnabled = _filterState.CurrentPage > 1;
@@ -221,20 +218,20 @@ public partial class MovieListView : UserControl
         FirstPageBtn.IsEnabled = _filterState.CurrentPage > 1;
         LastPageBtn.IsEnabled = _filterState.CurrentPage < totalPages;
         var hasMovies = movies.Any();
-        MovieDataGrid.Visibility = !_isCardView && !_isPosterView && !_isCollectionView && hasMovies ? Visibility.Visible : Visibility.Collapsed;
-        CardList.Visibility = _isCardView && hasMovies ? Visibility.Visible : Visibility.Collapsed;
-        PosterWall.Visibility = _isPosterView && hasMovies ? Visibility.Visible : Visibility.Collapsed;
-        EmptyLabel.Visibility = hasMovies || _isCollectionView ? Visibility.Collapsed : Visibility.Visible;
-        CollectionScrollViewer.Visibility = _isCollectionView ? Visibility.Visible : Visibility.Collapsed;
+        MovieDataGrid.Visibility = (_filterState.ViewMode == ViewMode.Table) && hasMovies ? Visibility.Visible : Visibility.Collapsed;
+        CardList.Visibility = (_filterState.ViewMode == ViewMode.Card) && hasMovies ? Visibility.Visible : Visibility.Collapsed;
+        PosterWall.Visibility = (_filterState.ViewMode == ViewMode.Poster) && hasMovies ? Visibility.Visible : Visibility.Collapsed;
+        EmptyLabel.Visibility = hasMovies || (_filterState.ViewMode == ViewMode.Collection) ? Visibility.Collapsed : Visibility.Visible;
+        CollectionScrollViewer.Visibility = (_filterState.ViewMode == ViewMode.Collection) ? Visibility.Visible : Visibility.Collapsed;
 
-        if (_isPosterView) PosterWall.ScrollIntoView(PosterWall.Items[0]);
-        else if (_isCardView && CardList.Items.Count > 0) CardList.ScrollIntoView(CardList.Items[0]);
+        if ((_filterState.ViewMode == ViewMode.Poster)) PosterWall.ScrollIntoView(PosterWall.Items[0]);
+        else if ((_filterState.ViewMode == ViewMode.Card) && CardList.Items.Count > 0) CardList.ScrollIntoView(CardList.Items[0]);
         else if (MovieDataGrid.Items.Count > 0) MovieDataGrid.ScrollIntoView(MovieDataGrid.Items[0]);
 
         if (_isFirstLoad && hasMovies)
         {
             _isFirstLoad = false;
-            if (!_isCardView && !_isPosterView && MovieDataGrid.Items.Count > 0)
+            if (!(_filterState.ViewMode == ViewMode.Card) && !(_filterState.ViewMode == ViewMode.Poster) && MovieDataGrid.Items.Count > 0)
             {
                 MovieDataGrid.SelectedIndex = 0;
                 if (MovieDataGrid.Items[0] is Movie firstMovie)
@@ -844,7 +841,7 @@ public partial class MovieListView : UserControl
     /// <summary>卡片单击：复用原自定义逻辑——Ctrl 多选入批量，否则打开详情；并阻止 ListBox 自带选择。</summary>
     private void CardList_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (!_isCardView) return;
+        if (!(_filterState.ViewMode == ViewMode.Card)) return;
         var movie = GetCardMovieFromEvent(e);
         if (movie == null) return;
 
@@ -1054,17 +1051,17 @@ public partial class MovieListView : UserControl
         _filterState.ResetToFirstPage();
         await LoadMoviesAsync();
     }
-    private async void TableViewBtn_Click(object sender, RoutedEventArgs e) { _isCardView = false; _isPosterView = false; _isCollectionView = false; UpdateViewButtons(); await LoadMoviesAsync(); }
-    private async void CardViewBtn_Click(object sender, RoutedEventArgs e) { _isCardView = true; _isPosterView = false; _isCollectionView = false; UpdateViewButtons(); await LoadMoviesAsync(); }
-    private async void PosterViewBtn_Click(object sender, RoutedEventArgs e) { _isCardView = false; _isPosterView = true; _isCollectionView = false; UpdateViewButtons(); await LoadMoviesAsync(); }
-    private async void CollectionView_Click(object sender, RoutedEventArgs e) { _isCardView = false; _isPosterView = false; _isCollectionView = true; UpdateViewButtons(); await LoadCollectionViewAsync(); }
+    private async void TableViewBtn_Click(object sender, RoutedEventArgs e) { _filterState.SetTable(); UpdateViewButtons(); await LoadMoviesAsync(); }
+    private async void CardViewBtn_Click(object sender, RoutedEventArgs e) { _filterState.SetCard(); UpdateViewButtons(); await LoadMoviesAsync(); }
+    private async void PosterViewBtn_Click(object sender, RoutedEventArgs e) { _filterState.SetPoster(); UpdateViewButtons(); await LoadMoviesAsync(); }
+    private async void CollectionView_Click(object sender, RoutedEventArgs e) { _filterState.SetCollection(); UpdateViewButtons(); await LoadCollectionViewAsync(); }
 
     private void UpdateViewButtons()
     {
         var selectedBg = new SolidColorBrush(Color.FromArgb(40, 0, 0, 0));
-        TableViewBtn.Background = !_isCardView && !_isPosterView && !_isCollectionView ? selectedBg : Brushes.Transparent;
-        CardViewBtn.Background = _isCardView ? selectedBg : Brushes.Transparent;
-        PosterViewBtn.Background = _isPosterView ? selectedBg : Brushes.Transparent;
+        TableViewBtn.Background = (_filterState.ViewMode == ViewMode.Table) ? selectedBg : Brushes.Transparent;
+        CardViewBtn.Background = (_filterState.ViewMode == ViewMode.Card) ? selectedBg : Brushes.Transparent;
+        PosterViewBtn.Background = (_filterState.ViewMode == ViewMode.Poster) ? selectedBg : Brushes.Transparent;
     }
     private void AddMovie_Click(object sender, RoutedEventArgs e) => OpenDetailView(0);
 
@@ -1751,11 +1748,11 @@ public partial class MovieListView : UserControl
 
     private List<Movie> GetSelectedMovies()
     {
-        if (_isCardView)
+        if ((_filterState.ViewMode == ViewMode.Card))
         {
             return _cardMovies?.Where(m => _selectedCardIds.Contains(m.Id)).ToList() ?? new List<Movie>();
         }
-        if (_isPosterView)
+        if ((_filterState.ViewMode == ViewMode.Poster))
         {
             return PosterWall.SelectedItems.Cast<Movie>().ToList();
         }
@@ -1788,9 +1785,9 @@ public partial class MovieListView : UserControl
         BatchTagCombo.SelectedIndex = 0;
         BatchTagModeCombo.SelectedIndex = 0;
         BatchCollectionCombo.SelectedIndex = 0;
-        if (!_isCardView && !_isPosterView)
+        if (!(_filterState.ViewMode == ViewMode.Card) && !(_filterState.ViewMode == ViewMode.Poster))
             MovieDataGrid.SelectedItems.Clear();
-        else if (_isPosterView)
+        else if ((_filterState.ViewMode == ViewMode.Poster))
             PosterWall.SelectedItems.Clear();
         else
             _selectedCardIds.Clear();
@@ -1908,11 +1905,11 @@ public partial class MovieListView : UserControl
 
     private void BatchSelectAll_Click(object sender, RoutedEventArgs e)
     {
-        if (_isPosterView)
+        if ((_filterState.ViewMode == ViewMode.Poster))
         {
             PosterWall.SelectAll();
         }
-        else if (!_isCardView)
+        else if (!(_filterState.ViewMode == ViewMode.Card))
         {
             MovieDataGrid.SelectAll();
         }
@@ -1996,8 +1993,8 @@ public partial class MovieListView : UserControl
 
     public void SelectAllMovies()
     {
-        if (_isPosterView) PosterWall.SelectAll();
-        else if (!_isCardView) MovieDataGrid.SelectAll();
+        if ((_filterState.ViewMode == ViewMode.Poster)) PosterWall.SelectAll();
+        else if (!(_filterState.ViewMode == ViewMode.Card)) MovieDataGrid.SelectAll();
         else
         {
             if (_cardMovies != null)
@@ -2009,20 +2006,18 @@ public partial class MovieListView : UserControl
 
     public void DeselectAll()
     {
-        if (_isPosterView) PosterWall.SelectedItems.Clear();
-        else if (!_isCardView) MovieDataGrid.SelectedItems.Clear();
+        if ((_filterState.ViewMode == ViewMode.Poster)) PosterWall.SelectedItems.Clear();
+        else if (!(_filterState.ViewMode == ViewMode.Card)) MovieDataGrid.SelectedItems.Clear();
         else { _selectedCardIds.Clear(); UpdateBatchPanel(); }
         _mainWindow?.ShowMovieDetail(null);
     }
 
     public async void CycleView()
     {
-        if (!_isCardView && !_isPosterView && !_isCollectionView) { _isCardView = true; _isPosterView = false; _isCollectionView = false; }
-        else if (_isCardView) { _isCardView = false; _isPosterView = true; _isCollectionView = false; }
-        else if (_isPosterView) { _isCardView = false; _isPosterView = false; _isCollectionView = true; }
-        else { _isCardView = false; _isPosterView = false; _isCollectionView = false; }
+        _filterState.CycleViewMode();
+
         UpdateViewButtons();
-        if (_isCollectionView) await LoadCollectionViewAsync();
+        if (_filterState.ViewMode == ViewMode.Collection) await LoadCollectionViewAsync();
         else await LoadMoviesAsync();
     }
 
@@ -2045,7 +2040,7 @@ public partial class MovieListView : UserControl
             Padding = new Thickness(8, 4, 8, 4),
             HorizontalAlignment = HorizontalAlignment.Left
         };
-        backBtn.Click += async (s, e) => { _isCollectionView = false; UpdateViewButtons(); await LoadMoviesAsync(); };
+        backBtn.Click += async (s, e) => { _filterState.SetTable(); UpdateViewButtons(); await LoadMoviesAsync(); };
         backBar.Children.Add(backBtn);
         CollectionPanel.Children.Add(backBar);
 

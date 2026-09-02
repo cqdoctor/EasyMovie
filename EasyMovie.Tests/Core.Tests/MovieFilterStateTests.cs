@@ -155,4 +155,52 @@ public class MovieFilterStateTests
         s.ResetToFirstPage();
         s.CurrentPage.Should().Be(1);
     }
+
+    // ───────────────────────── 视图模式（对应 _isCardView/_isPosterView/_isCollectionView） ─────────────────────────
+
+    [Fact]
+    public void DefaultViewMode_IsTable()
+        => new MovieFilterState().ViewMode.Should().Be(ViewMode.Table);
+
+    [Fact]
+    public void Setters_ConfigureViewMode()
+    {
+        var s = new MovieFilterState();
+        s.SetTable(); s.ViewMode.Should().Be(ViewMode.Table);
+        s.SetCard(); s.ViewMode.Should().Be(ViewMode.Card);
+        s.SetPoster(); s.ViewMode.Should().Be(ViewMode.Poster);
+        s.SetCollection(); s.ViewMode.Should().Be(ViewMode.Collection);
+    }
+
+    [Fact]
+    public void CycleViewMode_TableToCard()
+    {
+        var s = new MovieFilterState { ViewMode = ViewMode.Table };
+        s.CycleViewMode();
+        s.ViewMode.Should().Be(ViewMode.Card);
+    }
+
+    [Fact]
+    public void CycleViewMode_CardToPoster()
+    {
+        var s = new MovieFilterState { ViewMode = ViewMode.Card };
+        s.CycleViewMode();
+        s.ViewMode.Should().Be(ViewMode.Poster);
+    }
+
+    [Fact]
+    public void CycleViewMode_PosterToCollection()
+    {
+        var s = new MovieFilterState { ViewMode = ViewMode.Poster };
+        s.CycleViewMode();
+        s.ViewMode.Should().Be(ViewMode.Collection);
+    }
+
+    [Fact]
+    public void CycleViewMode_CollectionToTable()
+    {
+        var s = new MovieFilterState { ViewMode = ViewMode.Collection };
+        s.CycleViewMode();
+        s.ViewMode.Should().Be(ViewMode.Table);
+    }
 }
