@@ -53,6 +53,13 @@ public class MovieFilterState
     /// </summary>
     public int TotalPages => (int)Math.Ceiling((double)TotalCount / PageSize);
 
+    /// <summary>
+    /// 供 UI 显示的页总数，下限夹紧到 1。原实现在 <c>LoadMoviesAsync</c> 的 PageInfo 里写
+    /// <c>Math.Max(1, totalPages)</c>——即「至少 1 页」的守卫只做在显示层，翻页逻辑仍用可能为 0 的
+    /// <see cref="TotalPages"/>。抽出后两处语义分离得更清楚，行为不变。
+    /// </summary>
+    public int DisplayTotalPages => Math.Max(1, TotalPages);
+
     // ───────────────── 翻页守卫（原点击逻辑里的 if 条件） ─────────────────
 
     /// <summary>能否往前翻：CurrentPage &gt; 1。对应 FirstPage_Click / PrevPage_Click 的 <c>_currentPage &gt; 1</c>。</summary>
