@@ -12,6 +12,11 @@ namespace EasyMovie.Core.Helpers;
 /// <c>GetFilterValues / GetYearFilter / GetSortInfo / GetAdvancedFilterValues / GetMultiSelectValues</c>
 /// 中抽出纯逻辑部分，以便纳入单元测试保护。
 ///
+/// 2026-09-03（B2 切片3）：View 侧那 4 个 Get* 方法已合并为唯一的
+/// <c>CaptureFilterValues()</c>，把控件值刷进 <see cref="Models.MovieFilterValues"/>；
+/// 新增的 <c>ResolveStatus / ResolveYear / ResolveFavorites</c> 承接原先散在
+/// <c>LoadMoviesAsync</c> 里的三元表达式，一并纳入单测。
+///
 /// 设计边界：**这里只有纯函数，不碰任何 WPF 类型**。控件读取仍留在 View（
 /// <c>SearchBox.Text</c>、<c>xxxFilter.SelectedItem</c>、<c>RangeSlider.LowerValue</c> 等），
 /// 因为测试项目面向 net10.0 且未启用 UseWPF，沾上 <c>System.Windows.Controls</c> 就编译不过。
@@ -98,4 +103,31 @@ public static class MovieQueryBuilder
             .ToList();
         return items.Count > 0 ? items : null;
     }
+
+    // ────────────────────────────────────────────────────────────────
+    // 以下三个方法于 2026-09-03 从 MovieListView.LoadMoviesAsync 的
+    // 「组装 SearchAsync 实参」逻辑中抽出（B2 切片3）。此前这段既不纯也未被测试覆盖。
+    // 均为逐字节复刻原实现语义，含已知不完美之处。
+    // ────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// 观看状态：快速筛选「想看」开启时强制覆盖为 WantToWatch，忽略状态下拉框。
+    /// 已知行为：**无法表达「排除想看」**——未开启时回落状态下拉框的值（可能为 null = 不筛选）。
+    /// </summary>
+    public static WatchStatus? ResolveStatus(WatchStatus? status, bool quickFilterWatchlist)
+        => quickFilterWatchlist ? WatchStatus.WantToWatch : status;
+
+    /// <summary>
+    /// 年份边界：高级筛选的区间值优先；为 null（滑块停在端点＝不限制）时回落到年份下拉框。
+    /// 原实现 <c>adv.yearFrom ?? year</c> / <c>adv.yearTo ?? year</c>。
+    /// </summary>
+    public static int? ResolveYear(int? advancedYear, int? dropdownYear)
+        => advancedYear ?? dropdownYear;
+
+    /// <summary>
+    /// 收藏快速筛选：开启为 true，否则 null（＝不筛选）。
+    /// 已知行为：只有 true / null 两态，**无法表达「只看未收藏」**（原实现即如此）。
+    /// </summary>
+    public static bool? ResolveFavorites(bool quickFilterFavorites)
+        => quickFilterFavorites ? true : null;
 }

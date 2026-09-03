@@ -197,20 +197,19 @@ public partial class MovieListView : UserControl
 
     private async Task LoadMoviesAsync()
     {
-        var (keyword, categoryId, status) = GetFilterValues();
-        var effectiveStatus = _quickFilterWatchlist ? WatchStatus.WantToWatch : status;
-        var sortInfo = GetSortInfo();
-        var year = GetYearFilter();
-        var adv = GetAdvancedFilterValues();
+        CaptureFilterValues();
+        var f = _filterState.FilterValues;
+        var effectiveStatus = MovieQueryBuilder.ResolveStatus(f.Status, f.QuickFilterWatchlist);
         var (movies, total) = await _movieService.SearchAsync(
-            keyword, categoryId, null,
-            adv.yearFrom ?? year, adv.yearTo ?? year,
-            adv.ratingMin, adv.ratingMax, effectiveStatus,
-            adv.countries, adv.languages, adv.runtimeMin, adv.runtimeMax, adv.directors,
-            sortInfo.sortBy, sortInfo.sortDesc, _filterState.CurrentPage, _filterState.PageSize,
-            _quickFilterFavorites ? true : null);
+            f.Keyword, f.CategoryId, null,
+            MovieQueryBuilder.ResolveYear(f.YearFrom, f.DropdownYear),
+            MovieQueryBuilder.ResolveYear(f.YearTo, f.DropdownYear),
+            f.RatingMin, f.RatingMax, effectiveStatus,
+            f.Countries, f.Languages, f.RuntimeMin, f.RuntimeMax, f.Directors,
+            f.SortBy, f.SortDesc, _filterState.CurrentPage, _filterState.PageSize,
+            MovieQueryBuilder.ResolveFavorites(f.QuickFilterFavorites));
         _filterState.TotalCount = total;
-        if ((_filterState.ViewMode == ViewMode.Card)) RenderCardView(movies); else if ((_filterState.ViewMode == ViewMode.Poster)) PosterWall.ItemsSource = movies; else MovieDataGrid.ItemsSource = movies;
+        if (_filterState.ViewMode == ViewMode.Card) RenderCardView(movies); else if (_filterState.ViewMode == ViewMode.Poster) PosterWall.ItemsSource = movies; else MovieDataGrid.ItemsSource = movies;
         var totalPages = _filterState.TotalPages;
         PageInfo.Text = string.Format(LanguageManager.GetString("Msg_PageInfo"), total, _filterState.CurrentPage, Math.Max(1, totalPages));
         PrevPageBtn.IsEnabled = _filterState.CurrentPage > 1;
@@ -224,7 +223,7 @@ public partial class MovieListView : UserControl
         EmptyLabel.Visibility = hasMovies || (_filterState.ViewMode == ViewMode.Collection) ? Visibility.Collapsed : Visibility.Visible;
         CollectionScrollViewer.Visibility = (_filterState.ViewMode == ViewMode.Collection) ? Visibility.Visible : Visibility.Collapsed;
 
-        if ((_filterState.ViewMode == ViewMode.Poster)) PosterWall.ScrollIntoView(PosterWall.Items[0]);
+        if (_filterState.ViewMode == ViewMode.Poster) PosterWall.ScrollIntoView(PosterWall.Items[0]);
         else if ((_filterState.ViewMode == ViewMode.Card) && CardList.Items.Count > 0) CardList.ScrollIntoView(CardList.Items[0]);
         else if (MovieDataGrid.Items.Count > 0) MovieDataGrid.ScrollIntoView(MovieDataGrid.Items[0]);
 
@@ -242,42 +241,58 @@ public partial class MovieListView : UserControl
         }
     }
 
-    // 以下四个方法的**解析逻辑**已抽到 EasyMovie.Core.Helpers.MovieQueryBuilder（纯函数，可单元测试），
-    // 这里只保留 WPF 控件读取。行为逐项等价，由 Tests/Core.Tests/MovieQueryBuilderTests.cs 锁定。
+    // 筛选值读取的**唯一权威实现**是 CaptureFilterValues()：把控件值刷进
+    // _filterState.FilterValues（EasyMovie.Core.Models.MovieFilterValues）。
+    // 下面的 Get* 方法与 LoadMoviesAsync 全部委派到它，杜绝第二份副本
+    // （历史上有过 4~6 份各自漂移的副本，是真实 bug 来源）。
+    // 解析逻辑全部在 EasyMovie.Core.Helpers.MovieQueryBuilder（纯函数，单测锁定），这里只做控件读取。
+    //
+    // 已知遗留（本次只标注、不擅自改）：保存筛选方案（SaveFilter 按钮，约 389-403 行）内联了另一份
+    // 控件读取，且多选部分**未排除 "_all" 哨兵、空列表也不置 null**，与此处规范行为不一致。
+    // 改持久化语义需单独评估，本次不动。
+
+    private void CaptureFilterValues()
+    {
+        var f = _filterState.FilterValues;
+        f.Keyword = MovieQueryBuilder.NormalizeKeyword(SearchBox.Text);
+        f.CategoryId = CategoryFilter.SelectedItem is ComboBoxItem ci ? MovieQueryBuilder.ParseIdTag(ci.Tag) : null;
+        f.Status = StatusFilter.SelectedItem is ComboBoxItem si ? MovieQueryBuilder.ParseStatusTag(si.Tag) : null;
+        f.DropdownYear = YearFilter.SelectedItem is ComboBoxItem yi ? MovieQueryBuilder.ParseIdTag(yi.Tag) : null;
+        (f.SortBy, f.SortDesc) = MovieQueryBuilder.ParseSortTag(SortFilter.SelectedItem is ComboBoxItem sti ? sti.Tag : null);
+
+        f.YearFrom = MovieQueryBuilder.LowerBound(YearRangeSlider.LowerValue, YearRangeSlider.Minimum);
+        f.YearTo = MovieQueryBuilder.UpperBound(YearRangeSlider.UpperValue, YearRangeSlider.Maximum);
+        f.RatingMin = MovieQueryBuilder.LowerBound(RatingRangeSlider.LowerValue, RatingRangeSlider.Minimum);
+        f.RatingMax = MovieQueryBuilder.UpperBound(RatingRangeSlider.UpperValue, RatingRangeSlider.Maximum);
+        f.RuntimeMin = MovieQueryBuilder.LowerBound(RuntimeRangeSlider.LowerValue, RuntimeRangeSlider.Minimum);
+        f.RuntimeMax = MovieQueryBuilder.UpperBound(RuntimeRangeSlider.UpperValue, RuntimeRangeSlider.Maximum);
+
+        f.Countries = GetMultiSelectValues(CountryFilter);
+        f.Languages = GetMultiSelectValues(LanguageFilter);
+        f.Directors = GetMultiSelectValues(DirectorFilter);
+
+        f.QuickFilterFavorites = _quickFilterFavorites;
+        f.QuickFilterWatchlist = _quickFilterWatchlist;
+    }
 
     private (string? keyword, int? categoryId, WatchStatus? status) GetFilterValues()
     {
-        var keyword = MovieQueryBuilder.NormalizeKeyword(SearchBox.Text);
-        var categoryId = CategoryFilter.SelectedItem is ComboBoxItem ci ? MovieQueryBuilder.ParseIdTag(ci.Tag) : null;
-        var status = StatusFilter.SelectedItem is ComboBoxItem si ? MovieQueryBuilder.ParseStatusTag(si.Tag) : null;
-        return (keyword, categoryId, status);
+        CaptureFilterValues();
+        var f = _filterState.FilterValues;
+        return (f.Keyword, f.CategoryId, f.Status);
     }
 
     private int? GetYearFilter()
-        => YearFilter.SelectedItem is ComboBoxItem yi ? MovieQueryBuilder.ParseIdTag(yi.Tag) : null;
+    {
+        CaptureFilterValues();
+        return _filterState.FilterValues.DropdownYear;
+    }
 
     private (string? sortBy, bool sortDesc) GetSortInfo()
-        => MovieQueryBuilder.ParseSortTag(SortFilter.SelectedItem is ComboBoxItem si ? si.Tag : null);
-
-    /// <summary>高级筛选参数</summary>
-    private record AdvancedFilterValues(
-        int? yearFrom, int? yearTo, int? ratingMin, int? ratingMax,
-        List<string>? countries, List<string>? languages, int? runtimeMin, int? runtimeMax, List<string>? directors);
-
-    private AdvancedFilterValues GetAdvancedFilterValues()
     {
-        int? yearFrom = MovieQueryBuilder.LowerBound(YearRangeSlider.LowerValue, YearRangeSlider.Minimum);
-        int? yearTo = MovieQueryBuilder.UpperBound(YearRangeSlider.UpperValue, YearRangeSlider.Maximum);
-        int? ratingMin = MovieQueryBuilder.LowerBound(RatingRangeSlider.LowerValue, RatingRangeSlider.Minimum);
-        int? ratingMax = MovieQueryBuilder.UpperBound(RatingRangeSlider.UpperValue, RatingRangeSlider.Maximum);
-        int? runtimeMin = MovieQueryBuilder.LowerBound(RuntimeRangeSlider.LowerValue, RuntimeRangeSlider.Minimum);
-        int? runtimeMax = MovieQueryBuilder.UpperBound(RuntimeRangeSlider.UpperValue, RuntimeRangeSlider.Maximum);
-
-        var countries = GetMultiSelectValues(CountryFilter);
-        var languages = GetMultiSelectValues(LanguageFilter);
-        var directors = GetMultiSelectValues(DirectorFilter);
-
-        return new AdvancedFilterValues(yearFrom, yearTo, ratingMin, ratingMax, countries, languages, runtimeMin, runtimeMax, directors);
+        CaptureFilterValues();
+        var f = _filterState.FilterValues;
+        return (f.SortBy, f.SortDesc);
     }
 
     private static List<string>? GetMultiSelectValues(System.Windows.Controls.ListBox listBox)
@@ -1748,11 +1763,11 @@ public partial class MovieListView : UserControl
 
     private List<Movie> GetSelectedMovies()
     {
-        if ((_filterState.ViewMode == ViewMode.Card))
+        if (_filterState.ViewMode == ViewMode.Card)
         {
             return _cardMovies?.Where(m => _selectedCardIds.Contains(m.Id)).ToList() ?? new List<Movie>();
         }
-        if ((_filterState.ViewMode == ViewMode.Poster))
+        if (_filterState.ViewMode == ViewMode.Poster)
         {
             return PosterWall.SelectedItems.Cast<Movie>().ToList();
         }
@@ -1787,7 +1802,7 @@ public partial class MovieListView : UserControl
         BatchCollectionCombo.SelectedIndex = 0;
         if (!(_filterState.ViewMode == ViewMode.Card) && !(_filterState.ViewMode == ViewMode.Poster))
             MovieDataGrid.SelectedItems.Clear();
-        else if ((_filterState.ViewMode == ViewMode.Poster))
+        else if (_filterState.ViewMode == ViewMode.Poster)
             PosterWall.SelectedItems.Clear();
         else
             _selectedCardIds.Clear();
@@ -1905,7 +1920,7 @@ public partial class MovieListView : UserControl
 
     private void BatchSelectAll_Click(object sender, RoutedEventArgs e)
     {
-        if ((_filterState.ViewMode == ViewMode.Poster))
+        if (_filterState.ViewMode == ViewMode.Poster)
         {
             PosterWall.SelectAll();
         }
@@ -1993,7 +2008,7 @@ public partial class MovieListView : UserControl
 
     public void SelectAllMovies()
     {
-        if ((_filterState.ViewMode == ViewMode.Poster)) PosterWall.SelectAll();
+        if (_filterState.ViewMode == ViewMode.Poster) PosterWall.SelectAll();
         else if (!(_filterState.ViewMode == ViewMode.Card)) MovieDataGrid.SelectAll();
         else
         {
@@ -2006,7 +2021,7 @@ public partial class MovieListView : UserControl
 
     public void DeselectAll()
     {
-        if ((_filterState.ViewMode == ViewMode.Poster)) PosterWall.SelectedItems.Clear();
+        if (_filterState.ViewMode == ViewMode.Poster) PosterWall.SelectedItems.Clear();
         else if (!(_filterState.ViewMode == ViewMode.Card)) MovieDataGrid.SelectedItems.Clear();
         else { _selectedCardIds.Clear(); UpdateBatchPanel(); }
         _mainWindow?.ShowMovieDetail(null);
