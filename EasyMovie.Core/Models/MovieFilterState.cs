@@ -22,6 +22,12 @@ public class MovieFilterState
     /// <summary>每页条数（原 <c>PageSize</c> 常量）。保留为实例属性以便通过 <c>_filterState.PageSize</c> 统一访问。</summary>
     public int PageSize => 20;
 
+    /// <summary>
+    /// 当前筛选值快照（B2 切片3）。由 View 的 <c>CaptureFilterValues()</c> 在每次加载前从控件刷新；
+    /// 各 Get* 取值方法也委派到它，保证「只有一份权威读取」。
+    /// </summary>
+    public MovieFilterValues FilterValues { get; set; } = new();
+
     private int _currentPage = 1;
     private int _totalCount;
 

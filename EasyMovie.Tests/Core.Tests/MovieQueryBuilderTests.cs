@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using EasyMovie.Core.Enums;
 using EasyMovie.Core.Helpers;
+using EasyMovie.Core.Models;
 using Xunit;
 
 namespace EasyMovie.Tests.Core.Tests;
@@ -188,4 +189,95 @@ public class MovieQueryBuilderTests
         Assert.NotNull(result);
         Assert.Equal(new[] { "中国", "美国" }, result!);
     }
+
+    // ════════════════════════════════════════════════════════════════
+    // B2 切片3（2026-09-03）：从 LoadMoviesAsync 组装实参处抽出的三个解析器。
+    // 此前这段逻辑在 code-behind 里，零测试覆盖。
+    // ════════════════════════════════════════════════════════════════
+
+    /// <summary>「想看」快速筛选开启时，强制覆盖状态下拉框的值（即便下拉框选了「已看」）。</summary>
+    [Fact]
+    public void ResolveStatus_QuickFilterOn_ForcesWantToWatch()
+        => Assert.Equal(WatchStatus.WantToWatch,
+            MovieQueryBuilder.ResolveStatus(WatchStatus.Watched, true));
+
+    /// <summary>「想看」快速筛选未开启时，原样透传状态下拉框的值（含 null＝不筛选）。</summary>
+    [Theory]
+    [InlineData(null, null)]
+    [InlineData(WatchStatus.NotWatched, WatchStatus.NotWatched)]
+    [InlineData(WatchStatus.Watched, WatchStatus.Watched)]
+    public void ResolveStatus_QuickFilterOff_PassesThrough(WatchStatus? input, WatchStatus? expected)
+        => Assert.Equal(expected, MovieQueryBuilder.ResolveStatus(input, false));
+
+    /// <summary>
+    /// 已知缺陷锁定：只有 true / null 两态，无法表达「只看未收藏」。
+    /// 若日后 View 侧新增「非收藏」快捷筛选，此处即是需改的地方。
+    /// </summary>
+    [Fact]
+    public void ResolveFavorites_OnlyTwoStates_TrueOrNull()
+    {
+        Assert.True(MovieQueryBuilder.ResolveFavorites(true));
+        Assert.Null(MovieQueryBuilder.ResolveFavorites(false));
+    }
+
+    /// <summary>高级筛选区间值优先。</summary>
+    [Fact]
+    public void ResolveYear_AdvancedSet_ReturnsAdvanced()
+        => Assert.Equal(1999, MovieQueryBuilder.ResolveYear(1999, 2020));
+
+    /// <summary>
+    /// 区间滑块停在端点＝不限制（LowerBound/UpperBound 返回 null），此时回落到年份下拉框。
+    /// 这是「只看 1990 年起」无法表达的同一处根因：滑块拖到最右端即等价于不限制。
+    /// </summary>
+    [Fact]
+    public void ResolveYear_AdvancedNull_FallsBackToDropdown()
+        => Assert.Equal(2020, MovieQueryBuilder.ResolveYear(null, 2020));
+
+    /// <summary>两者皆无（滑块不限制 + 下拉框选「全部年份」）→ null，即不筛选年份。</summary>
+    [Fact]
+    public void ResolveYear_BothNull_ReturnsNull()
+        => Assert.Null(MovieQueryBuilder.ResolveYear(null, null));
+}
+
+// ════════════════════════════════════════════════════════════════════
+// MovieFilterValues：B2 切片3 的筛选值快照载体，只承载不含逻辑。
+// 这里锁定「新建实例的默认值必须等于 MovieQueryBuilder 的排序默认值」——
+// 否则 View 尚未调用 CaptureFilterValues 就发起查询会拿到错误的排序。
+// ════════════════════════════════════════════════════════════════════
+public class MovieFilterValuesTests
+{
+    [Fact]
+    public void NewInstance_SortDefaults_MatchQueryBuilderDefaults()
+    {
+        var v = new MovieFilterValues();
+        Assert.Equal(MovieQueryBuilder.DefaultSortBy, v.SortBy);
+        Assert.Equal(MovieQueryBuilder.DefaultSortDesc, v.SortDesc);
+    }
+
+    /// <summary>所有筛选条件默认应为「不筛选」：null / false，不得有意外初值。</summary>
+    [Fact]
+    public void NewInstance_AllFiltersAreUnset()
+    {
+        var v = new MovieFilterValues();
+        Assert.Null(v.Keyword);
+        Assert.Null(v.CategoryId);
+        Assert.Null(v.Status);
+        Assert.Null(v.DropdownYear);
+        Assert.Null(v.YearFrom);
+        Assert.Null(v.YearTo);
+        Assert.Null(v.RatingMin);
+        Assert.Null(v.RatingMax);
+        Assert.Null(v.RuntimeMin);
+        Assert.Null(v.RuntimeMax);
+        Assert.Null(v.Countries);
+        Assert.Null(v.Languages);
+        Assert.Null(v.Directors);
+        Assert.False(v.QuickFilterFavorites);
+        Assert.False(v.QuickFilterWatchlist);
+    }
+
+    /// <summary>MovieFilterState 必须自带一个非 null 的 FilterValues，否则 View 首次读取会 NRE。</summary>
+    [Fact]
+    public void MovieFilterState_FilterValues_IsNotNullByDefault()
+        => Assert.NotNull(new MovieFilterState().FilterValues);
 }
