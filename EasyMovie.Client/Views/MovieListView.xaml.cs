@@ -209,19 +209,29 @@ public partial class MovieListView : UserControl
             f.SortBy, f.SortDesc, _filterState.CurrentPage, _filterState.PageSize,
             MovieQueryBuilder.ResolveFavorites(f.QuickFilterFavorites));
         _filterState.TotalCount = total;
-        if (_filterState.ViewMode == ViewMode.Card) RenderCardView(movies); else if (_filterState.ViewMode == ViewMode.Poster) PosterWall.ItemsSource = movies; else MovieDataGrid.ItemsSource = movies;
-        var totalPages = _filterState.TotalPages;
-        PageInfo.Text = string.Format(LanguageManager.GetString("Msg_PageInfo"), total, _filterState.CurrentPage, Math.Max(1, totalPages));
-        PrevPageBtn.IsEnabled = _filterState.CurrentPage > 1;
-        NextPageBtn.IsEnabled = _filterState.CurrentPage < totalPages;
-        FirstPageBtn.IsEnabled = _filterState.CurrentPage > 1;
-        LastPageBtn.IsEnabled = _filterState.CurrentPage < totalPages;
         var hasMovies = movies.Any();
-        MovieDataGrid.Visibility = (_filterState.ViewMode == ViewMode.Table) && hasMovies ? Visibility.Visible : Visibility.Collapsed;
-        CardList.Visibility = (_filterState.ViewMode == ViewMode.Card) && hasMovies ? Visibility.Visible : Visibility.Collapsed;
-        PosterWall.Visibility = (_filterState.ViewMode == ViewMode.Poster) && hasMovies ? Visibility.Visible : Visibility.Collapsed;
-        EmptyLabel.Visibility = hasMovies || (_filterState.ViewMode == ViewMode.Collection) ? Visibility.Collapsed : Visibility.Visible;
-        CollectionScrollViewer.Visibility = (_filterState.ViewMode == ViewMode.Collection) ? Visibility.Visible : Visibility.Collapsed;
+
+        // 结果集灌入哪个容器 + 五个容器的显隐：**纯决策全部在 Core 侧算好**（B2 切片4），
+        // 由 MovieListRenderPlanTests 锁定（含 Collection 的两处怪异行为）；这里只做 WPF 控件赋值。
+        switch (MovieListRenderPlan.ResolveItemsTarget(_filterState.ViewMode))
+        {
+            case MovieListItemsTarget.CardList: RenderCardView(movies); break;
+            case MovieListItemsTarget.PosterWall: PosterWall.ItemsSource = movies; break;
+            default: MovieDataGrid.ItemsSource = movies; break;
+        }
+
+        var vis = MovieListRenderPlan.ResolveVisibility(_filterState.ViewMode, hasMovies);
+        MovieDataGrid.Visibility = Vis(vis.Table);
+        CardList.Visibility = Vis(vis.Card);
+        PosterWall.Visibility = Vis(vis.Poster);
+        CollectionScrollViewer.Visibility = Vis(vis.Collection);
+        EmptyLabel.Visibility = Vis(vis.Empty);
+
+        PageInfo.Text = string.Format(LanguageManager.GetString("Msg_PageInfo"), total, _filterState.CurrentPage, _filterState.DisplayTotalPages);
+        PrevPageBtn.IsEnabled = _filterState.CanGoPrev;
+        FirstPageBtn.IsEnabled = _filterState.CanGoPrev;
+        NextPageBtn.IsEnabled = _filterState.CanGoNext;
+        LastPageBtn.IsEnabled = _filterState.CanGoNext;
 
         if (_filterState.ViewMode == ViewMode.Poster) PosterWall.ScrollIntoView(PosterWall.Items[0]);
         else if ((_filterState.ViewMode == ViewMode.Card) && CardList.Items.Count > 0) CardList.ScrollIntoView(CardList.Items[0]);
@@ -230,7 +240,7 @@ public partial class MovieListView : UserControl
         if (_isFirstLoad && hasMovies)
         {
             _isFirstLoad = false;
-            if (!(_filterState.ViewMode == ViewMode.Card) && !(_filterState.ViewMode == ViewMode.Poster) && MovieDataGrid.Items.Count > 0)
+            if (_filterState.ViewMode != ViewMode.Card && _filterState.ViewMode != ViewMode.Poster && MovieDataGrid.Items.Count > 0)
             {
                 MovieDataGrid.SelectedIndex = 0;
                 if (MovieDataGrid.Items[0] is Movie firstMovie)
@@ -240,6 +250,10 @@ public partial class MovieListView : UserControl
                 _mainWindow?.ShowMovieDetail(movies[0]);
         }
     }
+
+    /// <summary>bool → WPF Visibility。配合 <see cref="MovieListVisibility"/> 使用：Core 侧不能引用 WPF 类型，只能返回 bool。</summary>
+    private static System.Windows.Visibility Vis(bool visible)
+        => visible ? Visibility.Visible : Visibility.Collapsed;
 
     // 筛选值读取的**唯一权威实现**是 CaptureFilterValues()：把控件值刷进
     // _filterState.FilterValues（EasyMovie.Core.Models.MovieFilterValues）。
@@ -856,7 +870,7 @@ public partial class MovieListView : UserControl
     /// <summary>卡片单击：复用原自定义逻辑——Ctrl 多选入批量，否则打开详情；并阻止 ListBox 自带选择。</summary>
     private void CardList_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (!(_filterState.ViewMode == ViewMode.Card)) return;
+        if (_filterState.ViewMode != ViewMode.Card) return;
         var movie = GetCardMovieFromEvent(e);
         if (movie == null) return;
 
@@ -1800,7 +1814,7 @@ public partial class MovieListView : UserControl
         BatchTagCombo.SelectedIndex = 0;
         BatchTagModeCombo.SelectedIndex = 0;
         BatchCollectionCombo.SelectedIndex = 0;
-        if (!(_filterState.ViewMode == ViewMode.Card) && !(_filterState.ViewMode == ViewMode.Poster))
+        if (_filterState.ViewMode != ViewMode.Card && _filterState.ViewMode != ViewMode.Poster)
             MovieDataGrid.SelectedItems.Clear();
         else if (_filterState.ViewMode == ViewMode.Poster)
             PosterWall.SelectedItems.Clear();
@@ -1924,7 +1938,7 @@ public partial class MovieListView : UserControl
         {
             PosterWall.SelectAll();
         }
-        else if (!(_filterState.ViewMode == ViewMode.Card))
+        else if (_filterState.ViewMode != ViewMode.Card)
         {
             MovieDataGrid.SelectAll();
         }
@@ -2009,7 +2023,7 @@ public partial class MovieListView : UserControl
     public void SelectAllMovies()
     {
         if (_filterState.ViewMode == ViewMode.Poster) PosterWall.SelectAll();
-        else if (!(_filterState.ViewMode == ViewMode.Card)) MovieDataGrid.SelectAll();
+        else if (_filterState.ViewMode != ViewMode.Card) MovieDataGrid.SelectAll();
         else
         {
             if (_cardMovies != null)
@@ -2022,7 +2036,7 @@ public partial class MovieListView : UserControl
     public void DeselectAll()
     {
         if (_filterState.ViewMode == ViewMode.Poster) PosterWall.SelectedItems.Clear();
-        else if (!(_filterState.ViewMode == ViewMode.Card)) MovieDataGrid.SelectedItems.Clear();
+        else if (_filterState.ViewMode != ViewMode.Card) MovieDataGrid.SelectedItems.Clear();
         else { _selectedCardIds.Clear(); UpdateBatchPanel(); }
         _mainWindow?.ShowMovieDetail(null);
     }
