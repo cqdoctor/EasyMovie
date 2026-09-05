@@ -49,6 +49,7 @@ public class StatisticsService : IStatisticsService
                 Id = m.Id,
                 Year = m.Year,
                 Rating = m.Rating,
+                ExternalRating = m.ExternalRating,
                 Runtime = m.Runtime,
                 Director = m.Director,
                 Cast = m.Cast,
@@ -72,9 +73,9 @@ public class StatisticsService : IStatisticsService
             NotWatched = movies.Count(m => m.WatchStatus == WatchStatus.NotWatched),
             Watched = movies.Count(m => m.WatchStatus == WatchStatus.Watched),
             Favorites = movies.Count(m => m.IsFavorite),
-            RatedCount = movies.Count(m => m.Rating.HasValue),
-            AverageRating = movies.Where(m => m.Rating.HasValue)
-                .Select(m => m.Rating!.Value)
+            RatedCount = movies.Count(m => EffectiveRating(m.Rating, m.ExternalRating).HasValue),
+            AverageRating = movies.Where(m => EffectiveRating(m.Rating, m.ExternalRating).HasValue)
+                .Select(m => EffectiveRating(m.Rating, m.ExternalRating)!.Value)
                 .DefaultIfEmpty(0)
                 .Average(),
             TotalRuntimeMinutes = movies.Where(m => m.Runtime.HasValue).Sum(m => m.Runtime!.Value)
@@ -88,10 +89,13 @@ public class StatisticsService : IStatisticsService
         if (uncategorized > 0)
             data.CategoryStats.Add(new CategoryStat { Name = "未分类", Count = uncategorized });
 
-        // 评分分布
+        // 评分分布（effective rating：个人评分优先，缺失时取外部评分；外部评分为 0-10 小数，按四舍五入归入 1-10 星桶）
         data.RatingStats = movies
-            .Where(m => m.Rating.HasValue && m.Rating.Value >= 1 && m.Rating.Value <= 10)
-            .GroupBy(m => m.Rating!.Value)
+            .Select(m => EffectiveRating(m.Rating, m.ExternalRating))
+            .Where(r => r.HasValue)
+            .Select(r => (int)Math.Round(r!.Value))
+            .Where(b => b >= 1 && b <= 10)
+            .GroupBy(b => b)
             .Select(g => new RatingStat { Rating = g.Key, Count = g.Count() })
             .OrderBy(r => r.Rating)
             .ToList();
@@ -236,9 +240,10 @@ public class StatisticsService : IStatisticsService
         // 第二遍：只为 Top N 计算均值。保留原语义——子串匹配（Contains）、
         // 未评分不参与、无命中时 DefaultIfEmpty(0).Average() == 0。
         // 预取文本并预先过滤无评分项，省掉 O(n·take) 次委托调用与空值判断。
+        // effective rating（个人 ?? 外部）与 GetStatisticsAsync 一致，避免导演/演员均分与总均分口径分裂。
         var rated = movies
-            .Where(m => m.Rating.HasValue && !string.IsNullOrEmpty(selector(m)))
-            .Select(m => (Text: selector(m)!, Rating: m.Rating!.Value))
+            .Where(m => EffectiveRating(m.Rating, m.ExternalRating).HasValue && !string.IsNullOrEmpty(selector(m)))
+            .Select(m => (Text: selector(m)!, Rating: EffectiveRating(m.Rating, m.ExternalRating)!.Value))
             .ToList();
 
         foreach (var person in top)
@@ -252,6 +257,13 @@ public class StatisticsService : IStatisticsService
 
         return top;
     }
+
+    /// <summary>
+    /// effective rating：个人评分为准（用户自己打过星就用自己的），缺失时退回外部评分（0-10 小数）。
+    /// 与 <see cref="ReferenceStatistics"/> 的口径必须逐字段一致（由契约测试守护）。
+    /// </summary>
+    internal static double? EffectiveRating(int? personal, double? external)
+        => personal.HasValue ? (double)personal.Value : external;
 
     /// <summary>类型（标签）分布：直接按标签聚合，避免加载整个 MovieTags 集合。</summary>
     /// <remarks>
@@ -299,18 +311,24 @@ public class StatisticsService : IStatisticsService
 
     public async Task<List<RatingStat>> GetRatingDistributionAsync()
     {
-        var counts = await _context.Movies
+        var ratings = await _context.Movies
             .AsNoTracking()
-            .Where(m => m.Rating.HasValue && m.Rating.Value >= 1 && m.Rating.Value <= 10)
-            .GroupBy(m => m.Rating!.Value)
-            .Select(g => new { Rating = g.Key, Count = g.Count() })
+            .Select(m => new { Personal = m.Rating, External = m.ExternalRating })
             .ToListAsync();
+
+        var buckets = ratings
+            .Select(r => EffectiveRating(r.Personal, r.External))
+            .Where(r => r.HasValue)
+            .Select(r => (int)Math.Round(r!.Value))
+            .Where(b => b >= 1 && b <= 10)
+            .GroupBy(b => b)
+            .ToDictionary(g => g.Key, g => g.Count());
 
         return Enumerable.Range(1, 10)
             .Select(r => new RatingStat
             {
                 Rating = r,
-                Count = counts.FirstOrDefault(c => c.Rating == r)?.Count ?? 0
+                Count = buckets.TryGetValue(r, out var c) ? c : 0
             })
             .Where(r => r.Count > 0)
             .ToList();
@@ -358,6 +376,7 @@ public class StatisticsService : IStatisticsService
         public int Id { get; set; }
         public int Year { get; set; }
         public int? Rating { get; set; }
+        public double? ExternalRating { get; set; }
         public int? Runtime { get; set; }
         public string? Director { get; set; }
         public string? Cast { get; set; }

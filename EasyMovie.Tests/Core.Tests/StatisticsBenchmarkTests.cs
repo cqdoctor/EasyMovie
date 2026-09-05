@@ -357,8 +357,8 @@ public static class ReferenceStatistics
             NotWatched = movies.Count(m => m.WatchStatus == WatchStatus.NotWatched),
             Watched = movies.Count(m => m.WatchStatus == WatchStatus.Watched),
             Favorites = movies.Count(m => m.IsFavorite),
-            RatedCount = movies.Count(m => m.Rating.HasValue),
-            AverageRating = movies.Where(m => m.Rating.HasValue).Select(m => m.Rating!.Value)
+            RatedCount = movies.Count(m => EffectiveRating(m).HasValue),
+            AverageRating = movies.Where(m => EffectiveRating(m).HasValue).Select(m => EffectiveRating(m)!.Value)
                 .DefaultIfEmpty(0).Average(),
             TotalRuntimeMinutes = movies.Where(m => m.Runtime.HasValue).Sum(m => m.Runtime!.Value)
         };
@@ -377,7 +377,15 @@ public static class ReferenceStatistics
             data.CategoryStats.Add(new CategoryStat { Name = "未分类", Count = uncategorized });
 
         data.RatingStats = Enumerable.Range(1, 10)
-            .Select(r => new RatingStat { Rating = r, Count = movies.Count(m => m.Rating == r) })
+            .Select(r => new RatingStat
+            {
+                Rating = r,
+                Count = movies
+                    .Select(m => EffectiveRating(m))
+                    .Where(er => er.HasValue)
+                    .Select(er => (int)Math.Round(er!.Value))
+                    .Count(b => b == r)
+            })
             .Where(r => r.Count > 0).ToList();
 
         data.YearlyStats = movies.GroupBy(m => m.Year)
@@ -479,11 +487,15 @@ public static class ReferenceStatistics
                 Name = g.Key,
                 Count = g.Count(),
                 AvgRating = movies
-                    .Where(m => !string.IsNullOrEmpty(selector(m)) && selector(m)!.Contains(g.Key) && m.Rating.HasValue)
-                    .Select(m => m.Rating!.Value).DefaultIfEmpty(0).Average()
+                    .Where(m => !string.IsNullOrEmpty(selector(m)) && selector(m)!.Contains(g.Key) && EffectiveRating(m).HasValue)
+                    .Select(m => EffectiveRating(m)!.Value).DefaultIfEmpty(0).Average()
             })
             .OrderByDescending(p => p.Count).Take(take).ToList();
     }
+
+    /// <summary>effective rating（个人 ?? 外部），口径必须与 StatisticsService.EffectiveRating 完全一致（契约测试守护）。</summary>
+    private static double? EffectiveRating(Movie m)
+        => m.Rating.HasValue ? (double)m.Rating.Value : m.ExternalRating;
 }
 
 /// <summary>逐字段比对 StatisticsData，失败时精确指出是哪个字段不一致。</summary>

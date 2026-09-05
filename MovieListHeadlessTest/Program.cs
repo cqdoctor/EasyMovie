@@ -2,9 +2,12 @@ using System.Reflection;
 using System.Windows;
 using System.Windows.Threading;
 using EasyMovie.Client.Converters;
+using EasyMovie.Client;
 using EasyMovie.Client.Views;
+using EasyMovie.Data;
 using MaterialDesignColors;
 using MaterialDesignThemes.Wpf;
+using Serilog;
 
 namespace MovieListHeadlessTest;
 
@@ -29,6 +32,8 @@ internal static class Program
     private static int Main()
     {
         Console.OutputEncoding = System.Text.Encoding.UTF8;
+        // 静默 logger 即可：DbHelper.WarmupAsync 内的 Log.* 调用在 Log.Logger 非空时安全（不需要 Console/File 包）
+        Log.Logger = new LoggerConfiguration().CreateLogger();
 
         try
         {
@@ -40,6 +45,10 @@ internal static class Program
             };
             Step("创建 WPF Application", () => { _ = Application.Current; });
             Step("装配 App.xaml 的资源字典(MDIX/皮肤/字符串/转换器)", () => InitResources(app));
+
+            // 复刻真实启动顺序：先预热数据库（确保 schema + 回填外部评分），再查 MovieListView。
+            // 否则真实库还没有 ExternalRating 列，SearchAsync 会报 no such column。这一步同时把 B1 应用到真实库。
+            Step("数据库预热(确保 schema + 回填外部评分)", () => DbHelper.WarmupAsync().GetAwaiter().GetResult());
 
             MovieListView? view = null;
             Step("实例化 MovieListView(null)", () => { view = new MovieListView(null); });
@@ -86,6 +95,17 @@ internal static class Program
             var vm1 = Read<object>("ViewMode");
             Report($"CycleView 后 ViewMode={vm1}（原 {vm0}）");
             if (Equals(vm0, vm1)) Failures.Add($"CycleView 后 ViewMode 未变化（仍为 {vm1}）");
+
+            // ── B1 验证：统计页改读本地外部评分，评分区不再整块空白 ──
+            Step("统计页改读外部评分(B1)", () =>
+            {
+                var svc = new StatisticsService(DbHelper.CreateContext());
+                var d = svc.GetStatisticsAsync().GetAwaiter().GetResult();
+                Report($"平均评分={d.AverageRating:F2}, 有评分数={d.RatedCount}/{d.TotalMovies}");
+                var dist = string.Join(", ", d.RatingStats.OrderBy(r => r.Rating).Select(r => $"{r.Rating}星×{r.Count}"));
+                Report($"评分分布: {(string.IsNullOrEmpty(dist) ? "（无）" : dist)}");
+                if (d.RatedCount <= 0) Failures.Add("B1 回填后仍有评分数为 0（回填应已写入外部评分）");
+            });
 
             return Finish(null);
         }

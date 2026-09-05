@@ -209,4 +209,43 @@ public class StatisticsServiceTests
         data.YearlyStats.Should().NotBeEmpty();
         data.RatingStats.Should().NotBeEmpty();
     }
+
+    [Fact]
+    public async Task GetStatisticsAsync_ShouldUseExternalRating_WhenPersonalRatingMissing()
+    {
+        // B1：个人评分全库为 null 时，统计页应改读本地外部评分，避免「评分区整块空白」
+        var (context, service) = CreateService(
+            nameof(GetStatisticsAsync_ShouldUseExternalRating_WhenPersonalRatingMissing));
+
+        context.Movies.AddRange(
+            new Movie { Title = "A", Year = 2020, ExternalRating = 7.5 },
+            new Movie { Title = "B", Year = 2021, ExternalRating = 8.4 },
+            new Movie { Title = "C", Year = 2022 } // 无评分
+        );
+        await context.SaveChangesAsync();
+
+        var data = await service.GetStatisticsAsync();
+
+        data.RatedCount.Should().Be(2);
+        data.AverageRating.Should().BeApproximately(7.95, 0.01);
+        // 7.5 → 8（四舍五入 away-from-zero），8.4 → 8，均归入 8 星桶
+        data.RatingStats.Should().ContainSingle(s => s.Rating == 8 && s.Count == 2);
+    }
+
+    [Fact]
+    public async Task GetStatisticsAsync_ShouldPreferPersonalRating_OverExternal()
+    {
+        // effective rating 规则：个人评分优先于外部评分
+        var (context, service) = CreateService(
+            nameof(GetStatisticsAsync_ShouldPreferPersonalRating_OverExternal));
+
+        context.Movies.Add(new Movie { Title = "A", Year = 2020, Rating = 9, ExternalRating = 3.2 });
+        await context.SaveChangesAsync();
+
+        var data = await service.GetStatisticsAsync();
+
+        data.RatedCount.Should().Be(1);
+        data.AverageRating.Should().BeApproximately(9.0, 0.01);
+        data.RatingStats.Should().ContainSingle(s => s.Rating == 9 && s.Count == 1);
+    }
 }

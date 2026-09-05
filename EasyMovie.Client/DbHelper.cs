@@ -113,6 +113,11 @@ public static class DbHelper
         {
             if (_initialized) return;
 
+            // 外部评分列 + 回填（B1）：刻意放在「首次初始化快速路径」之前，每次启动都跑。
+            // 否则老用户（InitFlagPath 已存在、下方直接跳过重活）永远拿不到新列与外部评分。
+            // 自身幂等：列已存在则跳过 ALTER；回填由 RatingBackfill 内部 flag 守护只跑一次。
+            EnsureRatingSchemaAndBackfill();
+
             // 非首次启动快速路径：首次完整初始化（EnsureCreated + schema 检查 + 历史数据清洗 +
             // 种子标签）完成后写 flag 文件；再次启动直接跳过全部重活（实测每次重跑约 2.2s，
             // 且持 SQLite 写锁，会把启动期 Dashboard 预载查询阻塞 busy_timeout 3s）。
@@ -144,6 +149,8 @@ public static class DbHelper
                 var hasCollectionOrder = false;
                 var hasCollectionsTable = false;
                 var hasPlaybackPosition = false;
+                var hasExternalRating = false;
+                var hasRatingSource = false;
                 using (var reader = cmd.ExecuteReader())
                 {
                     while (reader.Read())
@@ -154,6 +161,8 @@ public static class DbHelper
                         if (colName == "CollectionId") hasCollectionId = true;
                         if (colName == "CollectionOrder") hasCollectionOrder = true;
                         if (colName == "PlaybackPosition") hasPlaybackPosition = true;
+                        if (colName == "ExternalRating") hasExternalRating = true;
+                        if (colName == "RatingSource") hasRatingSource = true;
                     }
                 }
 
@@ -200,6 +209,17 @@ public static class DbHelper
                 if (!hasPlaybackPosition)
                 {
                     cmd.CommandText = "ALTER TABLE Movies ADD COLUMN PlaybackPosition INTEGER NOT NULL DEFAULT 0;";
+                    cmd.ExecuteNonQuery();
+                }
+
+                if (!hasExternalRating)
+                {
+                    cmd.CommandText = "ALTER TABLE Movies ADD COLUMN ExternalRating REAL;";
+                    cmd.ExecuteNonQuery();
+                }
+                if (!hasRatingSource)
+                {
+                    cmd.CommandText = "ALTER TABLE Movies ADD COLUMN RatingSource TEXT;";
                     cmd.ExecuteNonQuery();
                 }
 
@@ -267,6 +287,15 @@ public static class DbHelper
                 Log.Error(ex, "种子默认标签失败");
             }
 
+            try
+            {
+                BackfillExternalRatings();
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "回填外部评分失败");
+            }
+
             // 首次完整初始化完成，写 flag + 里程碑日志。
             // flag 写不进去的后果：每次启动都重跑一遍完整初始化（含迁移/清洗），启动会明显变慢——值得留痕。
             try { File.WriteAllText(InitFlagPath, DateTime.UtcNow.ToString("O")); }
@@ -318,6 +347,14 @@ public static class DbHelper
     private static readonly string DirtyDataFlagPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "EasyMovie", ".dirty_data_cleaned_v2");
 
+    /// <summary>
+    /// 一次性外部评分回填的完成标志（B1）。与 html_cleaned / dirty_data_cleaned 同理：只跑一次，
+    /// flag 一存在就永远跳过。缓存库 cache.db 后续若扩充了更多评分，想重跑需删除本 flag。
+    /// 迁移本体在 <see cref="EasyMovie.Data.RatingBackfill"/>（Data 层，可测试）。
+    /// </summary>
+    private static readonly string RatingBackfillFlagPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "EasyMovie", ".rating_backfilled_v1");
+
     private static void CleanHtmlInExistingData()
     {
         // 真实实现在 Data 层：Client 是 WPF 项目、零测试覆盖，这段"改写用户真实数据"的
@@ -325,6 +362,76 @@ public static class DbHelper
         // 标志文件语义（只跑一次、扩范围必须升版本号）见 TextCleanupMigration 的注释。
         var changed = TextCleanupMigration.CleanHtmlInExistingData(CreateOptions(), HtmlCleanFlagPath);
         if (changed > 0) Log.Information("文本清洗迁移完成：重写 {Count} 行", changed);
+    }
+
+    private static void BackfillExternalRatings()
+    {
+        // 真实实现在 Data 层（可测试，同 TextCleanupMigration）。把本地缓存库 cache.db 的外部评分
+        // 回写到主库 Movies.ExternalRating / RatingSource，统计页即可改读本地外部评分，填满分页空白。
+        var changed = RatingBackfill.Run(CreateOptions(), CacheDbContext.CreateOptions(), RatingBackfillFlagPath);
+        if (changed > 0) Log.Information("外部评分回填完成：写入 {Count} 部", changed);
+    }
+
+    /// <summary>
+    /// 保证外部评分列存在并回填（B1）。与 InitFlagPath 首次初始化脱钩，每次启动都跑：
+    /// - 仅当 Movies 表已存在时才 ALTER（全新库由下方 EnsureCreated 建表时自带列，不必 ALTER）；
+    /// - 回填委托 <see cref="BackfillExternalRatings"/>（内部 flag 守护，只跑一次）。
+    /// 这样老用户（InitFlagPath 已存在、跳过首次重活）也能拿到新列与外部评分；
+    /// 列已存在 / flag 已写时本方法几乎零成本（仅一次 PRAGMA 探表）。
+    /// </summary>
+    private static void EnsureRatingSchemaAndBackfill()
+    {
+        try
+        {
+            if (!Directory.Exists(DbDir)) Directory.CreateDirectory(DbDir);
+            if (!File.Exists(DbPath)) return; // 全新库：下方 EnsureCreated 会建带 ExternalRating/RatingSource 列的表
+
+            using var ctx = new MovieDbContext(CreateOptions());
+            ctx.Database.OpenConnection();
+            try
+            {
+                using var cmd = ctx.Database.GetDbConnection().CreateCommand();
+                cmd.CommandText = "SELECT name FROM sqlite_master WHERE type='table' AND name='Movies'";
+                var hasTable = false;
+                using (var tableReader = cmd.ExecuteReader())
+                    if (tableReader.Read()) hasTable = true;
+                if (!hasTable) return;
+
+                cmd.CommandText = "PRAGMA table_info(Movies)";
+                var hasExternalRating = false;
+                var hasRatingSource = false;
+                using (var reader = cmd.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        var colName = reader.GetString(1);
+                        if (colName == "ExternalRating") hasExternalRating = true;
+                        if (colName == "RatingSource") hasRatingSource = true;
+                    }
+                }
+
+                if (!hasExternalRating)
+                {
+                    cmd.CommandText = "ALTER TABLE Movies ADD COLUMN ExternalRating REAL;";
+                    cmd.ExecuteNonQuery();
+                }
+                if (!hasRatingSource)
+                {
+                    cmd.CommandText = "ALTER TABLE Movies ADD COLUMN RatingSource TEXT;";
+                    cmd.ExecuteNonQuery();
+                }
+            }
+            finally
+            {
+                ctx.Database.CloseConnection();
+            }
+
+            BackfillExternalRatings();
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "确保外部评分列存在/回填失败");
+        }
     }
 
     private static bool ContainsTemplateOrLabel(string? value)
