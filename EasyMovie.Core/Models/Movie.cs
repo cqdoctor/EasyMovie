@@ -53,6 +53,13 @@ public class Movie
     /// <summary>个人评分 1-10，null 表示未评分</summary>
     public int? Rating { get; set; }
 
+    /// <summary>外部评分（豆瓣/TMDB/1905 等，0-10 小数），来自本地缓存库 cache.db，与个人评分分开存储。
+    /// 统计页在个人评分缺失时改读此字段，避免「评分区整块空白」。</summary>
+    public double? ExternalRating { get; set; }
+
+    /// <summary>外部评分来源标记（douban / tmdb / 1905 / seed ...），便于排查与展示。</summary>
+    public string? RatingSource { get; set; }
+
     /// <summary>观看状态</summary>
     public WatchStatus WatchStatus { get; set; } = WatchStatus.NotWatched;
 
