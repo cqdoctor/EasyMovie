@@ -288,13 +288,17 @@ public class RecommendationService : IRecommendationService
         return result;
     }
 
-    // 以下三个方法当前无调用方（UI 只用 GetRecommendationsAsync），仍走 GetAllAsync 全量加载。
-    // 若日后启用，需同步改为上面的两阶段查询，否则会重新引入全库海报入内存的问题。
+    // 以下三个方法当前无调用方（UI 只用 GetRecommendationsAsync），已与主路径同步为两阶段窄投影：
+    // 先用 GetRecommendationDataAsync 算分（不读 PosterData），再只对 topN 通过 MaterializeAsync
+    // 加载完整实体。若日后启用，不会再重新引入全库海报入内存的问题。
 
     public async Task<List<RecommendedMovie>> GetBySameDirectorAsync(int topN = 10)
     {
-        var allMovies = await _movieRepo.GetAllAsync();
-        var watched = allMovies.Where(m => m.WatchStatus == WatchStatus.Watched || m.IsFavorite).ToList();
+        var data = await _movieRepo.GetRecommendationDataAsync();
+        var all = data.Movies;
+        if (all.Count == 0) return new List<RecommendedMovie>();
+
+        var watched = all.Where(m => m.WatchStatus == WatchStatus.Watched || m.IsFavorite).ToList();
         var watchedDirectors = watched
             .Where(m => !string.IsNullOrWhiteSpace(m.Director))
             .SelectMany(m => m.Director!.Split('/', ','))
@@ -302,58 +306,69 @@ public class RecommendationService : IRecommendationService
             .Where(d => !string.IsNullOrEmpty(d))
             .ToHashSet();
 
-        return allMovies
+        var top = all
             .Where(m => m.WatchStatus != WatchStatus.Watched && !string.IsNullOrWhiteSpace(m.Director))
             .Select(m => new
             {
-                Movie = m,
+                m.Id,
+                m.Director,
+                m.Rating,
                 MatchDirs = m.Director!.Split('/', ',').Select(d => d.Trim()).Count(d => watchedDirectors.Contains(d))
             })
             .Where(x => x.MatchDirs > 0)
             .OrderByDescending(x => x.MatchDirs)
-            .ThenByDescending(x => x.Movie.Rating)
+            .ThenByDescending(x => x.Rating)
             .Take(topN)
-            .Select(x => new RecommendedMovie
-            {
-                Movie = x.Movie,
-                Reason = $"同导演: {x.Movie.Director}",
-                Score = x.MatchDirs * 3 + (x.Movie.Rating ?? 0) * 0.5
-            })
+            .Select(x => new ScoredItem(
+                x.Id,
+                x.MatchDirs * 3 + (x.Rating ?? 0) * 0.5,
+                $"同导演: {x.Director}"))
             .ToList();
+
+        return await MaterializeAsync(top);
     }
 
     public async Task<List<RecommendedMovie>> GetBySameCategoryAsync(int topN = 10)
     {
-        var allMovies = await _movieRepo.GetAllAsync();
-        var watched = allMovies.Where(m => m.WatchStatus == WatchStatus.Watched || m.IsFavorite).ToList();
-        var watchedCategoryIds = watched.Where(m => m.CategoryId.HasValue).Select(m => m.CategoryId!.Value).ToHashSet();
+        var data = await _movieRepo.GetRecommendationDataAsync();
+        var all = data.Movies;
+        if (all.Count == 0) return new List<RecommendedMovie>();
 
-        return allMovies
+        var watched = all.Where(m => m.WatchStatus == WatchStatus.Watched || m.IsFavorite).ToList();
+        var watchedCategoryIds = watched
+            .Where(m => m.CategoryId.HasValue)
+            .Select(m => m.CategoryId!.Value)
+            .ToHashSet();
+
+        var top = all
             .Where(m => m.WatchStatus != WatchStatus.Watched && m.CategoryId.HasValue && watchedCategoryIds.Contains(m.CategoryId.Value))
             .OrderByDescending(m => m.Rating)
             .Take(topN)
-            .Select(m => new RecommendedMovie
-            {
-                Movie = m,
-                Reason = $"同类型: {m.Category?.Name}",
-                Score = (m.Rating ?? 0) * 0.5 + 2
-            })
+            .Select(m => new ScoredItem(
+                m.Id,
+                (m.Rating ?? 0) * 0.5 + 2,
+                $"同类型: {CategoryName(data, m.CategoryId)}"))
             .ToList();
+
+        return await MaterializeAsync(top);
     }
 
     public async Task<List<RecommendedMovie>> GetHighRatedUnwatchedAsync(int topN = 10)
     {
-        var allMovies = await _movieRepo.GetAllAsync();
-        return allMovies
+        var data = await _movieRepo.GetRecommendationDataAsync();
+        var all = data.Movies;
+
+        var top = all
             .Where(m => m.WatchStatus != WatchStatus.Watched && m.Rating.HasValue && m.Rating >= 7)
             .OrderByDescending(m => m.Rating)
             .Take(topN)
-            .Select(m => new RecommendedMovie
-            {
-                Movie = m,
-                Reason = "高分佳片",
-                Score = m.Rating ?? 0
-            })
+            .Select(m => new ScoredItem(m.Id, m.Rating ?? 0, "高分佳片"))
             .ToList();
+
+        return await MaterializeAsync(top);
     }
+
+    /// <summary>从窄投影附带的分类名映射取分类名（替代原 m.Category?.Name 导航属性）。</summary>
+    private static string CategoryName(RecommendationData data, int? categoryId)
+        => categoryId.HasValue && data.CategoryNames.TryGetValue(categoryId.Value, out var name) ? name : "";
 }
