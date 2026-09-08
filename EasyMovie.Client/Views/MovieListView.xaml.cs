@@ -261,9 +261,10 @@ public partial class MovieListView : UserControl
     // （历史上有过 4~6 份各自漂移的副本，是真实 bug 来源）。
     // 解析逻辑全部在 EasyMovie.Core.Helpers.MovieQueryBuilder（纯函数，单测锁定），这里只做控件读取。
     //
-    // 已知遗留（本次只标注、不擅自改）：保存筛选方案（SaveFilter 按钮，约 389-403 行）内联了另一份
-    // 控件读取，且多选部分**未排除 "_all" 哨兵、空列表也不置 null**，与此处规范行为不一致。
-    // 改持久化语义需单独评估，本次不动。
+    // 已修复（2026-09-08，#3）：保存筛选方案原先内联的第二份控件读取已删除，
+    // 改为先调用 CaptureFilterValues() 刷新快照，再用纯函数 SavedFilterMapper.FromFilterValues
+    // 映射，与查询路径共用同一语义（剔除 "_all" 哨兵、空列表置 null、关键词归一化）。
+    // 载入侧用 SavedFilterMapper.NormalizeLegacy 清洗历史数据，保证老方案行为一致。
 
     private void CaptureFilterValues()
     {
@@ -415,24 +416,10 @@ public partial class MovieListView : UserControl
         {
             var name = nameBox.Text?.Trim();
             if (string.IsNullOrEmpty(name)) { AppMessageBox.ShowInfo(LanguageManager.GetString("Msg_EnterName")); return; }
-            var filter = new SavedFilter
-            {
-                Name = name,
-                Keyword = SearchBox.Text?.Trim(),
-                CategoryId = CategoryFilter.SelectedItem is ComboBoxItem ci && ci.Tag is int cid ? cid : (int?)null,
-                Status = StatusFilter.SelectedItem is ComboBoxItem si && si.Tag is string st ? st : null,
-                YearFrom = YearRangeSlider.LowerValue > YearRangeSlider.Minimum ? (int)YearRangeSlider.LowerValue : (int?)null,
-                YearTo = YearRangeSlider.UpperValue < YearRangeSlider.Maximum ? (int)YearRangeSlider.UpperValue : (int?)null,
-                RatingMin = RatingRangeSlider.LowerValue > RatingRangeSlider.Minimum ? (int)RatingRangeSlider.LowerValue : (int?)null,
-                RatingMax = RatingRangeSlider.UpperValue < RatingRangeSlider.Maximum ? (int)RatingRangeSlider.UpperValue : (int?)null,
-                Countries = CountryFilter.SelectedItems.Cast<ComboBoxItem>().Where(ci => ci.Tag is string).Select(ci => (string)ci.Tag).ToList(),
-                Languages = LanguageFilter.SelectedItems.Cast<ComboBoxItem>().Where(ci => ci.Tag is string).Select(ci => (string)ci.Tag).ToList(),
-                RuntimeMin = RuntimeRangeSlider.LowerValue > RuntimeRangeSlider.Minimum ? (int)RuntimeRangeSlider.LowerValue : (int?)null,
-                RuntimeMax = RuntimeRangeSlider.UpperValue < RuntimeRangeSlider.Maximum ? (int)RuntimeRangeSlider.UpperValue : (int?)null,
-                Directors = DirectorFilter.SelectedItems.Cast<ComboBoxItem>().Where(ci => ci.Tag is string).Select(ci => (string)ci.Tag).ToList(),
-                SortBy = GetSortInfo().sortBy,
-                SortDesc = GetSortInfo().sortDesc
-            };
+            // 单一来源：先刷新权威筛选值快照，再交给纯函数映射。
+            // 不再内联读取控件（历史上有过 4~6 份各自漂移的副本，是真实 bug 来源）。
+            CaptureFilterValues();
+            var filter = SavedFilterMapper.FromFilterValues(name, _filterState.FilterValues);
             var filters = SavedFilter.LoadAll();
             filters.Add(filter);
             SavedFilter.SaveAll(filters);
@@ -457,6 +444,8 @@ public partial class MovieListView : UserControl
         if (SavedFilterCombo.SelectedItem is not ComboBoxItem ci || ci.Tag is not string name || name == "_placeholder") return;
         var filter = SavedFilter.LoadAll().FirstOrDefault(f => f.Name == name);
         if (filter == null) return;
+        // 老版本保存的数据可能含 "_all" 哨兵 / 空列表 / 未归一化关键词，载入时统一清洗
+        SavedFilterMapper.NormalizeLegacy(filter);
 
         // 应用筛选条件
         SearchBox.Text = filter.Keyword ?? "";
