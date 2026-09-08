@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Interop;
 using System.Linq;
 using EasyMovie.Core.Models;
+using Serilog;
 
 namespace EasyMovie.Client.Views;
 
@@ -20,21 +21,17 @@ public static class VideoPlayerHelper
             return;
         }
 
+        // 播放统一走 MainWindow 内嵌的 VideoPlayerHost（VideoView 渲染，不弹额外窗口）。
         // 注意：不能用 `Application.Current.MainWindow is MainWindow` 判断——该属性可能被启动阶段
-        // 先 Show 的窗口抢占（指向非 MainWindow），从而误走兜底分支、弹出独立的 VideoPlayerWindow
-        // （独立大窗口 + 帧回调渲染，观感像“弹窗且一直在截图”）。改为在所有已打开窗口里查找真正的
-        // MainWindow 实例，确保始终走内置播放器（VideoView 渲染，不弹额外窗口）。
+        // 先 Show 的窗口抢占（指向非 MainWindow）。改为在所有已打开窗口里查找真正的 MainWindow 实例。
         var main = Application.Current?.Windows.OfType<MainWindow>().FirstOrDefault();
-        if (main != null)
+        if (main == null)
         {
-            main.ShowMoviePlayer(movie);
+            Log.Warning("VideoPlayerHelper.Play: 未找到 MainWindow 实例，无法启动播放 {File}", movie.FilePath);
+            AppMessageBox.ShowWarning("播放器尚未就绪，请稍后再试。", LanguageManager.GetString("Msg_Hint"));
+            return;
         }
-        else
-        {
-            // 兜底：主窗口不可用时仍弹窗播放，不影响其他场景
-            var player = new VideoPlayerWindow(movie);
-            player.Show();
-        }
+        main.ShowMoviePlayer(movie);
     }
 
     /// <summary>
