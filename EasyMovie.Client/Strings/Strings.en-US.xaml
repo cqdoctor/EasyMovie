@@ -240,6 +240,16 @@
     <!-- Code-behind strings -->
     <sys:String x:Key="Msg_NoRecommendData">No recommendations yet. Please add some movies first.</sys:String>
     <sys:String x:Key="Msg_Hint">Hint</sys:String>
+    <sys:String x:Key="Msg_CrashTitle">Application Error</sys:String>
+    <sys:String x:Key="Msg_CrashBody">The application encountered a problem and the operation did not complete.&#x0a;&#x0a;Possible cause: {0}&#x0a;&#x0a;Details have been written to:&#x0a;{1}</sys:String>
+    <sys:String x:Key="Msg_CrashFatalBody">The application encountered a fatal error and will exit.&#x0a;&#x0a;Possible cause: {0}&#x0a;&#x0a;Details have been written to:&#x0a;{1}</sys:String>
+    <sys:String x:Key="Err_Unknown">An unknown internal error occurred</sys:String>
+    <sys:String x:Key="Err_IO">File or storage read/write failed (the file may be in use or moved, or the device is disconnected)</sys:String>
+    <sys:String x:Key="Err_Db">Database operation failed (the database file may be locked or corrupted)</sys:String>
+    <sys:String x:Key="Err_Network">Network request failed (you may be offline, or the target service is unreachable)</sys:String>
+    <sys:String x:Key="Err_Permission">Insufficient permissions to perform this operation</sys:String>
+    <sys:String x:Key="Err_Timeout">The operation timed out (it took too long or was cancelled)</sys:String>
+    <sys:String x:Key="Err_Memory">Not enough memory to continue</sys:String>
     <sys:String x:Key="Msg_PlayFailed">Playback failed: </sys:String>
     <sys:String x:Key="Msg_YearSuffix"> </sys:String>
     <sys:String x:Key="Msg_MinuteSuffix">min</sys:String>

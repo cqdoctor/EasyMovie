@@ -175,8 +175,8 @@ public partial class App : Application
             var ex = args.ExceptionObject as Exception;
             DumpCrash("AppDomain.UnhandledException", ex);
             Log.Fatal(ex, "未处理的异常");
-            // 异常本体已由 DumpCrash 落盘 crash.log；弹窗只是给用户看的提示，失败不必再记
-            try { AppMessageBox.ShowError($"严重错误: {ex?.Message}", "错误"); } catch { }
+            // 异常本体已由 DumpCrash 落盘 crash.log；弹窗只给友好提示（不再直接甩英文 Message），失败不必再记
+            try { AppMessageBox.ShowError(string.Format(LanguageManager.GetString("Msg_CrashFatalBody"), DescribeCrash(ex), CrashLogPath), LanguageManager.GetString("Msg_CrashTitle")); } catch { }
         };
 
         DispatcherUnhandledException += (s, args) =>
@@ -184,7 +184,7 @@ public partial class App : Application
             DumpCrash("DispatcherUnhandledException", args.Exception);
             Log.Error(args.Exception, "UI线程异常");
             // 同上：异常已进日志，弹窗失败无需再记
-            try { AppMessageBox.ShowWarning(args.Exception.Message, "错误"); } catch { }
+            try { AppMessageBox.ShowWarning(string.Format(LanguageManager.GetString("Msg_CrashBody"), DescribeCrash(args.Exception), CrashLogPath), LanguageManager.GetString("Msg_CrashTitle")); } catch { }
             args.Handled = true;
         };
 
@@ -580,12 +580,31 @@ public partial class App : Application
     }
 
     private static readonly object _crashLock = new();
+
+    /// <summary>崩溃日志完整路径（弹窗里直接展示给用户，便于他把文件发给开发者排查）。</summary>
+    private static string CrashLogPath => Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs", "crash.log");
+
+    /// <summary>把异常翻译成用户看得懂的提示。只做**粗粒度分类**：
+    /// 原始英文 Message 对普通用户毫无意义，技术细节一律留给 crash.log。
+    /// 未命中分类时回退 Err_Unknown，绝不把 ex.Message 原样弹给用户。</summary>
+    private static string DescribeCrash(Exception? ex) => LanguageManager.GetString(ex switch
+    {
+        null => "Err_Unknown",
+        UnauthorizedAccessException or System.Security.SecurityException => "Err_Permission",
+        TimeoutException or OperationCanceledException => "Err_Timeout",
+        OutOfMemoryException or InsufficientMemoryException => "Err_Memory",
+        System.Net.Http.HttpRequestException or System.Net.Sockets.SocketException or System.Net.WebException => "Err_Network",
+        DbUpdateException or System.Data.Common.DbException => "Err_Db",
+        IOException => "Err_IO",
+        _ => "Err_Unknown"
+    });
+
     /// <summary>把任何未处理异常（含原生崩溃尽可能）同步落盘到 logs/crash.log，便于无界面环境定位闪退根因</summary>
     private static void DumpCrash(string source, Exception? ex)
     {
         try
         {
-            var dir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs");
+            var dir = Path.GetDirectoryName(CrashLogPath)!;
             Directory.CreateDirectory(dir);
             var sb = new System.Text.StringBuilder();
             sb.AppendLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] {source}");
