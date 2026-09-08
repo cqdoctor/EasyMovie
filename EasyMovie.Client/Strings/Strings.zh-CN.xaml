@@ -238,6 +238,16 @@
     <!-- Code-behind strings -->
     <sys:String x:Key="Msg_NoRecommendData">暂无推荐数据，请先添加一些电影。</sys:String>
     <sys:String x:Key="Msg_Hint">提示</sys:String>
+    <sys:String x:Key="Msg_CrashTitle">程序错误</sys:String>
+    <sys:String x:Key="Msg_CrashBody">程序遇到问题，操作未能完成。&#x0a;&#x0a;可能原因：{0}&#x0a;&#x0a;详细信息已记录到：&#x0a;{1}</sys:String>
+    <sys:String x:Key="Msg_CrashFatalBody">程序遇到严重错误，即将退出。&#x0a;&#x0a;可能原因：{0}&#x0a;&#x0a;详细信息已记录到：&#x0a;{1}</sys:String>
+    <sys:String x:Key="Err_Unknown">未知的内部错误</sys:String>
+    <sys:String x:Key="Err_IO">文件或存储设备读写失败（文件可能被占用、已移动，或存储设备未连接）</sys:String>
+    <sys:String x:Key="Err_Db">数据库操作失败（数据库文件可能被占用或已损坏）</sys:String>
+    <sys:String x:Key="Err_Network">网络请求失败（可能已离线，或目标服务不可达）</sys:String>
+    <sys:String x:Key="Err_Permission">没有足够的权限执行该操作</sys:String>
+    <sys:String x:Key="Err_Timeout">操作超时（任务耗时过长或被取消）</sys:String>
+    <sys:String x:Key="Err_Memory">内存不足，无法继续处理</sys:String>
     <sys:String x:Key="Msg_PlayFailed">播放失败: </sys:String>
     <sys:String x:Key="Msg_YearSuffix">年</sys:String>
     <sys:String x:Key="Msg_MinuteSuffix">分钟</sys:String>
