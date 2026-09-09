@@ -282,14 +282,11 @@ public partial class App : Application
         // FolderImportService 的 IMovieApiClient 参数有多个实现，按现状以 null 注入
         services.AddTransient<IFolderImportService>(sp => new FolderImportService());
         services.AddSingleton<FolderWatcherService>();
-        services.AddTransient<CategoryManageViewModel>();
-        services.AddTransient<TagManageViewModel>();
         services.AddTransient<CategoryTagManageViewModel>();
         services.AddTransient<SettingsViewModel>();
         services.AddTransient<StatisticsViewModel>();
         services.AddTransient<OnlineSearchViewModel>();
         services.AddTransient<WatchCalendarViewModel>();
-        services.AddTransient<ImportExportViewModel>();
         services.AddTransient<MovieRelationViewModel>();
         // 复杂 View 的 ViewModel（持有服务/上下文，由 DI 解析，视图内兜底手工 new）
         services.AddTransient<WatchDiaryViewModel>();
