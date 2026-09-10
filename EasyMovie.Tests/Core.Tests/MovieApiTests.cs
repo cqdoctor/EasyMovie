@@ -84,6 +84,9 @@ public class MovieApiServiceTests
     }
 }
 
+// 与 DoubanThrottlePolicyTests 同集合：冷却状态是 static 的，必须串行，
+// 否则并行跑时互相重置计数会导致用例偶发失败。
+[Collection("Douban")]
 public class DoubanApiClientTests : IDisposable
 {
     // 冷却状态是 static 的，会在用例之间互相污染（例如 500 错误会触发冷却，

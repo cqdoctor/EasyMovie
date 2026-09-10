@@ -19,6 +19,10 @@ namespace EasyMovie.Tests.Core.Tests;
 ///   3) rexxar 成功 → 不额外消耗网页搜索请求；
 ///   4) 两条路径都拿不到数据达阈值 → 才升级为冷却（防止无限空转）。
 /// </summary>
+// 冷却/软失败计数是 DoubanApiClient 的 static 状态，xunit 默认并行跑不同测试类，
+// 另一用例的构造/Dispose 重置会清掉本类的计数（实测全量跑时偶发失败）。
+// 与 DoubanApiClientTests 放同一集合，强制串行。
+[Collection("Douban")]
 public class DoubanThrottlePolicyTests : IDisposable
 {
     // 一条真实结构的 window.__DATA__ 响应（字段与 2026-09-10 实测一致）
