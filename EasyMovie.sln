@@ -15,6 +15,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EasyMovie.Tests", "EasyMovi
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MovieListHeadlessTest", "MovieListHeadlessTest\MovieListHeadlessTest.csproj", "{2777EE84-DD86-4EC9-9124-3D0A14BB23BB}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EasyMovie.BackfillRunner", "EasyMovie.BackfillRunner\EasyMovie.BackfillRunner.csproj", "{647EABCA-EFAA-4F7F-8F6B-A054EF4CA24A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -97,6 +99,18 @@ Global
 		{2777EE84-DD86-4EC9-9124-3D0A14BB23BB}.Release|x64.Build.0 = Release|Any CPU
 		{2777EE84-DD86-4EC9-9124-3D0A14BB23BB}.Release|x86.ActiveCfg = Release|Any CPU
 		{2777EE84-DD86-4EC9-9124-3D0A14BB23BB}.Release|x86.Build.0 = Release|Any CPU
+		{647EABCA-EFAA-4F7F-8F6B-A054EF4CA24A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{647EABCA-EFAA-4F7F-8F6B-A054EF4CA24A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{647EABCA-EFAA-4F7F-8F6B-A054EF4CA24A}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{647EABCA-EFAA-4F7F-8F6B-A054EF4CA24A}.Debug|x64.Build.0 = Debug|Any CPU
+		{647EABCA-EFAA-4F7F-8F6B-A054EF4CA24A}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{647EABCA-EFAA-4F7F-8F6B-A054EF4CA24A}.Debug|x86.Build.0 = Debug|Any CPU
+		{647EABCA-EFAA-4F7F-8F6B-A054EF4CA24A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{647EABCA-EFAA-4F7F-8F6B-A054EF4CA24A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{647EABCA-EFAA-4F7F-8F6B-A054EF4CA24A}.Release|x64.ActiveCfg = Release|Any CPU
+		{647EABCA-EFAA-4F7F-8F6B-A054EF4CA24A}.Release|x64.Build.0 = Release|Any CPU
+		{647EABCA-EFAA-4F7F-8F6B-A054EF4CA24A}.Release|x86.ActiveCfg = Release|Any CPU
+		{647EABCA-EFAA-4F7F-8F6B-A054EF4CA24A}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

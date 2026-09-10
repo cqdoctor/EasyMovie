@@ -368,8 +368,13 @@ public static class DbHelper
     {
         // 真实实现在 Data 层（可测试，同 TextCleanupMigration）。把本地缓存库 cache.db 的外部评分
         // 回写到主库 Movies.ExternalRating / RatingSource，统计页即可改读本地外部评分，填满分页空白。
-        var changed = RatingBackfill.Run(CreateOptions(), CacheDbContext.CreateOptions(), RatingBackfillFlagPath);
-        if (changed > 0) Log.Information("外部评分回填完成：写入 {Count} 部", changed);
+        // - Run：B1 一次性迁移（flag 守护，仅首次）把 cache.db 既有评分写入新列；
+        // - Sync：持续同步，每次启动都跑，把补全服务 / 后续导入写入 cache.db 的新评分持续回写主库，
+        //   修复“只进缓存、主库看不到”的脱节（历史 22 部 2020+ 长期补不上的根因之一）。
+        var initial = RatingBackfill.Run(CreateOptions(), CacheDbContext.CreateOptions(), RatingBackfillFlagPath);
+        var ongoing = RatingBackfill.Sync(CreateOptions(), CacheDbContext.CreateOptions());
+        var total = initial + ongoing;
+        if (total > 0) Log.Information("外部评分回填完成：写入 {Count} 部", total);
     }
 
     /// <summary>
