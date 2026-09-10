@@ -366,6 +366,7 @@
     <!-- Watch Log / Diary -->
     <sys:String x:Key="Nav_Calendar">Watch Calendar</sys:String>
     <sys:String x:Key="Nav_Heatmap">Watch Heatmap</sys:String>
+    <sys:String x:Key="Nav_Diary">Watch Diary</sys:String>
     <sys:String x:Key="Nav_Relation">Relation Map</sys:String>
     <sys:String x:Key="Nav_News">Movie News</sys:String>
     <sys:String x:Key="WatchLog_Title">Watch Logs</sys:String>

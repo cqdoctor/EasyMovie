@@ -167,6 +167,14 @@
                                     <TextBlock Text="{DynamicResource Nav_Calendar}" VerticalAlignment="Center" FontSize="13" />
                                 </StackPanel>
                             </Button>
+                            <Button Tag="Diary" Click="NavBtn_Click"
+                                    Style="{StaticResource MaterialDesignFlatButton}"
+                                    HorizontalContentAlignment="Left" Padding="12,5" Margin="0,1">
+                                <StackPanel Orientation="Horizontal">
+                                    <materialDesign:PackIcon Kind="Book" Margin="0,0,10,0" />
+                                    <TextBlock Text="{DynamicResource Nav_Diary}" VerticalAlignment="Center" FontSize="13" />
+                                </StackPanel>
+                            </Button>
                         </StackPanel>
 
                         <!-- 发现 - 分组 -->

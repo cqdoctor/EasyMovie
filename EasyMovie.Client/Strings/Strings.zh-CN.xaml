@@ -364,6 +364,7 @@
     <!-- Watch Log / Diary -->
     <sys:String x:Key="Nav_Calendar">观影日历</sys:String>
     <sys:String x:Key="Nav_Heatmap">观影热力图</sys:String>
+    <sys:String x:Key="Nav_Diary">观影日记</sys:String>
     <sys:String x:Key="Nav_Relation">关系网</sys:String>
     <sys:String x:Key="Nav_News">影视资讯</sys:String>
     <sys:String x:Key="WatchLog_Title">观影记录</sys:String>
