@@ -259,6 +259,7 @@ public partial class MainWindow : Window
             ("News", () => new MovieNewsView()),
             ("AI", () => new AIRecommendationView()),
             ("Heatmap", () => new WatchHeatmapView()),
+            ("Diary", () => new WatchDiaryView()),
         };
 
         // 阶段一：在 UI 线程一次性构造全部导航页（闪屏此时仍盖着主窗口，用户无感）。
@@ -458,6 +459,7 @@ public partial class MainWindow : Window
                 "News" => new MovieNewsView(),
                 "AI" => new AIRecommendationView(),
                 "Heatmap" => new WatchHeatmapView(),
+                "Diary" => new WatchDiaryView(),
                 "Settings" => new SettingsView(),
                 _ => new MovieListView(this)
             };
