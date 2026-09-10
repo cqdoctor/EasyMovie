@@ -58,6 +58,12 @@ using (var ctx = new MovieDbContext(mainOptions))
         .ToList();
 }
 Console.WriteLine($"[2/4] 2020+ 待补全队列：{queue.Count} 部");
+
+// 2.5) 离线把 cache.db 里已有 donor 按「中文关键词双向子串 + 放宽年份容差」映射到主库脏标题键，
+//      无需联网即可消化大量缺口（脏标题「白象危城悍将」命中干净 donor「白象」等）。
+LocalMovieCache.SeedRawKeysFromLibrary(queue, yearTolerance: 8);
+var syncedKeys = RatingBackfill.Sync(mainOptions, cacheOptions);
+Console.WriteLine($"[2.5/4] 离线复用 cache.db 既有 donor 回写主库：{syncedKeys} 部");
 if (queue.Count == 0)
 {
     Console.WriteLine("无需补全。");
@@ -75,8 +81,11 @@ Console.WriteLine($"[4/4] 本次新补全回写主库：{syncedAfter} 部");
 
 Console.WriteLine();
 Console.WriteLine("=== 补全报告 ===");
-Console.WriteLine($"队列总数 {report.Total} | 已补全写入 {report.Filled} | 跳过(无匹配/限流) {report.Skipped} | 触发限流停止={report.StoppedByThrottle}");
+Console.WriteLine($"队列总数 {report.Total} | 本次豆瓣补全写入 {report.Filled} | 跳过(无匹配/限流) {report.Skipped} | 触发限流停止={report.StoppedByThrottle}");
 if (!string.IsNullOrEmpty(report.Error)) Console.WriteLine($"备注：{report.Error}");
-var stillMissing = Math.Max(0, queue.Count - report.Filled);
+// 以主库实际剩余缺口为准（离线复用 + 本次豆瓣补全都已计入），避免重复计数
+int stillMissing;
+using (var ctx = new MovieDbContext(mainOptions))
+    stillMissing = ctx.Movies.Count(m => m.ExternalRating == null && m.Year >= 2020);
 Console.WriteLine($"主库仍缺 ExternalRating 的 2020+ 影片：{stillMissing} 部（限流时可下次自动化继续）");
 return 0;

@@ -289,34 +289,52 @@ public static class LocalMovieCache
     /// FetchAsync 用原始标题 Lookup 一定能命中（解决“数据只在清洗键、应用按原始键查不到”的残留）。
     /// 幂等，返回新增/补缺行数。
     /// </summary>
-    public static int SeedRawKeysFromLibrary(IEnumerable<(string Title, int? Year)> movies)
+    public static int SeedRawKeysFromLibrary(IEnumerable<(string Title, int? Year)> movies, int yearTolerance = 2, CacheDbContext? externalCtx = null)
     {
-        EnsureReady();
-        int n = 0;
-        using var ctx = CacheDbContext.Create();
+        var ctx = externalCtx ?? CacheDbContext.Create();
+        bool owns = externalCtx == null;
+        try
+        {
+            ctx.Database.EnsureCreated();
+            int n = 0;
         foreach (var mv in movies)
         {
             var nt = NormalizeKey(mv.Title);
             if (string.IsNullOrEmpty(nt)) continue;
             var raw = ctx.CachedMovies.FirstOrDefault(c => c.NormTitle == nt);
-            if (raw != null && (!string.IsNullOrEmpty(raw.PosterUrl) || raw.Rating.HasValue)) continue;
+            // 仅当主库脏标题键行已带有效评分（>0）时才跳过；仅有海报、或评分 0/None 都视为「仍需补齐」，
+            // 否则补全服务写回的「评分=0 + 海报」行会把后续 donor 升级死锁。
+            if (raw != null && raw.Rating.HasValue && raw.Rating.Value > 0) continue;
 
             var clean = DoubanApiClient.ExtractChineseKeyword(mv.Title);
             if (string.IsNullOrWhiteSpace(clean))
                 clean = DoubanApiClient.ExtractEnglishHint(mv.Title) ?? mv.Title.Trim();
             var no = NormalizeKey(clean);
+            if (string.IsNullOrEmpty(no)) continue;
+
             // 主匹配：精确清洗键；兜底：清洗键互为前后缀（中文片名片段差异，如 白象 vs 白象危城悍将、
-            // 狙击手 vs 狙击手环球反应与情报小组），并要求年份相近，避免误并不同影片。
+            // 狙击手 vs 狙击手环球反应与情报小组）；再兜底：中文关键词<b>双向子串</b>
+            // （脏标题「白象危城悍将」应命中干净 donor「白象」；「一狱劫数难逃」应命中 donor「劫数难逃」），
+            // 并要求年份接近（yearTolerance，默认 2；补全场景可调大以容忍片库年份标签噪声），避免误并不同影片。
+            bool CnSubstring(CachedMovie c)
+            {
+                var cd = NormalizeKey(DoubanApiClient.ExtractChineseKeyword(c.Title));
+                if (string.IsNullOrEmpty(cd)) return false;
+                return cd.Contains(no) || no.Contains(cd);
+            }
+
             var donor = ctx.CachedMovies
+                .Where(c => c.Rating.HasValue && c.Rating.Value > 0)   // 仅回填评分：donor 必须确有评分，避免 0/None donor 截胡
+                .Where(c => !mv.Year.HasValue || c.Year == 0 || Math.Abs(c.Year - mv.Year.Value) <= yearTolerance)
+                .AsEnumerable()                 // 切到客户端：键比较 + 中文双向子串需用不可翻译的本地函数
                 .Where(c => c.NormTitle == no
                     || (no != "" && c.NormOriginal == no)
                     || (no != "" && c.NormTitle.StartsWith(no))
                     || (no != "" && no.StartsWith(c.NormTitle))
                     || (no != "" && c.NormOriginal != null && c.NormOriginal.StartsWith(no))
-                    || (no != "" && c.NormOriginal != null && no.StartsWith(c.NormOriginal)))
-                .Where(c => !string.IsNullOrEmpty(c.PosterUrl) || c.Rating.HasValue)
-                .Where(c => !mv.Year.HasValue || c.Year == 0 || Math.Abs(c.Year - mv.Year.Value) <= 2)
-                .OrderByDescending(c => (c.Rating.HasValue ? 1 : 0) + (string.IsNullOrEmpty(c.PosterUrl) ? 0 : 1))
+                    || (no != "" && c.NormOriginal != null && no.StartsWith(c.NormOriginal))
+                    || CnSubstring(c))
+                .OrderByDescending(c => c.Rating ?? 0)   // 高分 donor 优先（如「傀儡」4.6 应压过同名 None donor）
                 .FirstOrDefault();
             if (donor == null) continue;
 
@@ -343,13 +361,15 @@ public static class LocalMovieCache
             else
             {
                 if (string.IsNullOrEmpty(raw.PosterUrl) && !string.IsNullOrEmpty(donor.PosterUrl)) { raw.PosterUrl = donor.PosterUrl; n++; }
-                if (!raw.Rating.HasValue && donor.Rating.HasValue) { raw.Rating = donor.Rating; n++; }
+                if ((!raw.Rating.HasValue || raw.Rating.Value <= 0) && donor.Rating.HasValue && donor.Rating.Value > 0) { raw.Rating = donor.Rating; n++; }
                 if (string.IsNullOrEmpty(raw.Director) && !string.IsNullOrEmpty(donor.Director)) { raw.Director = donor.Director; n++; }
                 if (string.IsNullOrEmpty(raw.Cast) && !string.IsNullOrEmpty(donor.Cast)) { raw.Cast = donor.Cast; n++; }
             }
         }
         if (n > 0) ctx.SaveChanges();
         return n;
+        }
+        finally { if (owns) ctx.Dispose(); }
     }
     /// 按归一化片名/原产名定位条目，幂等。
     /// </summary>

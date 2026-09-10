@@ -66,7 +66,6 @@ public static class DoubanBackfillService
     {
         var items = queue as List<(string, int?)> ?? queue.ToList();
         var rep = new DoubanBackfillReport { Total = items.Count };
-        writeAction ??= r => LocalMovieCache.UpsertOrMerge(r, "douban");
         clientFactory ??= () => new DoubanApiClient();
 
         if (items.Count == 0) { progress?.Report("没有需要补全的 2020+ 影片。"); return rep; }
@@ -133,7 +132,8 @@ public static class DoubanBackfillService
                 !string.IsNullOrEmpty(match.PosterUrl);
             if (searchSuffices)
             {
-                writeAction(match);
+                WriteBackfill(match, title, year, "douban");
+                writeAction?.Invoke(match);
                 rep.Filled++;
                 Interlocked.Increment(ref _dayCount);
                 rep.Done++;
@@ -159,7 +159,8 @@ public static class DoubanBackfillService
             if (detail == null) { rep.Skipped++; continue; }
 
             // 3) 合并落库（只补 cache.db，不碰个人库）
-            writeAction(detail);
+            WriteBackfill(detail, title, year, "douban");
+            writeAction?.Invoke(detail);
             rep.Filled++;
             Interlocked.Increment(ref _dayCount);
             rep.Done++;
@@ -167,5 +168,39 @@ public static class DoubanBackfillService
         }
 
         return rep;
+    }
+
+    /// <summary>
+    /// 落库（双键）：把一次成功的豆瓣匹配结果同时写进两条缓存记录——
+    /// ① 按豆瓣清洗标题键（通用缓存 / 去重，供其它影片按干净片名命中）；
+    /// ② 按<b>主库原始标题键</b>（队列传入的影片文件名，常带编码/别名后缀，如「白象@危城悍将 White Elephant AC3」）。
+    ///
+    /// <para><b>这是历史「豆瓣一直补不上」的真正根因修复</b>：旧代码只写 ①（豆瓣清洗键），而
+    /// <see cref="RatingBackfill.Sync"/> 与主库读取路径 <see cref="LocalMovieCache.Lookup"/> 都是用
+    /// <b>主库脏标题</b>去 cache.db 匹配的。两边键空间永不相交，导致每一个成功匹配到的评分都被永久
+    /// 孤立在缓存里、永远到不了主库。补上 ② 后，Sync 即可用主库标题直接命中并回写。</para>
+    /// </summary>
+    private static void WriteBackfill(MovieSearchResult r, string mainTitle, int? mainYear, string source)
+    {
+        if (r == null) return;
+        // ① 豆瓣清洗键（保留通用缓存 / 去重）
+        LocalMovieCache.UpsertOrMerge(r, source);
+        // ② 主库原始标题键：让 Sync / Lookup 能用主库脏标题命中本次豆瓣评分
+        var mainKeyed = new MovieSearchResult
+        {
+            Title = mainTitle,
+            OriginalTitle = r.OriginalTitle ?? r.Title,
+            Year = r.Year > 0 ? r.Year : mainYear ?? 0,
+            Rating = r.Rating,
+            RatingCount = r.RatingCount,
+            Director = r.Director,
+            Cast = r.Cast,
+            Country = r.Country,
+            Language = r.Language,
+            PosterUrl = r.PosterUrl,
+            Source = source,
+            ExternalId = r.ExternalId,
+        };
+        LocalMovieCache.UpsertOrMerge(mainKeyed, source);
     }
 }
