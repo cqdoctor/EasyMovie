@@ -401,33 +401,60 @@ public class DoubanApiClient : IMovieApiClient
         var keyword = CleanSearchTitle(req.Keyword);
         if (string.IsNullOrWhiteSpace(keyword)) keyword = req.Keyword;
 
-        // 路径 1：rexxar 移动端搜索（主路径，返回干净 JSON）
-        var rexxar = await TryRexxarSearchAsync(keyword, req.PageSize, ct);
-        if (rexxar.ok)
+        // 中英混合片名（如「困兽Death Stranding EAC3」）：整串丢给豆瓣往往 0 候选。
+        // 实测提纯后的中文核心命中率更高（6/6 vs 4/6），因此先用核心查，查不到再用完整关键词兜底。
+        var primary = keyword;
+        string? fallback = null;
+        if (SearchKeywordPurifier.TryExtractChineseCore(keyword, out var core))
+        {
+            primary = core;
+            fallback = keyword;
+        }
+
+        var attempt = await SearchOnceAsync(primary, req.PageSize, ct);
+        if (attempt.results.Count == 0 && fallback != null)
+        {
+            Log.Information("豆瓣：提纯词 [{Core}] 无候选，改用完整关键词 [{Full}] 重试一次", primary, fallback);
+            attempt = await SearchOnceAsync(fallback, req.PageSize, ct);
+        }
+
+        if (attempt.results.Count > 0)
         {
             ResetCooldown();
             _softFailures = 0;
-            return new MovieSearchResponse { Results = rexxar.results, TotalCount = rexxar.results.Count };
+            return new MovieSearchResponse { Results = attempt.results, TotalCount = attempt.results.Count };
         }
-        if (rexxar.hardBan) { TriggerCooldown(); return new MovieSearchResponse(); }
-
-        // 路径 2：网页搜索页兜底。rexxar 的概率性 403（need_login）与「无结果」都走这里。
-        // 实测该路径字段更全（评分/原名/片长/国别/导演/主演）且在同一时间窗内更宽容，
-        // 是 rexxar 被限流时唯一能拿到数据的通道。
-        var html = await TryHtmlSearchAsync(keyword, req.PageSize, ct);
-        if (html.ok)
-        {
-            _softFailures = 0;
-            Log.Information("豆瓣 rexxar 未命中，已由网页搜索兜底：{Keyword}", keyword);
-            return new MovieSearchResponse { Results = html.results, TotalCount = html.results.Count };
-        }
-        if (html.hardBan) TriggerCooldown();
+        if (attempt.hardBan) TriggerCooldown();
         else if (++_softFailures >= SoftFailureThreshold)
         {
             Log.Warning("豆瓣连续 {Count} 次软失败（两条路径均无数据且未命中硬封禁），按封控处理进入冷却", _softFailures);
             TriggerCooldown();
         }
         return new MovieSearchResponse();
+    }
+
+    /// <summary>
+    /// 单次查询：先走 rexxar 移动端搜索，失败再走网页搜索页兜底。
+    /// 返回 (结果集, 是否命中硬封禁)。
+    /// </summary>
+    private async Task<(List<MovieSearchResult> results, bool hardBan)> SearchOnceAsync(
+        string keyword, int pageSize, CancellationToken ct)
+    {
+        // 路径 1：rexxar 移动端搜索（主路径，返回干净 JSON）
+        var rexxar = await TryRexxarSearchAsync(keyword, pageSize, ct);
+        if (rexxar.ok) return (rexxar.results, false);
+        if (rexxar.hardBan) return (new List<MovieSearchResult>(), true);
+
+        // 路径 2：网页搜索页兜底。rexxar 的概率性 403（need_login）与「无结果」都走这里。
+        // 实测该路径字段更全（评分/原名/片长/国别/导演/主演）且在同一时间窗内更宽容，
+        // 是 rexxar 被限流时唯一能拿到数据的通道。
+        var html = await TryHtmlSearchAsync(keyword, pageSize, ct);
+        if (html.ok)
+        {
+            Log.Information("豆瓣 rexxar 未命中，已由网页搜索兜底：{Keyword}", keyword);
+            return (html.results, false);
+        }
+        return (new List<MovieSearchResult>(), html.hardBan);
     }
 
     /// <summary>路径 1：rexxar 移动端搜索。返回 (是否拿到数据, 是否硬封禁, 结果集)。</summary>
