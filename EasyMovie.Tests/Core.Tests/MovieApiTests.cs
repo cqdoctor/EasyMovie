@@ -84,8 +84,14 @@ public class MovieApiServiceTests
     }
 }
 
-public class DoubanApiClientTests
+public class DoubanApiClientTests : IDisposable
 {
+    // 冷却状态是 static 的，会在用例之间互相污染（例如 500 错误会触发冷却，
+    // 导致后续用例一进来就被 InCooldown 短路）。每个用例前后都重置，保证顺序无关。
+    public DoubanApiClientTests() => DoubanApiClient.ResetThrottleState();
+
+    public void Dispose() => DoubanApiClient.ResetThrottleState();
+
     private static HttpClient CreateMockHttpClient(string responseJson)
     {
         var handler = new Mock<HttpMessageHandler>();

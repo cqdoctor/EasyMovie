@@ -2,6 +2,7 @@
 using System.Text.RegularExpressions;
 using System.Text.Json;
 using EasyMovie.Core;
+using EasyMovie.Core.Helpers;
 using EasyMovie.Tools.ImportExport;
 using EasyMovie.Core.Interfaces;
 using Serilog;
@@ -15,16 +16,36 @@ public class DoubanApiClient : IMovieApiClient
     private static readonly object _lock = new();
     private const int MinIntervalMs = 1500;
 
-    // 限流自我冷却：触发反爬限流后进入递增冷却期，期间不再发送任何请求（避免加重风控），
+    // rexxar 移动端接口（m.douban.com/rexxar/api/v2）：免 key、免签名，返回干净 JSON。
+    private const string MobileUserAgent =
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MicroMessenger/8.0 Douban/7.38.0";
+    // 网页搜索页兜底路径：需要桌面端 UA + movie.douban.com Referer，否则拿不到 window.__DATA__。
+    private const string DesktopUserAgent =
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+
+    // 限流自我冷却：确认命中反爬封控后进入递增冷却期，期间不再发送任何请求（避免加重风控），
     // 冷却到期自动恢复；连续触发则冷却时长递增直至封顶，正常响应即重置信任。
+    //
+    // 重要（#10）：冷却只应由「硬封禁」触发，绝不能由概率性 403 触发。
+    // 实测 rexxar 接口会以约 40%~50% 的概率随机返回 403 need_login（与 Cookie 完整度无关：
+    // 全量 Cookie / 仅 dbcl2+frodotk_db / 完全无 Cookie 三路对照无显著差异），
+    // 旧实现把这种瞬时 403 也当成硬封禁，一次命中就冷却 60s 并逐次翻倍到 600s，
+    // 结果系统几乎永久处于冷却态——实测 12 个片名仅 2 个命中、9 个被冷却跳过，补全被彻底饿死。
     private static DateTime _cooldownUntil = DateTime.MinValue;
     private static int _rateLimitStrikes = 0;
     private static bool InCooldown => DateTime.UtcNow < _cooldownUntil;
+
+    /// <summary>连续「软失败」计数：两条路径都没拿到数据但未命中硬封禁时累加，达阈值才升级为冷却。</summary>
+    private static int _softFailures = 0;
+    private const int SoftFailureThreshold = 6;
+
     private static void TriggerCooldown()
     {
         _rateLimitStrikes++;
         var seconds = Math.Min(60 * _rateLimitStrikes, 600);
         _cooldownUntil = DateTime.UtcNow.AddSeconds(seconds);
+        _softFailures = 0;
+        Log.Warning("豆瓣命中硬封控，进入冷却 {Seconds}s（第 {Strikes} 次）", seconds, _rateLimitStrikes);
     }
     private static void ResetCooldown()
     {
@@ -32,11 +53,29 @@ public class DoubanApiClient : IMovieApiClient
         _cooldownUntil = DateTime.MinValue;
     }
 
+    /// <summary>清空限流冷却状态（测试与「立即重试豆瓣」场景使用）。</summary>
+    public static void ResetThrottleState()
+    {
+        lock (_lock)
+        {
+            _rateLimitStrikes = 0;
+            _softFailures = 0;
+            _cooldownUntil = DateTime.MinValue;
+        }
+    }
+
     public DoubanApiClient(HttpClient? http = null) { _http = http ?? CreateClient(); }
 
     private static HttpClient CreateClient()
     {
-        var handler = new HttpClientHandler { AutomaticDecompression = DecompressionMethods.All, UseCookies = false };
+        // AllowAutoRedirect=false：豆瓣限流时会 302 到 /misc/sorry 或 sec.douban.com，
+        // 自动跟随会把限流页当成 200 正常响应（旧实现因此识别不到真正的封控）。
+        var handler = new HttpClientHandler
+        {
+            AutomaticDecompression = DecompressionMethods.All,
+            UseCookies = false,
+            AllowAutoRedirect = false
+        };
         // 若用户配置了全局代理，则让豆瓣也走代理（国内站直连通常更快，但配了代理即表示希望统一出口）
         var proxy = AppSettings.HttpProxy;
         if (!string.IsNullOrWhiteSpace(proxy))
@@ -52,15 +91,30 @@ public class DoubanApiClient : IMovieApiClient
             catch (Exception ex) { Log.Error(ex, "配置代理失败"); }
         }
         var client = new HttpClient(handler);
-        // rexxar 移动端接口（m.douban.com/rexxar/api/v2）：免 key、免签名，比网页端宽松，返回干净 JSON。
-        // 需要移动端 UA + m.douban.com Referer + JSON Accept；登录态 Cookie 可显著提升额度、解除 need_login。
-        client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MicroMessenger/8.0 Douban/7.38.0");
-        client.DefaultRequestHeaders.Add("Referer", "https://m.douban.com/");
-        client.DefaultRequestHeaders.Add("Accept", "application/json");
+        // UA / Referer / Accept 不在默认头上设置：两条路径的指纹不同，改为按请求逐个附加（见 CreateRequest）。
         client.Timeout = TimeSpan.FromSeconds(12);
         var cookie = AppSettings.DoubanCookie;
         if (!string.IsNullOrEmpty(cookie)) client.DefaultRequestHeaders.Add("Cookie", cookie);
         return client;
+    }
+
+    /// <summary>按目标路径附加对应的请求指纹（rexxar 移动端 / 网页搜索页）。</summary>
+    private static HttpRequestMessage CreateRequest(string url, bool html)
+    {
+        var req = new HttpRequestMessage(HttpMethod.Get, url);
+        if (html)
+        {
+            req.Headers.TryAddWithoutValidation("User-Agent", DesktopUserAgent);
+            req.Headers.TryAddWithoutValidation("Referer", "https://movie.douban.com/");
+            req.Headers.TryAddWithoutValidation("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
+        }
+        else
+        {
+            req.Headers.TryAddWithoutValidation("User-Agent", MobileUserAgent);
+            req.Headers.TryAddWithoutValidation("Referer", "https://m.douban.com/");
+            req.Headers.TryAddWithoutValidation("Accept", "application/json");
+        }
+        return req;
     }
 
     private static async Task ThrottleAsync()
@@ -79,15 +133,21 @@ public class DoubanApiClient : IMovieApiClient
     public static DateTime LastRequestUtc => _lastRequest;
 
     /// <summary>
-    /// 高置信封控/验证码信号。仅收录“几乎只出现在风控页”的标记，避免误伤正常结果页
+    /// 高置信封控/验证码信号（命中即进入递增冷却，安静避让）。
+    /// 仅收录“几乎只出现在风控页”的标记，避免误伤正常结果页
     /// （正常页顶部导航含“登录”链接，但不会出现“登录豆瓣”页标题或“过于频繁”等字样）。
-    /// 一旦命中即进入递增冷却，安静避让，绝不重试。
     /// </summary>
+    /// <remarks>
+    /// 注意 <c>need_login</c> 已从此清单移除（#10）：rexxar 会概率性返回 403 + <c>{"msg":"need_login","code":103}</c>，
+    /// 把它当硬封禁会让系统永久冷却。它属于<see cref="IsSoftThrottle"/>判定的软限流，改走网页搜索兜底。
+    /// </remarks>
     private static readonly string[] BanSignals =
     {
         "禁止访问", "检测到有异常请求", "请输入验证码",
         "你当前访问过于频繁", "访问过于频繁", "安全验证", "安全校验",
-        "登录豆瓣", "need_login", "accounts.douban.com/login"
+        "登录豆瓣", "accounts.douban.com/login",
+        // 限流跳转目标：实测密集请求后网页搜索会 302 到 /misc/sorry，详情页会 302 到 sec.douban.com
+        "/misc/sorry", "misc/sorry", "sec.douban.com"
     };
 
     private static bool ContainsBanSignal(string html)
@@ -96,6 +156,33 @@ public class DoubanApiClient : IMovieApiClient
         foreach (var s in BanSignals)
             if (html.Contains(s, StringComparison.OrdinalIgnoreCase)) return true;
         return false;
+    }
+
+    /// <summary>
+    /// 是否为「软限流」：单次请求被随机拒绝，但账号/IP 并未被封。
+    /// 判据：403/401 状态码，或响应体含 need_login / code 103。
+    /// 软限流不触发冷却，改由网页搜索兜底路径补救。
+    /// </summary>
+    private static bool IsSoftThrottle(HttpStatusCode status, string body)
+    {
+        if (status == HttpStatusCode.Forbidden || status == HttpStatusCode.Unauthorized) return true;
+        if (string.IsNullOrEmpty(body)) return false;
+        return body.Contains("need_login", StringComparison.OrdinalIgnoreCase)
+            || body.Contains("\"code\": 103", StringComparison.Ordinal)
+            || body.Contains("\"code\":103", StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 是否被 302 到风控中间页（/misc/sorry、sec.douban.com、登录页）。
+    /// 这类跳转是货真价实的封控信号，必须触发冷却，不能继续请求。
+    /// </summary>
+    private static bool IsRedirectToInterstitial(HttpResponseMessage resp, out string? location)
+    {
+        location = resp.Headers.Location?.ToString();
+        if (string.IsNullOrEmpty(location)) return false;
+        return location.Contains("/misc/sorry", StringComparison.OrdinalIgnoreCase)
+            || location.Contains("sec.douban.com", StringComparison.OrdinalIgnoreCase)
+            || location.Contains("accounts.douban.com/passport", StringComparison.OrdinalIgnoreCase);
     }
 
     // 常见字幕/音轨/版本标签，提取关键词时需移除
@@ -311,30 +398,103 @@ public class DoubanApiClient : IMovieApiClient
         // 上层（MovieInfoFetcher 熔断）会暂时切到其他源，冷却到期自动恢复。
         if (InCooldown) return new MovieSearchResponse();
 
-        // rexxar 移动端搜索：返回干净 JSON（标题/id/评分/年份/导演/主演/封面），比网页端可靠得多。
         var keyword = CleanSearchTitle(req.Keyword);
         if (string.IsNullOrWhiteSpace(keyword)) keyword = req.Keyword;
+
+        // 路径 1：rexxar 移动端搜索（主路径，返回干净 JSON）
+        var rexxar = await TryRexxarSearchAsync(keyword, req.PageSize, ct);
+        if (rexxar.ok)
+        {
+            ResetCooldown();
+            _softFailures = 0;
+            return new MovieSearchResponse { Results = rexxar.results, TotalCount = rexxar.results.Count };
+        }
+        if (rexxar.hardBan) { TriggerCooldown(); return new MovieSearchResponse(); }
+
+        // 路径 2：网页搜索页兜底。rexxar 的概率性 403（need_login）与「无结果」都走这里。
+        // 实测该路径字段更全（评分/原名/片长/国别/导演/主演）且在同一时间窗内更宽容，
+        // 是 rexxar 被限流时唯一能拿到数据的通道。
+        var html = await TryHtmlSearchAsync(keyword, req.PageSize, ct);
+        if (html.ok)
+        {
+            _softFailures = 0;
+            Log.Information("豆瓣 rexxar 未命中，已由网页搜索兜底：{Keyword}", keyword);
+            return new MovieSearchResponse { Results = html.results, TotalCount = html.results.Count };
+        }
+        if (html.hardBan) TriggerCooldown();
+        else if (++_softFailures >= SoftFailureThreshold)
+        {
+            Log.Warning("豆瓣连续 {Count} 次软失败（两条路径均无数据且未命中硬封禁），按封控处理进入冷却", _softFailures);
+            TriggerCooldown();
+        }
+        return new MovieSearchResponse();
+    }
+
+    /// <summary>路径 1：rexxar 移动端搜索。返回 (是否拿到数据, 是否硬封禁, 结果集)。</summary>
+    private async Task<(bool ok, bool hardBan, List<MovieSearchResult> results)> TryRexxarSearchAsync(
+        string keyword, int pageSize, CancellationToken ct)
+    {
         try
         {
             await ThrottleAsync();
             var url = "https://m.douban.com/rexxar/api/v2/search?type=movie&q=" + Uri.EscapeDataString(keyword);
-            using var resp = await _http.GetAsync(url, ct);
-            var body = await resp.Content.ReadAsStringAsync(ct);
-            // 非 2xx / 风控页 / 登录页(HTML) → 进入递增冷却，安静避让，不再重试。
-            if (!resp.IsSuccessStatusCode || ContainsBanSignal(body) || body.TrimStart().StartsWith("<"))
+            using var req = CreateRequest(url, html: false);
+            using var resp = await _http.SendAsync(req, ct);
+            if (IsRedirectToInterstitial(resp, out var loc))
             {
-                TriggerCooldown();
-                return new MovieSearchResponse();
+                Log.Warning("豆瓣 rexxar 搜索被重定向到风控页：{Loc}", loc);
+                return (false, true, new List<MovieSearchResult>());
             }
-            ResetCooldown();   // 正常响应，恢复信任
+            var body = await resp.Content.ReadAsStringAsync(ct);
+            // 概率性 403 need_login：软失败，交给网页搜索兜底，绝不进冷却。
+            if (IsSoftThrottle(resp.StatusCode, body)) return (false, false, new List<MovieSearchResult>());
+            // 其它非 2xx / 风控页 / 登录页(HTML) → 硬封禁
+            if (!resp.IsSuccessStatusCode || ContainsBanSignal(body) || body.TrimStart().StartsWith("<"))
+                return (false, true, new List<MovieSearchResult>());
+
             var results = ParseRexxarSearch(body);
-            return new MovieSearchResponse { Results = results.Take(req.PageSize).ToList(), TotalCount = results.Count };
+            // 空结果不是封禁（片子确实没收录），但不算命中——交给兜底路径再用网页搜索确认一次
+            if (results.Count == 0) return (false, false, new List<MovieSearchResult>());
+            return (true, false, results.Take(pageSize).ToList());
         }
         catch (Exception ex)
         {
             Log.Error(ex, "豆瓣 rexxar 搜索失败");
-            TriggerCooldown();
-            return new MovieSearchResponse();
+            return (false, false, new List<MovieSearchResult>());   // 网络异常按软失败处理，交由兜底
+        }
+    }
+
+    /// <summary>路径 2：网页搜索页（movie.douban.com/subject_search）解析 window.__DATA__。</summary>
+    private async Task<(bool ok, bool hardBan, List<MovieSearchResult> results)> TryHtmlSearchAsync(
+        string keyword, int pageSize, CancellationToken ct)
+    {
+        try
+        {
+            await ThrottleAsync();
+            var url = "https://movie.douban.com/subject_search?search_text=" + Uri.EscapeDataString(keyword);
+            using var req = CreateRequest(url, html: true);
+            using var resp = await _http.SendAsync(req, ct);
+            if (IsRedirectToInterstitial(resp, out var loc))
+            {
+                Log.Warning("豆瓣网页搜索被重定向到风控页：{Loc}", loc);
+                return (false, true, new List<MovieSearchResult>());
+            }
+            // 非风控类跳转（如 subject_search → movie/subject_search）无法取到数据，按软失败
+            if ((int)resp.StatusCode >= 300 && (int)resp.StatusCode < 400)
+                return (false, false, new List<MovieSearchResult>());
+
+            var body = await resp.Content.ReadAsStringAsync(ct);
+            if (!resp.IsSuccessStatusCode || ContainsBanSignal(body))
+                return (false, true, new List<MovieSearchResult>());
+
+            var results = DoubanHtmlSearchParser.Parse(body);
+            if (results.Count == 0) return (false, false, new List<MovieSearchResult>());
+            return (true, false, results.Take(pageSize).ToList());
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "豆瓣网页搜索兜底失败");
+            return (false, false, new List<MovieSearchResult>());
         }
     }
 
@@ -342,24 +502,56 @@ public class DoubanApiClient : IMovieApiClient
     {
         if (InCooldown) return null;
         if (string.IsNullOrWhiteSpace(externalId)) return null;
+
+        // rexxar 详情端点同样存在概率性 403，因此软失败时重试一次（不是盲目重试，最多一次）。
+        // 网页详情页（movie.douban.com/subject/{id}）会被 302 到 sec.douban.com，无法作为兜底路径。
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            var (ok, hardBan, result) = await TryRexxarDetailAsync(externalId, ct);
+            if (ok) { ResetCooldown(); _softFailures = 0; return result; }
+            if (hardBan) { TriggerCooldown(); return null; }
+            if (attempt == 0)
+            {
+                Log.Information("豆瓣详情软失败，2s 后重试一次：{Id}", externalId);
+                await Task.Delay(2000, ct);
+            }
+        }
+        if (++_softFailures >= SoftFailureThreshold)
+        {
+            Log.Warning("豆瓣详情连续软失败，按封控处理进入冷却");
+            TriggerCooldown();
+        }
+        return null;
+    }
+
+    private async Task<(bool ok, bool hardBan, MovieSearchResult? result)> TryRexxarDetailAsync(
+        string externalId, CancellationToken ct)
+    {
         try
         {
             await ThrottleAsync();
-            // rexxar 移动端详情端点：返回干净 JSON（导演/演员/评分/年份/海报/国家/语言/时长/简介），
-            // 比网页端静态 HTML（无 rating/year，JS 动态加载，解析长期失效）可靠得多。
             var url = "https://m.douban.com/rexxar/api/v2/movie/" + Uri.EscapeDataString(externalId);
-            using var resp = await _http.GetAsync(url, ct);
-            var body = await resp.Content.ReadAsStringAsync(ct);
-            // 非 2xx / 风控页 / 登录页(HTML) → 进入递增冷却，安静避让，不再重试。
-            if (!resp.IsSuccessStatusCode || ContainsBanSignal(body) || body.TrimStart().StartsWith("<"))
+            using var req = CreateRequest(url, html: false);
+            using var resp = await _http.SendAsync(req, ct);
+            if (IsRedirectToInterstitial(resp, out var loc))
             {
-                TriggerCooldown();
-                return null;
+                Log.Warning("豆瓣 rexxar 详情被重定向到风控页：{Loc}", loc);
+                return (false, true, null);
             }
-            ResetCooldown();   // 正常响应，恢复信任
-            return ParseRexxarDetail(body, externalId);
+            var body = await resp.Content.ReadAsStringAsync(ct);
+            if (IsSoftThrottle(resp.StatusCode, body)) return (false, false, null);
+            if (!resp.IsSuccessStatusCode || ContainsBanSignal(body) || body.TrimStart().StartsWith("<"))
+                return (false, true, null);
+
+            var parsed = ParseRexxarDetail(body, externalId);
+            if (string.IsNullOrWhiteSpace(parsed.Title)) return (false, false, null);
+            return (true, false, parsed);
         }
-        catch (Exception ex) { Log.Error(ex, "豆瓣 rexxar 详情获取失败"); TriggerCooldown(); return null; }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "豆瓣 rexxar 详情获取失败");
+            return (false, false, null);
+        }
     }
 
     /// <summary>
