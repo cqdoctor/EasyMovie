@@ -38,22 +38,15 @@ public static class RatingBackfill
     /// <param name="cacheOptions">缓存库选项（CacheDbContext.CreateOptions()）</param>
     /// <param name="flagPath">完成标志文件路径</param>
     /// <returns>被改写的行数；跳过或无需改写时返回 0</returns>
-    public static int Run(
-        DbContextOptions<MovieDbContext> mainOptions,
-        DbContextOptions<CacheDbContext> cacheOptions,
-        string flagPath)
+    /// <summary>
+    /// 执行回填（不含一次性 flag 逻辑）。读 cache.db → 匹配 → 按列标脏回写主库，幂等。
+    /// <see cref="Run"/> 与 <see cref="Sync"/> 共用此核心。
+    /// </summary>
+    private static int Execute(DbContextOptions<MovieDbContext> mainOptions, DbContextOptions<CacheDbContext> cacheOptions)
     {
-        if (string.IsNullOrEmpty(flagPath)) throw new ArgumentException("回填标志文件路径不能为空", nameof(flagPath));
-        if (File.Exists(flagPath)) return 0;
-
         // 读缓存库：只取匹配与回填所需的字段，避免多余加载
         var cacheEntries = ReadCacheRatings(cacheOptions);
-        if (cacheEntries.Count == 0)
-        {
-            // 没有缓存可回填，仍写 flag，避免每次启动都空跑
-            File.WriteAllText(flagPath, DateTime.UtcNow.ToString("O"));
-            return 0;
-        }
+        if (cacheEntries.Count == 0) return 0;
 
         using var ctx = new MovieDbContext(mainOptions);
 
@@ -84,10 +77,37 @@ public static class RatingBackfill
         }
 
         if (changed > 0) ctx.SaveChanges();
+        return changed;
+    }
 
+    public static int Run(
+        DbContextOptions<MovieDbContext> mainOptions,
+        DbContextOptions<CacheDbContext> cacheOptions,
+        string flagPath)
+    {
+        if (string.IsNullOrEmpty(flagPath)) throw new ArgumentException("回填标志文件路径不能为空", nameof(flagPath));
+        if (File.Exists(flagPath)) return 0;
+
+        var changed = Execute(mainOptions, cacheOptions);
+
+        // 没有缓存可回填也写 flag，避免每次启动都空跑
         File.WriteAllText(flagPath, DateTime.UtcNow.ToString("O"));
         return changed;
     }
+
+    /// <summary>
+    /// 持续同步（无一次性 flag）：每次启动都执行，幂等（评分已一致则跳过），返回被改写的行数。
+    ///
+    /// <para><b>为什么需要它</b>：<see cref="Run"/> 是 B1 一次性迁移（flag 一旦写入就永远跳过），
+    /// 但补全服务 <see cref="EasyMovie.Tools.MovieApi.DoubanBackfillService"/> 与后续导入会持续把
+    /// 新评分写进 cache.db。若只靠一次性 <see cref="Run"/>，这些新评分会“只进缓存、主库永远看不到”，
+    /// 这正是历史 22 部 2020+ 影片一直补不上的根因之一。改成持续 Sync 后，任何新进 cache.db 的评分
+    /// 都会在下次启动（或补全后立即）回写到主库。</para>
+    ///
+    /// <para><b>成本</b>：290 部主库 × 513 条缓存 ≈ 毫秒级字符串匹配，可放心每次启动执行。</para>
+    /// </summary>
+    public static int Sync(DbContextOptions<MovieDbContext> mainOptions, DbContextOptions<CacheDbContext> cacheOptions)
+        => Execute(mainOptions, cacheOptions);
 
     private sealed record CacheEntry(string NormTitle, string? NormOriginal, double Rating, string Source, int Year);
 

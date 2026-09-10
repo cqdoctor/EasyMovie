@@ -147,4 +147,55 @@ public class RatingBackfillTests
                 try { if (File.Exists(f)) File.Delete(f); } catch { /* ignore */ }
         }
     }
+
+    [Fact]
+    public void Sync_ShouldTransferEvenWhenOneShotFlagExists()
+    {
+        // 回归：历史场景——B1 一次性 flag 早已写好，之后补全服务才把新评分写进 cache.db。
+        // 旧的 Run（flag 已存在）会是 no-op，导致评分“只进缓存、主库看不到”；新增的 Sync 必须突破这点。
+        var mainPath = Path.Combine(Path.GetTempPath(), $"em_backfill_main_{Path.GetRandomFileName()}.db");
+        var cachePath = Path.Combine(Path.GetTempPath(), $"em_backfill_cache_{Path.GetRandomFileName()}.db");
+        var flag = Path.Combine(Path.GetTempPath(), $"em_backfill_flag_{Path.GetRandomFileName()}");
+        File.WriteAllText(flag, DateTime.UtcNow.ToString("O")); // 模拟 B1 一次性 flag 早已存在
+        try
+        {
+            using (var m = new MovieDbContext(MainOptions(mainPath)))
+            {
+                m.Database.EnsureCreated();
+                m.Movies.Add(new Movie { Title = "困兽", Year = 2023 }); // 主库无外部评分
+                m.SaveChanges();
+            }
+            // 后续补全服务把评分写进 cache.db
+            using (var c = new CacheDbContext(CacheOptions(cachePath)))
+            {
+                c.Database.EnsureCreated();
+                c.CachedMovies.Add(new CachedMovie { Title = "困兽", NormTitle = "困兽", Year = 2023, Rating = 5.5, Source = "douban" });
+                c.SaveChanges();
+            }
+
+            // 旧路径 Run：flag 已存在 → 0 改写（复现 bug）
+            var viaRun = RatingBackfill.Run(MainOptions(mainPath), CacheOptions(cachePath), flag);
+            viaRun.Should().Be(0);
+            using (var v0 = new MovieDbContext(MainOptions(mainPath)))
+                v0.Movies.Single().ExternalRating.Should().NotHaveValue();
+
+            // 修复路径 Sync：即便 flag 存在也持续回写
+            var viaSync = RatingBackfill.Sync(MainOptions(mainPath), CacheOptions(cachePath));
+            viaSync.Should().Be(1);
+            using (var v1 = new MovieDbContext(MainOptions(mainPath)))
+            {
+                var mv = v1.Movies.Single();
+                mv.ExternalRating.Should().BeApproximately(5.5, 1e-9);
+                mv.RatingSource.Should().Be("douban");
+            }
+
+            // 再次 Sync 幂等（无额外改写）
+            RatingBackfill.Sync(MainOptions(mainPath), CacheOptions(cachePath)).Should().Be(0);
+        }
+        finally
+        {
+            foreach (var f in new[] { mainPath, cachePath, flag, mainPath + "-wal", mainPath + "-shm", cachePath + "-wal", cachePath + "-shm" })
+                try { if (File.Exists(f)) File.Delete(f); } catch { /* ignore */ }
+        }
+    }
 }
