@@ -45,19 +45,21 @@ if (!File.Exists(mainDb))
 var syncedBefore = RatingBackfill.Sync(mainOptions, cacheOptions);
 Console.WriteLine($"[1/4] cache.db→主库 同步：{syncedBefore} 部（处理历史孤儿评分）");
 
-// 2) 取 2020+ 且主库 ExternalRating 仍为空 的队列
+// 2) 取主库 ExternalRating 仍为空 的全部影片（不限年份）。
+//    这样被错标为 pre-2020 的 2020+ 影片、以及 Year=1000 的损坏元数据行也能进入队列；
+//    豆瓣按片名匹配（PickBestMatch 第 0~3 步与年份无关），年份仅用于第 4 步消歧，不影响命中。
 var queue = new List<(string Title, int? Year)>();
 using (var ctx = new MovieDbContext(mainOptions))
 {
     queue = ctx.Movies
-        .Where(m => m.ExternalRating == null && m.Year >= 2020)
+        .Where(m => m.ExternalRating == null)
         .OrderBy(m => m.Year)
         .Select(m => new { m.Title, m.Year })
         .AsEnumerable()
         .Select(x => (x.Title, (int?)x.Year))
         .ToList();
 }
-Console.WriteLine($"[2/4] 2020+ 待补全队列：{queue.Count} 部");
+Console.WriteLine($"[2/4] 待补全队列（全年份）：{queue.Count} 部");
 
 // 2.5) 离线把 cache.db 里已有 donor 按「中文关键词双向子串 + 放宽年份容差」映射到主库脏标题键，
 //      无需联网即可消化大量缺口（脏标题「白象危城悍将」命中干净 donor「白象」等）。
@@ -86,6 +88,6 @@ if (!string.IsNullOrEmpty(report.Error)) Console.WriteLine($"备注：{report.Er
 // 以主库实际剩余缺口为准（离线复用 + 本次豆瓣补全都已计入），避免重复计数
 int stillMissing;
 using (var ctx = new MovieDbContext(mainOptions))
-    stillMissing = ctx.Movies.Count(m => m.ExternalRating == null && m.Year >= 2020);
-Console.WriteLine($"主库仍缺 ExternalRating 的 2020+ 影片：{stillMissing} 部（限流时可下次自动化继续）");
+    stillMissing = ctx.Movies.Count(m => m.ExternalRating == null);
+Console.WriteLine($"主库仍缺 ExternalRating 的影片：{stillMissing} 部（限流时可下次自动化继续）");
 return 0;
