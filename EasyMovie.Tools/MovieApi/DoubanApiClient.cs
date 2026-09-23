@@ -58,7 +58,15 @@ public class DoubanApiClient : IMovieApiClient
         }
     }
 
-    public DoubanApiClient(HttpClient? http = null) { _http = http ?? CreateClient(); }
+    public DoubanApiClient(HttpClient? http = null)
+    {
+        // 注入的 HttpClient 归调用方所有，此处只读不写（测试注入 mock，头部由调用方负责）。
+        // 共享的原因与 key 的选取见 HttpClientFactory.GetOrCreate 注释：本类构造时会读取
+        // HttpProxy 与 DoubanCookie，两者都必须进 key，否则改完配置要重启才生效。
+        _http = http ?? HttpClientFactory.GetOrCreate(
+            "douban|" + (AppSettings.HttpProxy ?? "") + "|" + (AppSettings.DoubanCookie ?? ""),
+            CreateClient);
+    }
 
     private static HttpClient CreateClient()
     {

@@ -17,7 +17,10 @@ public class BaiduBaikeApiClient : IMovieApiClient
 
     public BaiduBaikeApiClient(HttpClient? http = null)
     {
-        _http = http ?? CreateClient();
+        // 注入的 HttpClient 归调用方所有，此处只读不写。
+        // 本类刻意不走代理（百度百科是国内站），构造时不读取任何运行时可变配置，故 key 固定即可。
+        // 共享的原因见 HttpClientFactory.GetOrCreate。
+        _http = http ?? EasyMovie.Core.HttpClientFactory.GetOrCreate("baike", CreateClient);
     }
 
     private static HttpClient CreateClient()
