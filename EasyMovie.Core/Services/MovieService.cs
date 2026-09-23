@@ -84,6 +84,11 @@ public class MovieService : IMovieService
         return await _movieRepo.DeleteAsync(id);
     }
 
+    public async Task<bool> ExistsByFilePathAsync(string filePath)
+    {
+        return await _movieRepo.ExistsByFilePathAsync(filePath);
+    }
+
     public async Task<bool> SetRatingAsync(int movieId, int? rating)
     {
         if (rating.HasValue && (rating < 1 || rating > 10))

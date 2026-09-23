@@ -25,4 +25,7 @@ public interface IMovieService
     Task<bool> SetCategoryAsync(int movieId, int? categoryId);
     Task SetTagsAsync(int movieId, List<int> tagIds);
     Task<int> GetTotalCountAsync();
+
+    /// <summary>按文件路径判重（窄查询，不物化实体）。见 <see cref="IMovieRepository.ExistsByFilePathAsync"/>。</summary>
+    Task<bool> ExistsByFilePathAsync(string filePath);
 }

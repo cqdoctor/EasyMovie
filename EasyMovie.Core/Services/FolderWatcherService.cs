@@ -16,9 +16,14 @@ public class FolderWatcherService : IDisposable
     private readonly List<FileSystemWatcher> _watchers = new();
     private readonly HashSet<string> _recentlyCreated = new(StringComparer.OrdinalIgnoreCase);
     private Timer? _pollingTimer;
-    private List<string> _monitoredFolders = new();
+    // 用「整体替换」而非原地 Clear 来更新：轮询线程会捕获局部引用后枚举，替换引用是原子的，
+    // 避免 Start/Stop（UI 线程）清空的同时轮询线程枚举 → InvalidOperationException: 集合已修改。
+    private volatile List<string> _monitoredFolders = new();
     private static readonly TimeSpan DebounceDelay = TimeSpan.FromMilliseconds(500);
     private static readonly TimeSpan PollingInterval = TimeSpan.FromSeconds(10);
+
+    // 防抖集合的内存上限：正常库不会到；极端情况下（大量文件 + Changed 事件）兜底清理，避免无界增长。
+    private const int MaxRememberedFiles = 50000;
 
     /// <summary>视频文件扩展名</summary>
     public static readonly string[] VideoExtensions = { ".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".m4v", ".webm", ".ts", ".rmvb", ".mpg", ".mpeg", ".x264", ".x265", ".hevc" };
@@ -90,7 +95,7 @@ public class FolderWatcherService : IDisposable
         }
         _watchers.Clear();
         lock (_recentlyCreated) { _recentlyCreated.Clear(); }
-        _monitoredFolders.Clear();
+        _monitoredFolders = new List<string>(); // 整体替换（非 Clear），与轮询线程枚举安全共存
         IsRunning = false;
         Log.Information("[FolderWatcher] 监控已停止");
     }
@@ -105,7 +110,8 @@ public class FolderWatcherService : IDisposable
             catch (Exception ex) { Log.Error(ex, "[FolderWatcher] 获取已入库路径失败"); }
 
             var found = 0;
-            foreach (var folder in _monitoredFolders)
+            var folders = _monitoredFolders; // 捕获快照：即使期间 Stop/Start 替换了引用，本次枚举仍一致
+            foreach (var folder in folders)
             {
                 if (!Directory.Exists(folder)) continue;
                 try
@@ -134,6 +140,7 @@ public class FolderWatcherService : IDisposable
                                     continue;
                                 }
                             }
+                            if (_recentlyCreated.Count >= MaxRememberedFiles) _recentlyCreated.Clear();
                             _recentlyCreated.Add(file);
                         }
 
@@ -196,6 +203,7 @@ public class FolderWatcherService : IDisposable
         // 防抖：同一文件短时间内只触发一次
         lock (_recentlyCreated)
         {
+            if (_recentlyCreated.Count >= MaxRememberedFiles) _recentlyCreated.Clear();
             if (!_recentlyCreated.Add(filePath))
             {
                 Log.Debug("[FolderWatcher] 文件已在防抖集合中，跳过: {Path}", filePath);

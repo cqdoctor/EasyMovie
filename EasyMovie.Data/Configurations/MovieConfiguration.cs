@@ -71,5 +71,13 @@ public class MovieConfiguration : IEntityTypeConfiguration<Movie>
         builder.HasIndex(m => m.Rating);
         builder.HasIndex(m => m.WatchStatus);
         builder.HasIndex(m => m.CategoryId);
+
+        // FilePath 唯一（过滤掉 NULL）——数据库层兜底防重复：
+        // FolderWatcher 的 Created/Changed/Renamed 多事件 + 轮询兜底会在毫秒级并发"先查后插"，
+        // 仅靠应用层去重存在 TOCTOU 竞态；JSON/全量导入此前完全不去重。唯一索引让重复插入直接失败，
+        // 由保存路径捕获为可读错误。手动添加（无文件）的影片 FilePath 为 NULL，不在索引内。
+        builder.HasIndex(m => m.FilePath)
+            .IsUnique()
+            .HasFilter("FilePath IS NOT NULL");
     }
 }

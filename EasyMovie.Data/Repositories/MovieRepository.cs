@@ -25,11 +25,18 @@ public class MovieRepository : IMovieRepository
 
     public async Task<List<Movie>> GetAllAsync()
     {
+        // AsSplitQuery：把 MovieTags/Category 的 Include 拆成独立查询，避免" Movie × 标签数 "
+        // 的笛卡尔积把 PosterData（占库 99.4%）按标签数重复物化——用户一打标签，单页 20 部
+        // 就会重复读数百 KB 乃至数 MB。拆分后每部电影的海报只加载一次，标签/分类仍照常填充。
+        // AsNoTracking：与其它只读查询（SearchAsync/GetByIdsAsync/CountAsync）保持一致。
+        // 写路径不受影响——UpdateAsync 用 Movies.Update() 重新附着，DeleteAsync 用 FindAsync() 重取。
         return await _context.Movies
+            .AsNoTracking()
             .Include(m => m.Category)
             .Include(m => m.MovieTags)
                 .ThenInclude(mt => mt.Tag)
             .OrderByDescending(m => m.CreatedAt)
+            .AsSplitQuery()
             .ToListAsync();
     }
 
@@ -38,12 +45,14 @@ public class MovieRepository : IMovieRepository
         var idList = ids as List<int> ?? ids.ToList();
         if (idList.Count == 0) return new List<Movie>();
 
+        // AsSplitQuery：同下方 GetAllAsync，避免标签 JOIN 重复物化 PosterData。
         return await _context.Movies
             .AsNoTracking()
             .Where(m => idList.Contains(m.Id))
             .Include(m => m.Category)
             .Include(m => m.MovieTags)
                 .ThenInclude(mt => mt.Tag)
+            .AsSplitQuery()
             .ToListAsync();
     }
 
@@ -106,6 +115,7 @@ public class MovieRepository : IMovieRepository
             .Include(m => m.Category)
             .Include(m => m.MovieTags)
                 .ThenInclude(mt => mt.Tag)
+            .AsSplitQuery()
             .AsQueryable();
 
         // 关键词搜索（片名、导演、演员、拼音索引）
@@ -287,5 +297,11 @@ public class MovieRepository : IMovieRepository
     public async Task<bool> ExistsAsync(int id)
     {
         return await _context.Movies.AnyAsync(m => m.Id == id);
+    }
+
+    public async Task<bool> ExistsByFilePathAsync(string filePath)
+    {
+        // AsNoTracking + 只判存在：不物化实体，避免把 86KB 的 PosterData 读进内存
+        return await _context.Movies.AsNoTracking().AnyAsync(m => m.FilePath == filePath);
     }
 }

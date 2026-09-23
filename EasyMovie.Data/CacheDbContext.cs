@@ -43,6 +43,9 @@ public class CacheDbContext : DbContext
     public static DbContextOptions<CacheDbContext> CreateOptions()
         => new DbContextOptionsBuilder<CacheDbContext>()
             .UseSqlite(ConnectionString)
+            // 与主库一致：启用 WAL + busy_timeout=3000。缓存库会被 GUI 进程与独立 BackfillRunner 进程
+            // 并发读写，缺此项则默认 busy_timeout=0 → 撞锁立即 "database is locked"（无重试）。
+            .AddInterceptors(BusyTimeoutInterceptor.Instance)
             .Options;
 
     public static CacheDbContext Create() => new(CreateOptions());
