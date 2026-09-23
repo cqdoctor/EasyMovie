@@ -399,7 +399,7 @@ public partial class MovieNewsView : UserControl
                 if (existing != null)
                 {
                     if (Window.GetWindow(this) is MainWindow mw)
-                        mw.ShowMovieDetail(existing);
+                        _ = mw.ShowMovieDetail(existing);
                     return;
                 }
             }

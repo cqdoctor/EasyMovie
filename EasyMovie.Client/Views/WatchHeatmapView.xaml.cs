@@ -58,7 +58,8 @@ public partial class WatchHeatmapView : UserControl
         }
         catch (Exception ex)
         {
-            Dispatcher.BeginInvoke(new Action(() =>
+            // 有意 fire-and-forget：异常回调里只更新提示文本，无需等待 UI 回执
+            _ = Dispatcher.BeginInvoke(new Action(() =>
             {
                 SummaryText.Text = $"加载失败: {ex.Message}";
             }));

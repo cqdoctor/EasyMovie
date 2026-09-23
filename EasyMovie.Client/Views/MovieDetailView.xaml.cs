@@ -113,14 +113,15 @@ public partial class MovieDetailView : UserControl
                     m.PosterUrl = _fetchedInfo.PosterUrl;
                     try
                     {
-                        var imgClient = new HttpClient(new HttpClientHandler { AutomaticDecompression = System.Net.DecompressionMethods.All }) { Timeout = TimeSpan.FromSeconds(10) };
+                        using var imgClient = new HttpClient(new HttpClientHandler { AutomaticDecompression = System.Net.DecompressionMethods.All }) { Timeout = TimeSpan.FromSeconds(10) };
                         imgClient.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36");
                         if (_fetchedInfo.PosterUrl.Contains("themoviedb.org") || _fetchedInfo.PosterUrl.Contains("tmdb.org"))
                             imgClient.DefaultRequestHeaders.Add("Referer", "https://www.themoviedb.org/");
                         else if (_fetchedInfo.PosterUrl.Contains("douban"))
                             imgClient.DefaultRequestHeaders.Add("Referer", "https://movie.douban.com/");
+                        // 注意：此时 m.Id 仍为 0（AddAsync 之后才赋值），海报缓存须在拿到真实 Id 后再写，
+                        // 否则会写进 0.jpg（孤儿 + 后续按真实 Id 读盘必 miss）。见下方保存成功后统一写盘。
                         m.PosterData = await imgClient.GetByteArrayAsync(_fetchedInfo.PosterUrl);
-                        if (m.PosterData != null) EasyMovie.Client.Helpers.PosterCache.Save(m.Id, m.PosterData);
                     }
                     catch (Exception ex) { Log.Error(ex, "MovieDetailView 操作异常"); }
                 }
@@ -132,6 +133,8 @@ public partial class MovieDetailView : UserControl
 
             if (_movieId == 0) { m = await _movieService.AddAsync(m); MovieAdded?.Invoke(this, m.Id); }
             else await _movieService.UpdateAsync(m);
+            // 拿到真实 Id 后再写海报磁盘缓存（修复此前写成 0.jpg 的错误键）。
+            if (m.PosterData != null) EasyMovie.Client.Helpers.PosterCache.Save(m.Id, m.PosterData);
             await _movieService.SetTagsAsync(m.Id, _selectedTagIds.ToList());
             MovieSaved?.Invoke(this, EventArgs.Empty); CloseWin();
         }
@@ -143,7 +146,7 @@ public partial class MovieDetailView : UserControl
     private async void DeleteBtn_Click(object sender, RoutedEventArgs e)
     {
         if (_movieId > 0 && AppMessageBox.Confirm(LanguageManager.GetString("Msg_ConfirmDelete"), LanguageManager.GetString("Msg_Confirm")))
-        { await _movieService.DeleteAsync(_movieId); MovieDeleted?.Invoke(this, EventArgs.Empty); CloseWin(); }
+        { await _movieService.DeleteAsync(_movieId); EasyMovie.Client.Helpers.PosterCache.Delete(_movieId); MovieDeleted?.Invoke(this, EventArgs.Empty); CloseWin(); }
     }
 
     private void CancelBtn_Click(object sender, RoutedEventArgs e) => CloseWin();

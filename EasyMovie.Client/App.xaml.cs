@@ -257,6 +257,8 @@ public partial class App : Application
         }
         // 进程即将退出，未释放的具名互斥体会由 OS 回收；此处失败不影响退出
         catch { }
+        // 释放 DI 容器：让单例（FolderWatcherService 等）的 Dispose 真正执行，避免退出路径泄漏。
+        try { (Services as IDisposable)?.Dispose(); } catch { }
         Log.Information("EasyMovie 退出");
         Log.CloseAndFlush();
         base.OnExit(e);
@@ -430,85 +432,30 @@ public partial class App : Application
                     return;
                 }
 
-                // 双重检查：确保文件未被导入
-                using var ctx = DbHelper.CreateContext();
-                var existing = ctx.Movies
-                    .Where(m => m.FilePath == filePath)
-                    .Select(m => m.Id)
-                    .FirstOrDefault();
-                if (existing > 0)
+                // 解析文件名 → 多源元数据级联（MovieInfoFetcher，自带限流熔断与缓存）→ 入库，
+                // 全部下沉到 FolderImportService.ImportFileAsync，与手动文件夹导入共用一条实现。
+                // 原先这里有一份劣化副本：只走单一豆瓣源、不过熔断、且直接 ctx.Movies.Add
+                // （绕过 movieService.AddAsync 的拼音 SearchIndex 建索引）。
+                var importService = Services?.GetService<IFolderImportService>() ?? new FolderImportService();
+                var movieService = Services?.GetService<IMovieService>();
+                if (movieService == null)
+                {
+                    Log.Warning("[FolderWatcher] DI 容器未就绪，跳过导入: {File}", fileName);
+                    return;
+                }
+
+                var movie = await importService.ImportFileAsync(filePath, movieService);
+                if (movie == null)
                 {
                     Log.Information("[FolderWatcher] 文件已存在数据库中，跳过: {File}", fileName);
                     return;
                 }
 
-                var importService = new FolderImportService();
-                var (title, year) = importService.ParseFileName(filePath);
-
-                var movie = new Movie
-                {
-                    Title = title,
-                    Year = year ?? 0,
-                    FilePath = filePath,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                };
-
-                // 尝试从豆瓣获取元数据
-                try
-                {
-                    var douban = new DoubanApiClient();
-                    var searchResponse = await douban.SearchAsync(
-                        new MovieSearchRequest { Keyword = title, Page = 1, PageSize = 1 });
-
-                    if (searchResponse.Results.Count > 0)
-                    {
-                        var apiResult = searchResponse.Results[0];
-                        if (year == null || apiResult.Year == 0 ||
-                            Math.Abs(apiResult.Year - (year ?? 0)) <= 1)
-                        {
-                            movie.Title = apiResult.Title;
-                            movie.OriginalTitle = apiResult.OriginalTitle;
-                            movie.Year = apiResult.Year > 0 ? apiResult.Year : (year ?? 0);
-                            movie.Director = MovieCreditCleaner.CleanDirector(apiResult.Director);
-                            movie.Cast = TextCleaner.StripHtml(apiResult.Cast);
-                            movie.Country = TextCleaner.StripHtml(apiResult.Country);
-                            movie.Synopsis = TextCleaner.StripHtml(apiResult.Synopsis);
-                            movie.PosterUrl = apiResult.PosterUrl;
-                            movie.Runtime = apiResult.Runtime;
-                            movie.DoubanId = apiResult.ExternalId;
-
-                            // 获取详情
-                            try
-                            {
-                                var detail = await douban.GetDetailAsync(apiResult.ExternalId ?? "");
-                                if (detail != null)
-                                {
-                                    movie.Synopsis ??= TextCleaner.StripHtml(detail.Synopsis);
-                                    movie.Runtime ??= detail.Runtime;
-                                    movie.Director ??= MovieCreditCleaner.CleanDirector(detail.Director);
-                                    movie.Cast ??= TextCleaner.StripHtml(detail.Cast);
-                                    movie.Country ??= detail.Country;
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                Log.Error(ex, "处理新文件自动入库失败");
-                            }
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Log.Warning(ex, "[FolderWatcher] 获取元数据失败: {File}", fileName);
-                }
-
-                ctx.Movies.Add(movie);
-                await ctx.SaveChangesAsync();
-
                 Log.Information("[FolderWatcher] 已导入: {Title} ({Year})", movie.Title, movie.Year);
 
-                Current.Dispatcher.BeginInvoke(() =>
+                // 显式丢弃 DispatcherOperation：这是有意的 fire-and-forget UI 线程投递，
+                // 绝不能在导入循环里 await（否则每部影片都要等 UI 消息泵回执）。`_ =` 明确表达该意图。
+                _ = Current.Dispatcher.BeginInvoke(() =>
                 {
                     if (Current.MainWindow is MainWindow mw)
                         mw.ShowFolderNotification(movie.Title, filePath);

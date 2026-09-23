@@ -60,9 +60,22 @@ public class ShortcutConfig
         catch (Exception ex) { Log.Error(ex, "快捷键加载异常"); }
     }
 
+    /// <summary>
+    /// 解析手势字符串。**空白输入与退化手势（Key.None）一律返回 null**，表示"该项不绑定快捷键"。
+    /// <para>注意：<c>KeyGestureConverter.ConvertFromString("")</c> 不抛异常，而是返回
+    /// <c>KeyGesture{ Key = None, Modifiers = None }</c>。若直接透传，调用方
+    /// <c>if (gesture != null) InputBindings.Add(new KeyBinding(...))</c> 会注册一个永远不触发的
+    /// 空绑定（用户清空快捷键后仍占用一项 InputBinding）。因此这里显式归一化为 null。</para>
+    /// </summary>
     public static KeyGesture? ParseGesture(string gesture)
     {
-        try { return (KeyGesture?)KeyGestureConverter.ConvertFromString(gesture); }
+        if (string.IsNullOrWhiteSpace(gesture)) return null;
+        try
+        {
+            var parsed = (KeyGesture?)KeyGestureConverter.ConvertFromString(gesture);
+            // 退化手势（无按键）没有绑定价值，视为"未绑定"
+            return parsed == null || parsed.Key == Key.None ? null : parsed;
+        }
         catch (Exception ex) { Log.Error(ex, "读取快捷键失败"); return null; }
     }
 

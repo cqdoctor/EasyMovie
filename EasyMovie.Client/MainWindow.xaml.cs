@@ -516,7 +516,7 @@ public partial class MainWindow : Window
 
     private Movie? _lastSelectedMovie;
 
-    public async void ShowMovieDetail(Movie? movie)
+    public async Task ShowMovieDetail(Movie? movie)
     {
         if (movie == null)
         {
@@ -609,8 +609,8 @@ public partial class MainWindow : Window
 
         await LoadWatchLogsAsync(movie.Id);
 
-        // 通知电影列表选中该电影
-        Dispatcher.BeginInvoke(new Action(() =>
+        // 通知电影列表选中该电影（有意 fire-and-forget：不等 UI 回执，`_ =` 表达意图）
+        _ = Dispatcher.BeginInvoke(new Action(() =>
         {
             GetCurrentMovieView()?.SelectMovieById(movie.Id);
         }), System.Windows.Threading.DispatcherPriority.Background);
@@ -870,7 +870,7 @@ public partial class MainWindow : Window
 
     private void Delete_Executed(object sender, ExecutedRoutedEventArgs e)
     {
-        if (GetCurrentMovieView() is { } mv) mv.DeleteSelectedMovie();
+        if (GetCurrentMovieView() is { } mv) _ = mv.DeleteSelectedMovie();
     }
 
     private void Detail_Executed(object sender, ExecutedRoutedEventArgs e)
@@ -880,13 +880,13 @@ public partial class MainWindow : Window
 
     private void Escape_Executed(object sender, ExecutedRoutedEventArgs e)
     {
-        if (_lastSelectedMovie != null) ShowMovieDetail(null);
+        if (_lastSelectedMovie != null) _ = ShowMovieDetail(null);
         else if (GetCurrentMovieView() is { } mv) mv.DeselectAll();
     }
 
     private void Refresh_Executed(object sender, ExecutedRoutedEventArgs e)
     {
-        if (GetCurrentMovieView() is { } mv) mv.RefreshData();
+        if (GetCurrentMovieView() is { } mv) _ = mv.RefreshData();
     }
 
     private void SelectAll_Executed(object sender, ExecutedRoutedEventArgs e)
@@ -920,7 +920,7 @@ public partial class MainWindow : Window
 
     private void CycleView_Executed(object sender, ExecutedRoutedEventArgs e)
     {
-        if (GetCurrentMovieView() is { } mv) mv.CycleView();
+        if (GetCurrentMovieView() is { } mv) _ = mv.CycleView();
     }
 
     private void ShortcutsHelp_Executed(object sender, ExecutedRoutedEventArgs e)
