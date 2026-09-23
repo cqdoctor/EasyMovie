@@ -35,4 +35,10 @@ public interface IMovieRepository
     Task<Movie> UpdateAsync(Movie movie);
     Task<bool> DeleteAsync(int id);
     Task<bool> ExistsAsync(int id);
+
+    /// <summary>
+    /// 按文件路径判重（窄查询，不物化实体、不读 PosterData）。
+    /// 单文件导入（文件夹监控）用它替代「把整行查出来再比较」。
+    /// </summary>
+    Task<bool> ExistsByFilePathAsync(string filePath);
 }
