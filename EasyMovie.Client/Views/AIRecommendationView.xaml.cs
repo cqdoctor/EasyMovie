@@ -36,7 +36,7 @@ public partial class AIRecommendationView : UserControl
         Loaded += async (_, _) =>
         {
             await PreBuildSystemPromptAsync();
-            Dispatcher.BeginInvoke(UpdateUIState, DispatcherPriority.Background);
+            _ = Dispatcher.BeginInvoke(UpdateUIState, DispatcherPriority.Background); // 有意 fire-and-forget
         };
     }
 

@@ -15,38 +15,8 @@ using Serilog;
 
 namespace EasyMovie.Client;
 
-/// <summary>连接打开后执行 PRAGMA：启用 WAL 日志模式（读写并发不再互相排他锁，根治 "database is locked"），
-/// 并设置 busy_timeout 兜底。WAL 模式是持久化的（写入 DB 头），只需在连接打开时设置一次。
-/// 注意：Microsoft.Data.Sqlite 9.x 的连接串不支持 BusyTimeout/Busy Timeout 关键字，必须通过 PRAGMA 设置。</summary>
-public sealed class BusyTimeoutInterceptor : DbConnectionInterceptor
-{
-    public static readonly BusyTimeoutInterceptor Instance = new();
-    // journal_mode=WAL 是持久化的（写入 DB 文件头），只需首个连接设置一次；
-    // 每个连接都执行会反复获取 SQLite 锁（启动期多连接并发打开时实测会显著拖慢）。
-    private static int _walConfigured;
-    private const string PragmaAll = "PRAGMA journal_mode=WAL; PRAGMA busy_timeout=3000;";
-    private const string PragmaBusyOnly = "PRAGMA busy_timeout=3000;";
-
-    public override void ConnectionOpened(DbConnection connection, ConnectionEndEventData eventData)
-        => Execute(connection);
-
-    public override async Task ConnectionOpenedAsync(DbConnection connection, ConnectionEndEventData eventData, CancellationToken cancellationToken = default)
-        => Execute(connection);
-
-    private static void Execute(DbConnection connection)
-    {
-        try
-        {
-            if (connection is SqliteConnection sqlite)
-            {
-                using var cmd = sqlite.CreateCommand();
-                cmd.CommandText = Interlocked.Exchange(ref _walConfigured, 1) == 0 ? PragmaAll : PragmaBusyOnly;
-                cmd.ExecuteNonQuery();
-            }
-        }
-        catch (Exception ex) { Log.Warning(ex, "设置 busy_timeout PRAGMA 失败"); }
-    }
-}
+// BusyTimeoutInterceptor 已下沉到 EasyMovie.Data（见 Data/BusyTimeoutInterceptor.cs）：
+// 主库与缓存库共用同一实现，缓存库由此也获得 WAL + busy_timeout=3000。
 
 public static class DbHelper
 {
@@ -117,6 +87,8 @@ public static class DbHelper
             // 否则老用户（InitFlagPath 已存在、下方直接跳过重活）永远拿不到新列与外部评分。
             // 自身幂等：列已存在则跳过 ALTER；回填由 RatingBackfill 内部 flag 守护只跑一次。
             EnsureRatingSchemaAndBackfill();
+            // 新增/变更的关键索引同样每次启动补齐（与 InitFlag 脱钩），存量库也能拿到。
+            EnsureIndexes();
 
             // 非首次启动快速路径：首次完整初始化（EnsureCreated + schema 检查 + 历史数据清洗 +
             // 种子标签）完成后写 flag 文件；再次启动直接跳过全部重活（实测每次重跑约 2.2s，
@@ -137,36 +109,19 @@ public static class DbHelper
             using var ctx = new MovieDbContext(options);
             ctx.Database.EnsureCreated();
 
+            // Movie 全列补齐已统一收口到每次启动的 EnsureMovieColumns()（见本方法顶部调用）。
+            // 这里在 EnsureCreated 之后再补跑一次：EnsureCreated 对"已存在的库"不会改 schema，
+            // 从旧版迁移来的老库缺的列/索引必须由 ALTER / CREATE INDEX 补齐。返回用户走顶部调用即已覆盖。
+            EnsureMovieColumns();
+            EnsureIndexes();
+
             try
             {
                 using var cmd = ctx.Database.GetDbConnection().CreateCommand();
                 ctx.Database.OpenConnection();
 
-                cmd.CommandText = "PRAGMA table_info(Movies)";
-                var hasSearchIndex = false;
-                var hasPosterData = false;
-                var hasCollectionId = false;
-                var hasCollectionOrder = false;
-                var hasCollectionsTable = false;
-                var hasPlaybackPosition = false;
-                var hasExternalRating = false;
-                var hasRatingSource = false;
-                using (var reader = cmd.ExecuteReader())
-                {
-                    while (reader.Read())
-                    {
-                        var colName = reader.GetString(1);
-                        if (colName == "SearchIndex") hasSearchIndex = true;
-                        if (colName == "PosterData") hasPosterData = true;
-                        if (colName == "CollectionId") hasCollectionId = true;
-                        if (colName == "CollectionOrder") hasCollectionOrder = true;
-                        if (colName == "PlaybackPosition") hasPlaybackPosition = true;
-                        if (colName == "ExternalRating") hasExternalRating = true;
-                        if (colName == "RatingSource") hasRatingSource = true;
-                    }
-                }
-
                 cmd.CommandText = "SELECT name FROM sqlite_master WHERE type='table' AND name='Collections'";
+                var hasCollectionsTable = false;
                 using (var tableReader = cmd.ExecuteReader())
                 {
                     if (tableReader.Read()) hasCollectionsTable = true;
@@ -181,45 +136,6 @@ public static class DbHelper
                         SortOrder INTEGER NOT NULL DEFAULT 0,
                         CreatedAt TEXT NOT NULL,
                         UpdatedAt TEXT NOT NULL);";
-                    cmd.ExecuteNonQuery();
-                }
-
-                if (!hasCollectionId)
-                {
-                    cmd.CommandText = "ALTER TABLE Movies ADD COLUMN CollectionId INTEGER REFERENCES Collections(Id) ON DELETE SET NULL;";
-                    cmd.ExecuteNonQuery();
-                }
-                if (!hasCollectionOrder)
-                {
-                    cmd.CommandText = "ALTER TABLE Movies ADD COLUMN CollectionOrder INTEGER;";
-                    cmd.ExecuteNonQuery();
-                }
-
-                if (!hasSearchIndex)
-                {
-                    cmd.CommandText = "ALTER TABLE Movies ADD COLUMN SearchIndex TEXT;";
-                    cmd.ExecuteNonQuery();
-                }
-                if (!hasPosterData)
-                {
-                    cmd.CommandText = "ALTER TABLE Movies ADD COLUMN PosterData BLOB;";
-                    cmd.ExecuteNonQuery();
-                }
-
-                if (!hasPlaybackPosition)
-                {
-                    cmd.CommandText = "ALTER TABLE Movies ADD COLUMN PlaybackPosition INTEGER NOT NULL DEFAULT 0;";
-                    cmd.ExecuteNonQuery();
-                }
-
-                if (!hasExternalRating)
-                {
-                    cmd.CommandText = "ALTER TABLE Movies ADD COLUMN ExternalRating REAL;";
-                    cmd.ExecuteNonQuery();
-                }
-                if (!hasRatingSource)
-                {
-                    cmd.CommandText = "ALTER TABLE Movies ADD COLUMN RatingSource TEXT;";
                     cmd.ExecuteNonQuery();
                 }
 
@@ -378,18 +294,78 @@ public static class DbHelper
     }
 
     /// <summary>
-    /// 保证外部评分列存在并回填（B1）。与 InitFlagPath 首次初始化脱钩，每次启动都跑：
-    /// - 仅当 Movies 表已存在时才 ALTER（全新库由下方 EnsureCreated 建表时自带列，不必 ALTER）；
-    /// - 回填委托 <see cref="BackfillExternalRatings"/>（内部 flag 守护，只跑一次）。
-    /// 这样老用户（InitFlagPath 已存在、跳过首次重活）也能拿到新列与外部评分；
-    /// 列已存在 / flag 已写时本方法几乎零成本（仅一次 PRAGMA 探表）。
+    /// 每次启动都确保 Movies 表的全部已知列存在（幂等：先 PRAGMA 探表，再条件 ALTER）。
+    ///
+    /// **根因修复（EF+SQLite 加列 footgun）**：原先这些 ALTER 只写在 EnsureInitialized 的
+    /// "首次初始化"分支里（受 InitFlagPath 守护，老用户跳过）。后果——代码升级给 Movie 加了新列后，
+    /// 返回用户（InitFlag 已存在、首活被跳过）永远拿不到该列，任何物化 Movie 的查询都会命中
+    /// "no such column" 崩溃。把列 ALTER 提到"每次启动、与 InitFlag 脱钩"，从根上消除该竞态：
+    /// 新增列在下次启动即被补上，无需删初始化标记、无需任何人工干预。
+    /// 全新库（DbPath 不存在）由下方 EnsureCreated 建全列，这里直接跳过。
     /// </summary>
-    private static void EnsureRatingSchemaAndBackfill()
+    private static void EnsureMovieColumns()
     {
         try
         {
             if (!Directory.Exists(DbDir)) Directory.CreateDirectory(DbDir);
-            if (!File.Exists(DbPath)) return; // 全新库：下方 EnsureCreated 会建带 ExternalRating/RatingSource 列的表
+            if (!File.Exists(DbPath)) return; // 全新库：下方 EnsureCreated 会建带全列的表
+
+            using var ctx = new MovieDbContext(CreateOptions());
+            ctx.Database.OpenConnection();
+            try
+            {
+                using var existCmd = ctx.Database.GetDbConnection().CreateCommand();
+                existCmd.CommandText = "SELECT name FROM sqlite_master WHERE type='table' AND name='Movies'";
+                var hasTable = false;
+                using (var tableReader = existCmd.ExecuteReader())
+                    if (tableReader.Read()) hasTable = true;
+                if (!hasTable) return;
+
+                var present = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                using var cmd = ctx.Database.GetDbConnection().CreateCommand();
+                cmd.CommandText = "PRAGMA table_info(Movies)";
+                using (var reader = cmd.ExecuteReader())
+                    while (reader.Read()) present.Add(reader.GetString(1));
+
+                void Add(string col, string ddl)
+                {
+                    if (present.Contains(col)) return;
+                    using var a = ctx.Database.GetDbConnection().CreateCommand();
+                    a.CommandText = ddl;
+                    a.ExecuteNonQuery();
+                }
+
+                Add("CollectionId", "ALTER TABLE Movies ADD COLUMN CollectionId INTEGER REFERENCES Collections(Id) ON DELETE SET NULL;");
+                Add("CollectionOrder", "ALTER TABLE Movies ADD COLUMN CollectionOrder INTEGER;");
+                Add("SearchIndex", "ALTER TABLE Movies ADD COLUMN SearchIndex TEXT;");
+                Add("PosterData", "ALTER TABLE Movies ADD COLUMN PosterData BLOB;");
+                Add("PlaybackPosition", "ALTER TABLE Movies ADD COLUMN PlaybackPosition INTEGER NOT NULL DEFAULT 0;");
+                Add("ExternalRating", "ALTER TABLE Movies ADD COLUMN ExternalRating REAL;");
+                Add("RatingSource", "ALTER TABLE Movies ADD COLUMN RatingSource TEXT;");
+            }
+            finally
+            {
+                ctx.Database.CloseConnection();
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "确保 Movie 列存在失败");
+        }
+    }
+
+    /// <summary>
+    /// 每次启动确保关键索引存在（幂等，与 InitFlag 脱钩）。目前只有 Movies.FilePath 唯一（过滤 NULL）：
+    /// 存量库 EnsureCreated 不会补建新增索引，必须显式 CREATE UNIQUE INDEX IF NOT EXISTS。
+    /// 若存量数据本身已有重复 FilePath，创建会失败——**不自动删数据**（避免误删用户影片），只记录并跳过，
+    /// 应用照常运行（仅失去数据库层兜底），待用户/人工清理后下次启动自动补建。
+    /// </summary>
+    private static void EnsureIndexes()
+    {
+        try
+        {
+            if (!Directory.Exists(DbDir)) Directory.CreateDirectory(DbDir);
+            if (!File.Exists(DbPath)) return; // 全新库由 EnsureCreated 按模型建索引
 
             using var ctx = new MovieDbContext(CreateOptions());
             ctx.Database.OpenConnection();
@@ -398,39 +374,40 @@ public static class DbHelper
                 using var cmd = ctx.Database.GetDbConnection().CreateCommand();
                 cmd.CommandText = "SELECT name FROM sqlite_master WHERE type='table' AND name='Movies'";
                 var hasTable = false;
-                using (var tableReader = cmd.ExecuteReader())
-                    if (tableReader.Read()) hasTable = true;
+                using (var r = cmd.ExecuteReader()) if (r.Read()) hasTable = true;
                 if (!hasTable) return;
 
-                cmd.CommandText = "PRAGMA table_info(Movies)";
-                var hasExternalRating = false;
-                var hasRatingSource = false;
-                using (var reader = cmd.ExecuteReader())
+                cmd.CommandText = "CREATE UNIQUE INDEX IF NOT EXISTS IX_Movies_FilePath ON Movies(FilePath) WHERE FilePath IS NOT NULL;";
+                try
                 {
-                    while (reader.Read())
-                    {
-                        var colName = reader.GetString(1);
-                        if (colName == "ExternalRating") hasExternalRating = true;
-                        if (colName == "RatingSource") hasRatingSource = true;
-                    }
-                }
-
-                if (!hasExternalRating)
-                {
-                    cmd.CommandText = "ALTER TABLE Movies ADD COLUMN ExternalRating REAL;";
                     cmd.ExecuteNonQuery();
                 }
-                if (!hasRatingSource)
+                catch (Exception ex)
                 {
-                    cmd.CommandText = "ALTER TABLE Movies ADD COLUMN RatingSource TEXT;";
-                    cmd.ExecuteNonQuery();
+                    Log.Warning(ex, "创建 Movies.FilePath 唯一索引失败（疑似存量存在重复 FilePath）；未自动删除数据，请在库中清理重复后重启");
                 }
             }
             finally
             {
                 ctx.Database.CloseConnection();
             }
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "确保索引存在失败");
+        }
+    }
 
+    /// <summary>
+    /// 保证外部评分列存在并回填（B1）。列存在性委托 <see cref="EnsureMovieColumns"/>（每次启动幂等补齐），
+    /// 回填委托 <see cref="BackfillExternalRatings"/>（内部 flag 守护，只跑一次）。
+    /// 这样老用户（InitFlagPath 已存在、跳过首次重活）也能拿到新列与外部评分。
+    /// </summary>
+    private static void EnsureRatingSchemaAndBackfill()
+    {
+        try
+        {
+            EnsureMovieColumns();
             BackfillExternalRatings();
         }
         catch (Exception ex)

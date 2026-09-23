@@ -1130,6 +1130,7 @@ public partial class MovieListView : UserControl
             if (movie?.FilePath != null)
                 AppSettings.MarkFileDeleted(movie.FilePath);
             await _movieService.DeleteAsync(id);
+            EasyMovie.Client.Helpers.PosterCache.Delete(id);
             await LoadMoviesAsync();
             await RefreshCategoryFilterAsync();
         }
@@ -1176,6 +1177,7 @@ public partial class MovieListView : UserControl
                     {
                         _context.WatchLogs.Add(new WatchLog { MovieId = movie.Id, WatchDate = DateTime.Today });
                         await _context.SaveChangesAsync();
+                        _context.ChangeTracker.Clear();
                     }
                 }
                 tb.Text = movie.WatchStatus switch
@@ -1220,6 +1222,9 @@ public partial class MovieListView : UserControl
         {
             _context.WatchLogs.Add(new WatchLog { MovieId = m.Id, WatchDate = DateTime.Today });
             await _context.SaveChangesAsync();
+            // 播放前 _movieService.UpdateAsync 曾把含 PosterData 的 Movie 实体挂进跟踪器，
+            // 写完后立即清空，避免长期存活的 _context 把整部片的海报常驻内存。
+            _context.ChangeTracker.Clear();
         }
         await LoadMoviesAsync();
 
@@ -1858,6 +1863,43 @@ public partial class MovieListView : UserControl
             else if (collectionId.HasValue) m.CollectionId = collectionId.Value;
         }
 
+        // ⚠️ 上面的内存改动**不会**落库：selected 来自 MovieRepository.SearchAsync（AsNoTracking），
+        // 与 _context 之间没有变更跟踪关系，SaveChanges 看不见它们——批量改分类/状态/评分/收藏/合集
+        // 曾长期静默失效（只有下面标签那段因为显式 Add/RemoveRange 才生效）。
+        // 改用「桩实体 + 逐列 IsModified」写回：不回读整行（含 86KB PosterData），
+        // 也不会像 Movies.Update(全实体) 那样把 MovieTags/Category 导航图一并标脏。
+        foreach (var m in selected)
+        {
+            var stub = new Movie { Id = m.Id };
+            _context.Movies.Attach(stub);
+            var entry = _context.Entry(stub);
+            if (categoryId.HasValue)
+            {
+                stub.CategoryId = categoryId;
+                entry.Property(x => x.CategoryId).IsModified = true;
+            }
+            if (status.HasValue)
+            {
+                stub.WatchStatus = status.Value;
+                entry.Property(x => x.WatchStatus).IsModified = true;
+            }
+            if (rating.HasValue)
+            {
+                stub.Rating = rating.Value;
+                entry.Property(x => x.Rating).IsModified = true;
+            }
+            if (favorite.HasValue)
+            {
+                stub.IsFavorite = favorite.Value;
+                entry.Property(x => x.IsFavorite).IsModified = true;
+            }
+            if (collectionRemove || collectionId.HasValue)
+            {
+                stub.CollectionId = collectionRemove ? null : collectionId;
+                entry.Property(x => x.CollectionId).IsModified = true;
+            }
+        }
+
         if (tagId.HasValue && tagMode != null)
         {
             foreach (var m in selected)
@@ -1869,7 +1911,10 @@ public partial class MovieListView : UserControl
                 }
                 else if (tagMode == "remove")
                 {
+                    // AsNoTracking：查出即删，不需要变更跟踪（否则每条 MovieTag 会被长期
+                    // 存活的 _context 一直钉住）。RemoveRange 对未跟踪实体会自动以 Deleted 附上。
                     var existing = await _context.MovieTags
+                        .AsNoTracking()
                         .Where(mt => mt.MovieId == m.Id && mt.TagId == tagId.Value)
                         .ToListAsync();
                     _context.MovieTags.RemoveRange(existing);
@@ -1878,6 +1923,9 @@ public partial class MovieListView : UserControl
         }
 
         await _context.SaveChangesAsync();
+        // _context 是随 View 长期存活的实例：写完后清掉变更跟踪，避免 Added/Modified 实体
+        // （尤其带 86KB PosterData 的 Movie）在整个会话里被一直钉在内存里。
+        _context.ChangeTracker.Clear();
         AppMessageBox.ShowInfo(string.Format(LanguageManager.GetString("MovieLib_BatchApplied"), selected.Count));
 
         BatchCategoryCombo.SelectedIndex = 0;
@@ -1894,6 +1942,14 @@ public partial class MovieListView : UserControl
     }
 
     private async void BatchDelete_Click(object sender, RoutedEventArgs e)
+        => await DeleteSelectedMoviesAsync();
+
+    /// <summary>
+    /// 批量删除选中影片的核心逻辑。抽成无参方法，使 XAML 事件入口 <see cref="BatchDelete_Click"/>
+    /// 与内部直接调用（<see cref="DeleteSelectedMovie"/> 的多选分支）共用同一实现——
+    /// 避免为复用而向 WPF 事件形参强塞 null（既误导可空分析、也掩盖真实调用意图）。
+    /// </summary>
+    private async Task DeleteSelectedMoviesAsync()
     {
         var selected = GetSelectedMovies();
         if (selected.Count == 0)
@@ -1915,6 +1971,8 @@ public partial class MovieListView : UserControl
 
         _context.Movies.RemoveRange(selected);
         await _context.SaveChangesAsync();
+        _context.ChangeTracker.Clear();
+        foreach (var m in selected) EasyMovie.Client.Helpers.PosterCache.Delete(m.Id); // 清理孤儿海报磁盘缓存
         AppMessageBox.ShowInfo(string.Format(LanguageManager.GetString("MovieLib_BatchDeleted"), selected.Count));
         BatchEditPanel.Visibility = Visibility.Collapsed;
         await LoadMoviesAsync();
@@ -1946,7 +2004,7 @@ public partial class MovieListView : UserControl
         SearchBox.SelectAll();
     }
 
-    public async void SelectMovieById(int movieId)
+    public async Task SelectMovieById(int movieId)
     {
         // 首先尝试在当前列表中查找电影并选中
         if (MovieDataGrid.ItemsSource is List<Movie> movies)
@@ -1975,24 +2033,35 @@ public partial class MovieListView : UserControl
 
     public void AddNewMovie() => OpenDetailView(0);
 
-    public async void DeleteSelectedMovie()
+    public async Task DeleteSelectedMovie()
     {
         var selected = GetSelectedMovies();
         if (selected.Count == 0) return;
-        if (selected.Count == 1)
+        try
         {
-            if (AppMessageBox.Confirm(LanguageManager.GetString("Msg_ConfirmDelete"), LanguageManager.GetString("Msg_Confirm")))
+            if (selected.Count == 1)
             {
-                if (selected[0].FilePath != null)
-                    AppSettings.MarkFileDeleted(selected[0].FilePath);
-                await _movieService.DeleteAsync(selected[0].Id);
-                await LoadMoviesAsync();
-                await RefreshCategoryFilterAsync();
+                if (AppMessageBox.Confirm(LanguageManager.GetString("Msg_ConfirmDelete"), LanguageManager.GetString("Msg_Confirm")))
+                {
+                    // 先捕获再判空：`selected[0]` 是索引器再求值，编译器无法把上一行的判空结论复用到下一行。
+                    var singlePath = selected[0].FilePath;
+                    if (singlePath != null)
+                        AppSettings.MarkFileDeleted(singlePath);
+                    await _movieService.DeleteAsync(selected[0].Id);
+                    EasyMovie.Client.Helpers.PosterCache.Delete(selected[0].Id);
+                    await LoadMoviesAsync();
+                    await RefreshCategoryFilterAsync();
+                }
+            }
+            else
+            {
+                await DeleteSelectedMoviesAsync();
             }
         }
-        else
+        catch (Exception ex)
         {
-            BatchDelete_Click(null, null);
+            Log.Error(ex, "删除电影失败");
+            _mainWindow?.SetStatus($"❌ 删除失败：{ex.Message}");
         }
     }
 
@@ -2002,7 +2071,7 @@ public partial class MovieListView : UserControl
         if (selected.Count == 1) OpenDetailView(selected[0].Id);
     }
 
-    public async void RefreshData()
+    public async Task RefreshData()
     {
         _filterState.ResetToFirstPage();
         await LoadMoviesAsync();
@@ -2030,7 +2099,7 @@ public partial class MovieListView : UserControl
         _mainWindow?.ShowMovieDetail(null);
     }
 
-    public async void CycleView()
+    public async Task CycleView()
     {
         _filterState.CycleViewMode();
 

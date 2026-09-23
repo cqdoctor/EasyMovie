@@ -577,8 +577,23 @@ public partial class VideoPlayerHost : UserControl
         public void RequestInfoPanel() => ShowInfoPanel();
         public void RequestShortcutsPanel() => _overlay?.ShowShortcuts(GetShortcuts());
 
-        /// <summary>切换解码模式：写入设置并使缓存的 static LibVLC 失效，下次打开视频时按新模式重建。</summary>
-        public void RequestSetDecoder(DecoderSettings.Mode mode) { DecoderSettings.Set(mode); _libVLC = null; }
+        /// <summary>切换解码模式：写入设置并使缓存的 static LibVLC 失效，下次打开视频时按新模式重建。
+        /// 同时释放旧的 LibVLC 原生实例（插件模块/GPU 上下文），避免每次切换解码模式都泄漏一份 VLC 核心。
+        /// 仅当当前没有正在播放的 MediaPlayer 时才 Dispose：否则 Dispose 正在被其引用的 LibVLC 会让播放中的视频崩溃；
+        /// 播放中切换则仅置空，旧实例随本次播放结束（CleanupInner）一并回收。</summary>
+        public void RequestSetDecoder(DecoderSettings.Mode mode)
+        {
+            DecoderSettings.Set(mode);
+            if (_mediaPlayer == null && _libVLC != null)
+            {
+                try { _libVLC.Dispose(); } catch { }
+                _libVLC = null;
+            }
+            else
+            {
+                _libVLC = null;
+            }
+        }
 
         /// <summary>供覆盖窗口转发键盘事件（覆盖窗口获得焦点时也能响应快捷键）。</summary>
     public void HandleKey(Key key)
@@ -920,14 +935,17 @@ public partial class VideoPlayerHost : UserControl
         try
         {
             using var ctx = DbHelper.CreateContext();
-            var dbMovie = ctx.Movies.Find(_movie.Id);
-            if (dbMovie != null)
-            {
-                dbMovie.PlaybackPosition = position;
-                ctx.SaveChanges();
-            }
+            // 单列更新（项目既定模式）：Attach 一个只带 Id 的桩实体，标脏 PlaybackPosition 一列。
+            // 原先用 ctx.Movies.Find(id) 会把**整行含 PosterData BLOB（~86KB/部）**物化进内存再写回——
+            // 而本方法在 UI 线程上执行（退出播放/播完时），同步 SaveChanges 还要抢进程级写锁（MovieDbContext._writeLock）。
+            // 避免 BLOB 读放大 = 缩短 UI 线程阻塞在写锁上的时间，也契合项目"不物化海报 BLOB"的性能契约。
+            var stub = new Movie { Id = _movie.Id };
+            ctx.Attach(stub);
+            ctx.Entry(stub).Property(x => x.PlaybackPosition).CurrentValue = position;
+            ctx.Entry(stub).Property(x => x.PlaybackPosition).IsModified = true;
+            ctx.SaveChanges();
         }
-        catch (Exception ex) { Log.Error(ex, "VideoPlayerHost 操作异常"); }
+        catch (Exception ex) { Log.Error(ex, "VideoPlayerHost 保存播放进度失败(已忽略)"); }
     }
 
     #region P0 播放增强：字幕/音轨/倍速/截图

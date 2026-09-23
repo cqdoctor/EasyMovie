@@ -484,7 +484,7 @@ public partial class DashboardView : UserControl
             if (mainWindow != null)
             {
                 mainWindow.NavigateTo("Movies");
-                mainWindow.ShowMovieDetail(movie);
+                _ = mainWindow.ShowMovieDetail(movie);
             }
         }
     }
@@ -507,7 +507,7 @@ public partial class DashboardView : UserControl
             if (mainWindow != null)
             {
                 mainWindow.NavigateTo("Movies");
-                mainWindow.ShowMovieDetail(reminder.Movie);
+                _ = mainWindow.ShowMovieDetail(reminder.Movie);
             }
         }
     }
@@ -516,7 +516,12 @@ public partial class DashboardView : UserControl
     {
         try
         {
-            var count = await _context.Movies.CountAsync();
+            // 捕获到局部量再判空：`_context` 是字段，可空流分析会在 await/方法调用后把字段状态重置为
+            // MaybeNull（字段可能被其它路径改写），局部量则不受影响，只需判一次即可安全贯穿两个查询。
+            var ctx = _context;
+            if (ctx == null) return;
+
+            var count = await ctx.Movies.CountAsync();
             if (count == 0)
             {
                 AppMessageBox.ShowInfo(
@@ -527,7 +532,7 @@ public partial class DashboardView : UserControl
 
             var rand = new Random();
             var skip = rand.Next(count);
-            var movie = await _context.Movies
+            var movie = await ctx.Movies
                 .OrderBy(m => m.Id)
                 .Skip(skip)
                 .FirstOrDefaultAsync();

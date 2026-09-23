@@ -217,6 +217,7 @@ public partial class DuplicateResultDialog : Window
             }
 
             context.Movies.Remove(duplicate);
+            EasyMovie.Client.Helpers.PosterCache.Delete(duplicate.Id); // 清理被合并掉那条的孤儿海报缓存
         }
 
         primary.UpdatedAt = DateTime.UtcNow;

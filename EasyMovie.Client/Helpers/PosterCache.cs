@@ -23,6 +23,19 @@ public static class PosterCache
 
     public static bool Exists(int id) => File.Exists(PathFor(id));
 
+    /// <summary>删除磁盘缓存的海报文件并清掉内存缩略图（影片删除 / 去重合并时调用，避免孤儿 {id}.jpg 长期驻留）。失败忽略。</summary>
+    public static void Delete(int id)
+    {
+        if (id <= 0) return;
+        try
+        {
+            var path = PathFor(id);
+            if (File.Exists(path)) File.Delete(path);
+        }
+        catch (Exception ex) { Log.Error(ex, "PosterCache 删除磁盘缓存失败(已忽略)"); }
+        _thumbCache.TryRemove(id, out _);
+    }
+
     /// <summary>把海报字节写盘（覆盖式）。参数无效或失败均忽略。</summary>
     public static void Save(int id, byte[]? bytes)
     {

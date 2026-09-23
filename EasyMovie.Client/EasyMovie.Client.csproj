@@ -6,11 +6,13 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
-    <!-- 抑制构建噪音警告（均为 Windows 专用 WPF 程序的误报/可空注解不完整，非逻辑错误）：
-         CA1416 = MDIX 的 PackIcon/Card 被平台兼容性分析器误判为"仅 Windows 支持"（本项目即 net10.0-windows）；
-         CS4014 = 有意 fire-and-forget 的 async 调用未 await；
-         CS86xx = 可空引用类型注解缺口。项目已 0 错误、运行正常，统一抑制以保持干净编译输出。 -->
-    <NoWarn>NU1701;CA1416;CS4014;CS8625;CS8602;CS8604;CS8629;CS8601</NoWarn>
+    <!-- M1（2026-09-20）：已从 NoWarn 中移除 CS4014 与全部 CS86xx，恢复可空/异步静态保护。
+         原先抑制的 CS4014 实为 4 处 Dispatcher.BeginInvoke（有意 fire-and-forget），已改为显式 `_ =` 丢弃表达意图；
+         CS8602/CS8604/CS8625 共 4 处已按真实根因修复（字段窄化、索引器再求值、给事件形参塞 null）。
+         仍保留的两项为确实无法修复的误报：
+         NU1701 = 传递依赖包的目标框架元数据不完整（仅提示级，不影响 net10.0-windows 运行）；
+         CA1416 = MDIX 的 PackIcon/Card 被平台兼容性分析器误判为"仅 Windows 支持"（本项目即 net10.0-windows）。 -->
+    <NoWarn>NU1701;CA1416</NoWarn>
     <ApplicationIcon>app.ico</ApplicationIcon>
     <Version>1.03</Version>
     <AllowMissingPrunePackageData>true</AllowMissingPrunePackageData>
