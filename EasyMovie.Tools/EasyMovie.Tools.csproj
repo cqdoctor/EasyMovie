@@ -14,9 +14,11 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <!-- 与 EasyMovie.Client 一致：抑制可空引用注解缺口（CS86xx）与 fire-and-forget async 未 await（CS4014）的噪音警告，
-         均为非逻辑错误；本项目已 0 错误、运行正常。 -->
-    <NoWarn>CS4014;CS8625;CS8602;CS8604;CS8629;CS8601</NoWarn>
+    <!-- M1（2026-09-20）：已永久移除 <NoWarn>，恢复可空引用静态保护。
+         原先抑制 CS4014/CS8625/CS8602/CS8604/CS8629/CS8601——实测该项下唯一的告警面是
+         14 条可空告警（10×CS8602 系 DoubanBackfillService 一处多余 `rep != null` 判空的级联，
+         3×CS8604、1×CS8601），已全部按真实根因修复；CS4014 在本项目为零。
+         保持 Nullable 分析全开可让新增代码的空引用缺陷在编译期即暴露。 -->
   </PropertyGroup>
 
 </Project>

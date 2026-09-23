@@ -101,8 +101,20 @@ public class ImportExportService : IImportExportService
             }
         }
 
+        // CSV 导入是“整批新增”：SaveChanges 在循环外统一提交，若命中约束违例（如唯一 FilePath 冲突）
+        // 会整批回滚并抛异常——必须兜住，否则调用方崩溃且 SuccessCount 已计数却未落库，误导用户。
         if (result.SuccessCount > 0)
-            await _context.SaveChangesAsync();
+        {
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                result.ErrorCount++;
+                result.Errors.Add($"写入数据库失败（本批新增未保存）: {ex.Message}");
+            }
+        }
 
         return result;
     }
@@ -143,6 +155,13 @@ public class ImportExportService : IImportExportService
                 return result;
             }
 
+            // 按 FilePath 去重（H3）：库中已存在、或本批已出现过的文件路径直接跳过，
+            // 避免重复导入同一份备份把影片再插一遍（DB 层另有唯一索引兜底）。
+            var knownPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var p in await _context.Movies.AsNoTracking()
+                .Where(m => m.FilePath != null).Select(m => m.FilePath!).ToListAsync())
+                knownPaths.Add(p);
+
             foreach (var movie in movies)
             {
                 try
@@ -153,6 +172,13 @@ public class ImportExportService : IImportExportService
                     movie.MovieTags?.Clear();
                     movie.CreatedAt = DateTime.UtcNow;
                     movie.UpdatedAt = DateTime.UtcNow;
+
+                    if (!string.IsNullOrWhiteSpace(movie.FilePath) && !knownPaths.Add(movie.FilePath!))
+                    {
+                        result.ErrorCount++;
+                        result.Errors.Add($"跳过重复文件路径: {movie.FilePath}");
+                        continue;
+                    }
 
                     _context.Movies.Add(movie);
                     result.SuccessCount++;
@@ -166,7 +192,17 @@ public class ImportExportService : IImportExportService
             }
 
             if (result.SuccessCount > 0)
-                await _context.SaveChangesAsync();
+            {
+                try
+                {
+                    await _context.SaveChangesAsync();
+                }
+                catch (Exception ex)
+                {
+                    result.ErrorCount++;
+                    result.Errors.Add($"写入数据库失败（本批新增未保存）: {ex.Message}");
+                }
+            }
 
             return result;
         }
@@ -207,6 +243,7 @@ public class ImportExportService : IImportExportService
     public async Task<ImportResult> ImportFullDataFromJsonAsync(string filePath)
     {
         var result = new ImportResult();
+        string? currentMovieTitle = null;
         if (!File.Exists(filePath))
         {
             result.Errors.Add($"文件不存在: {filePath}");
@@ -267,9 +304,23 @@ public class ImportExportService : IImportExportService
             // 导入电影
             if (backup.Movies != null)
             {
+                // 按 FilePath 去重（H3）：库中已存在、或本批已出现过的路径跳过，避免重复还原产生重复影片。
+                var knownPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var p in await _context.Movies.AsNoTracking()
+                    .Where(m => m.FilePath != null).Select(m => m.FilePath!).ToListAsync())
+                    knownPaths.Add(p);
+
                 foreach (var movie in backup.Movies)
                 {
+                    currentMovieTitle = movie.Title;
                     movie.Id = 0;
+
+                    if (!string.IsNullOrWhiteSpace(movie.FilePath) && !knownPaths.Add(movie.FilePath!))
+                    {
+                        result.ErrorCount++;
+                        result.Errors.Add($"跳过重复文件路径: {movie.FilePath}");
+                        continue;
+                    }
 
                     if (movie.CategoryId.HasValue && catIdMap.ContainsKey(movie.CategoryId.Value))
                         movie.CategoryId = catIdMap[movie.CategoryId.Value];
@@ -277,7 +328,18 @@ public class ImportExportService : IImportExportService
                         movie.CategoryId = null;
 
                     movie.Category = null;
-                    movie.MovieTags?.Clear();
+
+                    // 保留标签关联（F1 修复）：全量备份/还原曾经把 MovieTags 直接清空且不重建，
+                    // 导致还原后影片全部丢失标签绑定。这里用反序列化得到的旧 MovieTags 映射到
+                    // 新 TagId 重建关联（Tag 已重新插入，tagIdMap 持有旧→新映射）。
+                    var tagLinks = movie.MovieTags?.ToList() ?? new List<MovieTag>();
+                    movie.MovieTags = new List<MovieTag>();
+                    foreach (var mt in tagLinks)
+                    {
+                        if (tagIdMap.ContainsKey(mt.TagId))
+                            movie.MovieTags.Add(new MovieTag { TagId = tagIdMap[mt.TagId] });
+                    }
+
                     movie.CreatedAt = DateTime.UtcNow;
                     movie.UpdatedAt = DateTime.UtcNow;
 
@@ -296,7 +358,9 @@ public class ImportExportService : IImportExportService
         }
         catch (Exception ex)
         {
-            result.Errors.Add($"还原失败: {ex.Message}");
+            // 保留"整体回滚"语义（事务未提交即中止），仅把中断位置（影片标题）补进错误信息，
+            // 便于定位是哪一部影片的数据触发了还原失败，而不再只给笼统的"还原失败"。
+            result.Errors.Add($"还原失败（中断于影片「{currentMovieTitle ?? "(未知)"}」）: {ex.Message}");
             result.ErrorCount = 1;
             return result;
         }

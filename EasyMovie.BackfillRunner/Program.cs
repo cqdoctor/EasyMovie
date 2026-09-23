@@ -77,6 +77,26 @@ var progress = new Progress<string>(s => Console.WriteLine($"      {s}"));
 Console.WriteLine($"[3/4] 开始慢速补全（每部间隔 {DoubanBackfillService.BackfillGapSeconds}s，每日上限 {DoubanBackfillService.BackfillDailyCap}）…");
 var report = await DoubanBackfillService.RunAsync(queue, progress, CancellationToken.None);
 
+// 3.5) 替代源补全（TMDB / OMDb）：豆瓣无法填充的影片（豆瓣 0 分冷门片 + 脏标题无匹配）试用替代源。
+//      仅对已确认豆瓣补不上的影片生效，评分写 cache.db（主库脏标题键），由下方 [4/4] Sync 回写主库。
+var stillMissingAlt = new List<(int Id, string Title, int? Year)>();
+using (var ctx = new MovieDbContext(mainOptions))
+{
+    stillMissingAlt = ctx.Movies
+        .Where(m => m.ExternalRating == null)
+        .OrderBy(m => m.Year)
+        .Select(m => new { m.Id, m.Title, m.Year })
+        .AsEnumerable()
+        .Select(x => (x.Id, x.Title, (int?)x.Year))
+        .ToList();
+}
+if (stillMissingAlt.Count > 0)
+{
+    Console.WriteLine($"[3.5/4] 替代源（TMDB/OMDb）补全：{stillMissingAlt.Count} 部");
+    var altReport = await AlternativeRatingBackfill.RunAsync(stillMissingAlt, mainOptions, progress, CancellationToken.None);
+    Console.WriteLine($"        替代源补全回写主库：{altReport.Filled} 部（TMDB {altReport.TmdbFilled} / OMDb {altReport.OmdbFilled}），跳过 {altReport.Skipped} 部，异常 {altReport.Errors} 部");
+}
+
 // 4) 再次同步：把本次新补全的 cache.db 评分回写主库
 var syncedAfter = RatingBackfill.Sync(mainOptions, cacheOptions);
 Console.WriteLine($"[4/4] 本次新补全回写主库：{syncedAfter} 部");

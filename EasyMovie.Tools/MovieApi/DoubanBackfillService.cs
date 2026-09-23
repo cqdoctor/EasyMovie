@@ -72,6 +72,14 @@ public static class DoubanBackfillService
 
         var client = clientFactory();
 
+        // 按影片重试：need_login 是约 50% 概率的瞬时拒绝（非真封禁），同一影片重试仍保持 12s 节奏，
+        // 不会密集探测加重风控；硬封禁（302 风控页/验证码）才立即停 run。
+        const int maxSearchAttempts = 3;
+        // 连续整窗被墙守卫：若连续多部影片搜索都拿不到任何数据（非“有结果但匹配不上”），
+        // 说明该 IP 在本窗口已被限流，及时停 run 以免空转浪费每日配额；下次调度自动继续。
+        const int wallStopThreshold = 5;
+        var consecutiveEmpty = 0;
+
         foreach (var (title, year) in items)
         {
             if (ct.IsCancellationRequested) { rep.Error = "已取消。"; break; }
@@ -85,49 +93,86 @@ public static class DoubanBackfillService
                 break;
             }
 
-            // 既有的豆瓣冷却/封控：立即安全停止（不等待、不重试，避免加重风控）
+            // 硬封禁（302 风控页/验证码）：立即安全停止
             if (client.IsThrottled())
             {
                 rep.StoppedByThrottle = true;
-                rep.Error = "触发豆瓣冷却/封控，已安全停止补全（不会重试）。可稍后重试。";
+                rep.Error = "触发豆瓣硬封控，已安全停止补全。可稍后重试。";
                 progress?.Report(rep.Error);
                 break;
             }
 
             // 外层慢速节奏：确保距“任何一次”豆瓣请求已过去 Gap + 抖动
-            var since = DateTime.UtcNow - DoubanApiClient.LastRequestUtc;
-            var need = TimeSpan.FromSeconds(BackfillGapSeconds) - since;
-            if (need > TimeSpan.Zero)
-            {
-                var jitter = (int)(need.TotalMilliseconds * 0.3);
-                var extra = jitter > 0 ? new Random().Next(0, jitter) : 0;
-                await Task.Delay(need + TimeSpan.FromMilliseconds(extra), ct);
-            }
+            await PaceAsync(ct);
 
-            // 1) 标题搜索
+            // 1) 标题搜索（按影片重试：soft 限流为概率性，重试仍保持节奏，不密集）
             MovieSearchResponse? resp = null;
-            try
+            var attempts = 0;
+            while (attempts < maxSearchAttempts)
             {
-                resp = await client.SearchAsync(new MovieSearchRequest { Keyword = title, Page = 1, PageSize = 5 }, ct);
-            }
-            catch (Exception ex) { Log.Error(ex, "补全：搜索异常 {Title}", title); rep.Skipped++; continue; }
+                try
+                {
+                    resp = await client.SearchAsync(new MovieSearchRequest { Keyword = title, Page = 1, PageSize = 5 }, ct);
+                }
+                catch (Exception ex) { Log.Error(ex, "补全：搜索异常 {Title}", title); resp = null; break; }
 
-            // 搜索后即检查封控（任何请求后都可能被限）
-            if (client.IsThrottled())
+                // 硬封禁（302 风控页/验证码/禁止访问）：立即停 run，不重试
+                if (client.IsThrottled())
+                {
+                    rep.StoppedByThrottle = true;
+                    rep.Error = "触发豆瓣硬封控（need_login/风控页），已安全停止补全。";
+                    progress?.Report(rep.Error);
+                    break;
+                }
+                if (resp != null && resp.Results.Count > 0) break;   // 拿到候选，无需重试
+                attempts++;
+                if (attempts < maxSearchAttempts) await PaceAsync(ct);  // 同影片重试仍按节奏等待
+            }
+            if (rep.StoppedByThrottle) break;   // 硬封禁已设置，退出循环（rep 为局部 new，恒非 null）
+
+            if (resp == null || resp.Results.Count == 0)
             {
-                rep.StoppedByThrottle = true;
-                rep.Error = "触发豆瓣封控（need_login），已安全停止补全。";
-                progress?.Report(rep.Error);
-                break;
+                // 配额软限流（HTTP 200 + error_info="搜索访问太频繁" + items=[]）：
+                // 这不是「豆瓣没收录这部片」，而是本窗口额度用尽。立即停 run，
+                // 否则剩余影片会被一路误报成「无可靠匹配」，白白耗尽配额且掩盖真实原因。
+                if (DoubanApiClient.LastSearchQuotaExceeded)
+                {
+                    rep.StoppedByThrottle = true;
+                    rep.Error = "豆瓣搜索配额已用尽（搜索访问太频繁），已安全停止（下次调度继续）。";
+                    progress?.Report(rep.Error);
+                    break;
+                }
+                // 该影片多次搜索均无数据（概率性 need_login 或豆瓣确实无收录）
+                rep.Skipped++;
+                progress?.Report($"[跳过] 无可靠匹配：{title}");
+                if (++consecutiveEmpty >= wallStopThreshold)
+                {
+                    rep.StoppedByThrottle = true;
+                    rep.Error = "连续多部无数据，疑似整窗口被墙，已安全停止（下次调度继续）。";
+                    progress?.Report(rep.Error);
+                    break;
+                }
+                continue;
             }
+            consecutiveEmpty = 0;   // 有候选：IP 响应正常，重置“被墙”计数
 
-            var match = DoubanApiClient.PickBestMatch(resp?.Results ?? new(), title, year);
+            var match = DoubanApiClient.PickBestMatch(resp.Results, title, year);
             if (match == null) { rep.Skipped++; progress?.Report($"[跳过] 无可靠匹配：{title}"); continue; }
+
+            // 豆瓣条目存在、但评分人数不足时 rating.value = 0。这类条目没有任何可回写的评分，
+            // 旧实现只看 Rating.HasValue 就判定「补全成功」——于是报告写着「已补全 4」而主库回写 0 部，
+            // 还会把 Rating=0 的行写进 cache.db 占位。必须在此拦掉：既不计入 Filled，也不写缓存。
+            if (!match.Rating.HasValue || match.Rating.Value <= 0)
+            {
+                rep.Skipped++;
+                progress?.Report($"[跳过] 豆瓣条目暂无评分：{title}");
+                continue;
+            }
 
             // rexxar 搜索结果的 card_subtitle 已含 评分/年份/导演/主演/海报。若关键字段齐全，
             // 直接落库、省掉详情请求——同一配额窗口内可覆盖约 2 倍影片，也减少触发豆瓣
             // need_login 配额挑战的次数（当前该 IP 匿名额度已降到 ~5 请求/窗口）。
-            var searchSuffices = match.Year > 0 && match.Rating.HasValue &&
+            var searchSuffices = match.Year > 0 && match.Rating.HasValue && match.Rating.Value > 0 &&
                 !string.IsNullOrEmpty(match.Director) && !string.IsNullOrEmpty(match.Cast) &&
                 !string.IsNullOrEmpty(match.PosterUrl);
             if (searchSuffices)
@@ -157,6 +202,12 @@ public static class DoubanBackfillService
                 break;
             }
             if (detail == null) { rep.Skipped++; continue; }
+            if (!detail.Rating.HasValue || detail.Rating.Value <= 0)
+            {
+                rep.Skipped++;
+                progress?.Report($"[跳过] 豆瓣条目暂无评分：{title}");
+                continue;
+            }
 
             // 3) 合并落库（只补 cache.db，不碰个人库）
             WriteBackfill(detail, title, year, "douban");
@@ -168,6 +219,22 @@ public static class DoubanBackfillService
         }
 
         return rep;
+    }
+
+    /// <summary>
+    /// 慢速节奏等待：确保距“任何一次”豆瓣请求已过去 <see cref="BackfillGapSeconds"/> + 抖动，
+    /// 避免密集探测加重风控。请求速率恒定，重试与首查共用此节奏。
+    /// </summary>
+    private static async Task PaceAsync(CancellationToken ct)
+    {
+        var since = DateTime.UtcNow - DoubanApiClient.LastRequestUtc;
+        var need = TimeSpan.FromSeconds(BackfillGapSeconds) - since;
+        if (need > TimeSpan.Zero)
+        {
+            var jitter = (int)(need.TotalMilliseconds * 0.3);
+            var extra = jitter > 0 ? new Random().Next(0, jitter) : 0;
+            await Task.Delay(need + TimeSpan.FromMilliseconds(extra), ct);
+        }
     }
 
     /// <summary>

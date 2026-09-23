@@ -35,16 +35,11 @@ public class DoubanApiClient : IMovieApiClient
     private static int _rateLimitStrikes = 0;
     private static bool InCooldown => DateTime.UtcNow < _cooldownUntil;
 
-    /// <summary>连续「软失败」计数：两条路径都没拿到数据但未命中硬封禁时累加，达阈值才升级为冷却。</summary>
-    private static int _softFailures = 0;
-    private const int SoftFailureThreshold = 6;
-
     private static void TriggerCooldown()
     {
         _rateLimitStrikes++;
         var seconds = Math.Min(60 * _rateLimitStrikes, 600);
         _cooldownUntil = DateTime.UtcNow.AddSeconds(seconds);
-        _softFailures = 0;
         Log.Warning("豆瓣命中硬封控，进入冷却 {Seconds}s（第 {Strikes} 次）", seconds, _rateLimitStrikes);
     }
     private static void ResetCooldown()
@@ -59,7 +54,6 @@ public class DoubanApiClient : IMovieApiClient
         lock (_lock)
         {
             _rateLimitStrikes = 0;
-            _softFailures = 0;
             _cooldownUntil = DateTime.MinValue;
         }
     }
@@ -173,6 +167,20 @@ public class DoubanApiClient : IMovieApiClient
     }
 
     /// <summary>
+    /// 最近一次搜索是否命中「搜索访问太频繁」配额软限流。
+    /// 该限流的特征是 <b>HTTP 200 + window.__DATA__ 里 error_info="搜索访问太频繁。" + items=[]</b>——
+    /// 既不是 403（IsSoftThrottle 抓不到），也不是硬封禁（不该冷却），
+    /// 旧实现因此把它当成「豆瓣没有这部片」，报告里一律显示为「无可靠匹配」，
+    /// 实际上只是配额用尽，下次调度就能继续（见 DoubanBackfillService 的提前停止分支）。
+    /// </summary>
+    public static bool LastSearchQuotaExceeded { get; private set; }
+
+    private static bool IsSearchQuotaExceeded(string? body) =>
+        !string.IsNullOrEmpty(body) &&
+        (body.Contains("搜索访问太频繁", StringComparison.OrdinalIgnoreCase) ||
+         body.Contains("\\u641c\\u7d22\\u8bbf\\u95ee\\u592a\\u9891\\u7e41", StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
     /// 是否被 302 到风控中间页（/misc/sorry、sec.douban.com、登录页）。
     /// 这类跳转是货真价实的封控信号，必须触发冷却，不能继续请求。
     /// </summary>
@@ -262,23 +270,31 @@ public class DoubanApiClient : IMovieApiClient
         {
             if (results == null || results.Count == 0) return null;
             // 过滤掉数据源偶发返回的模板/占位符脏数据（如 TMDB 返回 "#= data.original_title #"）。
-            // 注意：只按“结果自身的 Title 是否为模板/占位符”判定，绝不能因 OriginalTitle 为空而丢弃——
-            // 中文片（尤其 2020+ 国产片）常无英文名，OriginalTitle 为空是常态，误删会导致 PickBestMatch
-            // 对大量合法结果返回 null，进而令补全服务静默跳过全部影片。
-            results = results.Where(r => !IsTemplateOrLabel(r.Title)).ToList();
+            // 关键：只按“结果自身的 Title 是否为模板/占位符”判定；OriginalTitle 为空（豆瓣 rexxar 对中文片
+            // 恒为 null，是常态）绝不能丢弃——IsTemplateOrLabel(null) 返回 true，若对 OriginalTitle 也加
+            // “!IsTemplateOrLabel” 会让 `!true`=false 把整条合法结果过滤掉，导致 PickBestMatch 对全部中文片
+            // 返回 null、补全服务静默跳过所有影片（2026-09-18 实测回归根因）。
+            results = results.Where(r => !IsTemplateOrLabel(r.Title)
+                && (string.IsNullOrEmpty(r.OriginalTitle) || !IsTemplateOrLabel(r.OriginalTitle))).ToList();
             if (results.Count == 0) return null;
+
+            // 用清洗后的片名做匹配（剥编码/音轨/质量标签 EAC3/Atmos/AC3/TrueHD… 与独立年份）。
+            // 不清洗会误杀：反向包含要求长度比 ≥0.5，而脏标题「东北警察故事2 EAC3 Atmos」
+            // 相对干净结果「东北警察故事2」只有 7/16≈0.44，导致明明搜到了也判「无可靠匹配」永久跳过。
+            var matchTitle = CleanSearchTitle(title);
+            if (string.IsNullOrWhiteSpace(matchTitle)) matchTitle = title;
 
             // 0. 精确片名匹配优先：归一化完全相等的同名结果，优于带序号的续集
             //    （如“速度与激情”应优先于“速度与激情10”，“加勒比海盗”优于“加勒比海盗2”）
-            var nt = Normalize(title);
+            var nt = Normalize(matchTitle);
             foreach (var r in results)
             {
                 if (Normalize(r.Title) == nt || Normalize(r.OriginalTitle) == nt)
                     return r;
             }
 
-            var eng = ExtractEnglishHint(title);
-            var tokens = ExtractTitleTokens(title);
+            var eng = ExtractEnglishHint(matchTitle);
+            var tokens = ExtractTitleTokens(matchTitle);
 
             // 1. 英文名整体匹配
             if (!string.IsNullOrEmpty(eng))
@@ -296,7 +312,7 @@ public class DoubanApiClient : IMovieApiClient
             //    同时要求片名确实相关，避免 TMDB 等宽松匹配把无关片（如年份撞上的错片）误收。
             foreach (var r in results)
             {
-                if (TitleContains(r.Title, title) || TitleContains(r.OriginalTitle, title)) return r;
+                if (TitleContains(r.Title, matchTitle) || TitleContains(r.OriginalTitle, matchTitle)) return r;
             }
 
             // 3. 中文/原名的英文词全命中（译名场景）
@@ -384,10 +400,14 @@ public class DoubanApiClient : IMovieApiClient
 
     private static readonly string[] InvalidLabels = { "人员", "人物", "演员", "主演", "导演", "暂无", "未知", "暂未录入", "更多" };
 
-    private static bool IsTemplateOrLabel(string value)
+    /// <param name="value">待判定文本。<b>null/空白视为模板并返回 true</b>（契约即「不可信身份」），
+    /// 故形参声明为可空，避免调用方对 null 的 OriginalTitle 触发 CS8604。</param>
+    public static bool IsTemplateOrLabel(string? value)
     {
         if (string.IsNullOrWhiteSpace(value)) return true;
-        if (Regex.IsMatch(value, @"\$\{.*?\}|\$\(data\.\w+\)|\{\{.*?\}\}|<%.*?%>")) return true;
+        // 覆盖服务端模板占位符：Ruby/ERB 风格 "#= data.original_title #"、JS 模板 "{{ data.x }}"、
+        // "$=" / "<% %>" 等。TMDB 静态兜底页未渲染时会出现此类占位符，不能作为真实片名使用。
+        if (Regex.IsMatch(value, @"\$\{.*?\}|\$\(data\.\w+\)|\{\{.*?\}\}|<%.*?%>|#=\s*data|#=\s*\w+\.|data\.original_title|data\.title\b")) return true;
         if (InvalidLabels.Contains(value)) return true;
         return false;
     }
@@ -397,64 +417,92 @@ public class DoubanApiClient : IMovieApiClient
         // 限流冷却中：直接返回空，绝不发送请求（不再重试加重风控）。
         // 上层（MovieInfoFetcher 熔断）会暂时切到其他源，冷却到期自动恢复。
         if (InCooldown) return new MovieSearchResponse();
+        LastSearchQuotaExceeded = false;   // 每次搜索重算，避免上一次的标记污染本次判定
 
         var keyword = CleanSearchTitle(req.Keyword);
         if (string.IsNullOrWhiteSpace(keyword)) keyword = req.Keyword;
 
-        // 中英混合片名（如「困兽Death Stranding EAC3」）：整串丢给豆瓣往往 0 候选。
-        // 实测提纯后的中文核心命中率更高（6/6 vs 4/6），因此先用核心查，查不到再用完整关键词兜底。
+        // 关键词分工（修复英文名影片匹配缺口 #豆瓣补全）：
+        //   · 混合标题（中+英，如「困兽Death Stranding」「唐探1900Detective Chinatown」）：
+        //     用【完整关键词】作主查询。完整词含英文，配合网页搜索（结果带 OriginalTitle）
+        //     才能让 PickBestMatch 走英文校验分支命中；若网页搜索无候选，再用【中文核心】兜底。
+        //   · 纯中文标题：用原样（rexxar 命中率高）；rexxar 的 OriginalTitle 恒为 null 不影响中文校验。
+        //   注：SearchOnceAsync 内部对含拉丁字母的关键词优先走网页搜索，天然契合上述分工。
         var primary = keyword;
         string? fallback = null;
         if (SearchKeywordPurifier.TryExtractChineseCore(keyword, out var core))
         {
-            primary = core;
-            fallback = keyword;
+            fallback = core;   // 中文核心作为兜底，而非主查询（旧逻辑把核心当主查询，丢掉了英文鉴别符）
         }
 
         var attempt = await SearchOnceAsync(primary, req.PageSize, ct);
         if (attempt.results.Count == 0 && fallback != null)
         {
-            Log.Information("豆瓣：提纯词 [{Core}] 无候选，改用完整关键词 [{Full}] 重试一次", primary, fallback);
+            Log.Information("豆瓣：完整词 [{Full}] 无候选，改用中文核心 [{Core}] 兜底", primary, fallback);
             attempt = await SearchOnceAsync(fallback, req.PageSize, ct);
         }
 
         if (attempt.results.Count > 0)
         {
             ResetCooldown();
-            _softFailures = 0;
             return new MovieSearchResponse { Results = attempt.results, TotalCount = attempt.results.Count };
         }
+        // 仅硬封禁（302 风控页 / 验证码 / 禁止访问）才进入冷却并停 run。
+        // 软限流（need_login 概率性 403）不在此冷却——它由上层补全服务按影片重试，
+        // 重试仍保持 12s 节奏，不会密集探测加重风控（见 DoubanBackfillService）。
         if (attempt.hardBan) TriggerCooldown();
-        else if (++_softFailures >= SoftFailureThreshold)
-        {
-            Log.Warning("豆瓣连续 {Count} 次软失败（两条路径均无数据且未命中硬封禁），按封控处理进入冷却", _softFailures);
-            TriggerCooldown();
-        }
         return new MovieSearchResponse();
     }
 
     /// <summary>
-    /// 单次查询：先走 rexxar 移动端搜索，失败再走网页搜索页兜底。
-    /// 返回 (结果集, 是否命中硬封禁)。
+    /// 单次查询：按关键词形态选择主路径——
+    ///   · 含拉丁字母（英文名影片）：rexxar 返回的 OriginalTitle 恒为 null，
+    ///     导致 PickBestMatch 无法按英文名校验，且网页搜索在同窗口更宽容、字段更全
+    ///     （含原名/导演/主演）→ <b>优先走网页搜索</b>，失败再回退 rexxar。
+    ///   · 纯中文：rexxar 优先（干净 JSON、命中率高），失败兜底网页搜索。
+    /// 两条路径返回 (结果集, 是否命中硬封禁)。
     /// </summary>
     private async Task<(List<MovieSearchResult> results, bool hardBan)> SearchOnceAsync(
         string keyword, int pageSize, CancellationToken ct)
     {
-        // 路径 1：rexxar 移动端搜索（主路径，返回干净 JSON）
-        var rexxar = await TryRexxarSearchAsync(keyword, pageSize, ct);
-        if (rexxar.ok) return (rexxar.results, false);
-        if (rexxar.hardBan) return (new List<MovieSearchResult>(), true);
+        if (ContainsLatin(keyword))
+        {
+            // 英文名影片：网页搜索优先（字段更全，且对这类片名更宽容）
+            var html = await TryHtmlSearchAsync(keyword, pageSize, ct);
+            if (html.ok) return (html.results.Take(pageSize).ToList(), false);
+            if (html.hardBan) return (new List<MovieSearchResult>(), true);
+
+            // 网页搜索软失败 → rexxar 兜底（rexxar 偶尔能命中而网页被限）
+            var rexxar = await TryRexxarSearchAsync(keyword, pageSize, ct);
+            if (rexxar.ok) return (rexxar.results.Take(pageSize).ToList(), false);
+            if (rexxar.hardBan) return (new List<MovieSearchResult>(), true);
+            return (new List<MovieSearchResult>(), false);
+        }
+
+        // 纯中文：rexxar 优先
+        var r = await TryRexxarSearchAsync(keyword, pageSize, ct);
+        if (r.ok) return (r.results.Take(pageSize).ToList(), false);
+        if (r.hardBan) return (new List<MovieSearchResult>(), true);
 
         // 路径 2：网页搜索页兜底。rexxar 的概率性 403（need_login）与「无结果」都走这里。
         // 实测该路径字段更全（评分/原名/片长/国别/导演/主演）且在同一时间窗内更宽容，
         // 是 rexxar 被限流时唯一能拿到数据的通道。
-        var html = await TryHtmlSearchAsync(keyword, pageSize, ct);
-        if (html.ok)
+        var h = await TryHtmlSearchAsync(keyword, pageSize, ct);
+        if (h.ok)
         {
             Log.Information("豆瓣 rexxar 未命中，已由网页搜索兜底：{Keyword}", keyword);
-            return (html.results, false);
+            return (h.results.Take(pageSize).ToList(), false);
         }
-        return (new List<MovieSearchResult>(), html.hardBan);
+        return (new List<MovieSearchResult>(), h.hardBan);
+    }
+
+    /// <summary>关键词是否含拉丁字母（英文名影片判定）。</summary>
+    private static bool ContainsLatin(string s)
+    {
+        if (string.IsNullOrWhiteSpace(s)) return false;
+        foreach (var c in s)
+            if (c is >= 'a' and <= 'z' or >= 'A' and <= 'Z') return true;
+        return false;
     }
 
     /// <summary>路径 1：rexxar 移动端搜索。返回 (是否拿到数据, 是否硬封禁, 结果集)。</summary>
@@ -511,10 +559,20 @@ public class DoubanApiClient : IMovieApiClient
                 return (false, false, new List<MovieSearchResult>());
 
             var body = await resp.Content.ReadAsStringAsync(ct);
+            // 概率性 403 need_login（code 103）按软限流处理（与 rexxar 对齐）：不进冷却、交由上层重试/兜底，
+            // 否则拉丁关键词走网页搜索优先时会把瞬时拒绝误判为硬封禁而直接停 run（典型的“被方差劝退”）。
+            if (IsSoftThrottle(resp.StatusCode, body)) return (false, false, new List<MovieSearchResult>());
             if (!resp.IsSuccessStatusCode || ContainsBanSignal(body))
                 return (false, true, new List<MovieSearchResult>());
 
             var results = DoubanHtmlSearchParser.Parse(body);
+            // 配额软限流（HTTP 200 + error_info="搜索访问太频繁" + items=[]）：不是「豆瓣没收录」，
+            // 标记后交由上层提前停止 run，避免把剩余配额全耗在必然为空的请求上。
+            if (results.Count == 0 && IsSearchQuotaExceeded(body))
+            {
+                LastSearchQuotaExceeded = true;
+                Log.Warning("豆瓣网页搜索命中配额软限流（搜索访问太频繁）：{Keyword}", keyword);
+            }
             if (results.Count == 0) return (false, false, new List<MovieSearchResult>());
             return (true, false, results.Take(pageSize).ToList());
         }
@@ -535,7 +593,7 @@ public class DoubanApiClient : IMovieApiClient
         for (var attempt = 0; attempt < 2; attempt++)
         {
             var (ok, hardBan, result) = await TryRexxarDetailAsync(externalId, ct);
-            if (ok) { ResetCooldown(); _softFailures = 0; return result; }
+            if (ok) { ResetCooldown(); return result; }
             if (hardBan) { TriggerCooldown(); return null; }
             if (attempt == 0)
             {
@@ -543,11 +601,7 @@ public class DoubanApiClient : IMovieApiClient
                 await Task.Delay(2000, ct);
             }
         }
-        if (++_softFailures >= SoftFailureThreshold)
-        {
-            Log.Warning("豆瓣详情连续软失败，按封控处理进入冷却");
-            TriggerCooldown();
-        }
+        // 详情软失败不进冷却：硬封禁已在上方处理，软失败由上层按需重试。
         return null;
     }
 
@@ -732,13 +786,16 @@ public class DoubanApiClient : IMovieApiClient
     /// <summary>
     /// 把文件名/标题清洗为适合 rexxar 搜索的纯片名：去年份、去字幕/版本标签、去括号注释、去编码/分辨率噪声。
     /// </summary>
-    private static string CleanSearchTitle(string title)
+    public static string CleanSearchTitle(string title)
     {
         if (string.IsNullOrWhiteSpace(title)) return title;
         var s = title;
         // 去括号/方括号/书名号内的注释（[1080p]、(2021)、(BluRay) 等）
         s = Regex.Replace(s, @"[\[\(【（].*?[\]\)】）]", " ");
         foreach (var label in NoiseLabels) s = s.Replace(label, " ");
+        // 剥编码/音轨/质量/发布组标签（EAC3/Atmos/AC3/TrueHD/x264/DTS/WEB-DL…），
+        // 与 FileNameParser 复用同一份清单，避免三处漂移；这些标签会污染搜索词导致豆瓣 0 候选。
+        s = FileNameParser.StripTags(s);
         // 去独立年份
         s = Regex.Replace(s, @"\b(19|20)\d{2}\b", " ");
         s = Regex.Replace(s, @"[.\-_]", " ");
