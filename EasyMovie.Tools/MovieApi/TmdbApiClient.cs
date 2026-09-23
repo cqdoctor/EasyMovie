@@ -17,12 +17,23 @@ public class TmdbApiClient : IMovieApiClient
     public TmdbApiClient(string apiKey = "", HttpClient? http = null)
     {
         _apiKey = apiKey ?? "";
+        // 注入的 HttpClient 归调用方所有，本类只读不写。
+        // 旧实现**无论是否注入 http** 都会对 _http 调 DefaultRequestHeaders.Add —— 同一个 client
+        // 被复用（或被注入到第二个实例）时，第二次 Add 会抛「重复头」异常。现在头部只在自建 client
+        // 时设置一次。共享的原因见 HttpClientFactory.GetOrCreate；本类构造读取 HttpProxy，故须进 key。
+        _http = http ?? EasyMovie.Core.HttpClientFactory.GetOrCreate(
+            "tmdb|" + (EasyMovie.Core.AppSettings.HttpProxy ?? ""),
+            () => CreateClient(EasyMovie.Core.AppSettings.HttpProxy ?? ""));
+    }
+
+    /// <summary>自建 HttpClient（含 UA / Accept-Language）。仅由共享缓存调用一次。</summary>
+    private static HttpClient CreateClient(string proxy)
+    {
         var handler = new HttpClientHandler
         {
             AutomaticDecompression = System.Net.DecompressionMethods.All
         };
         // 应用代理设置
-        var proxy = EasyMovie.Core.AppSettings.HttpProxy;
         if (!string.IsNullOrWhiteSpace(proxy))
         {
             try
@@ -36,10 +47,10 @@ public class TmdbApiClient : IMovieApiClient
             }
             catch (Exception ex) { Log.Error(ex, "配置代理失败"); }
         }
-        _http = http ?? new HttpClient(handler)
-        { Timeout = TimeSpan.FromSeconds(10) };
-        _http.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36");
-        _http.DefaultRequestHeaders.Add("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8");
+        var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(10) };
+        client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36");
+        client.DefaultRequestHeaders.Add("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8");
+        return client;
     }
 
     private static readonly string[] InvalidLabels = { "人员", "人物", "演员", "主演", "导演", "暂无", "未知", "暂未录入", "更多" };

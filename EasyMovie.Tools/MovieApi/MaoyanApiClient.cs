@@ -16,9 +16,20 @@ public class MaoyanApiClient : IMovieApiClient
 
     public MaoyanApiClient(HttpClient? http = null)
     {
-        _http = http ?? HttpClientFactory.Create();
-        _http.DefaultRequestHeaders.Add("Accept", "text/html,application/xhtml+xml");
-        _http.DefaultRequestHeaders.Add("Accept-Language", "zh-CN,zh;q=0.9");
+        // 注入的 HttpClient 归调用方所有，本类**只读不写**。
+        // 旧实现会对 _http 无条件 Add 这两个默认头：一旦 client 被复用（或同一个 client 被注入到
+        // 第二个实例），第二次 Add 会抛「重复头」异常。现改为只在自建 client 时设置一次。
+        // 共享的原因见 HttpClientFactory.GetOrCreate；HttpClientFactory.Create 内部会读 HttpProxy，
+        // 故必须把它放进 key，否则改了代理要重启才生效。
+        _http = http ?? HttpClientFactory.GetOrCreate(
+            "maoyan|" + (AppSettings.HttpProxy ?? ""),
+            () =>
+            {
+                var client = HttpClientFactory.Create();
+                client.DefaultRequestHeaders.Add("Accept", "text/html,application/xhtml+xml");
+                client.DefaultRequestHeaders.Add("Accept-Language", "zh-CN,zh;q=0.9");
+                return client;
+            });
     }
 
     public string SourceName => "maoyan";

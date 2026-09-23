@@ -18,9 +18,19 @@ public class OmdbApiClient : IMovieApiClient
     public OmdbApiClient(string apiKey = "", HttpClient? http = null)
     {
         _apiKey = apiKey ?? "";
+        // 注入的 HttpClient 归调用方所有，本类只读不写。旧实现在注入时仍会 Add 默认头，
+        // 同一 client 被复用会抛「重复头」异常；现改为头部只在自建时设置一次。
+        // 共享的原因见 HttpClientFactory.GetOrCreate；本类构造读取 HttpProxy，故须进 key。
+        _http = http ?? EasyMovie.Core.HttpClientFactory.GetOrCreate(
+            "omdb|" + (AppSettings.HttpProxy ?? ""),
+            () => CreateClient(AppSettings.HttpProxy ?? ""));
+    }
+
+    /// <summary>自建 HttpClient（含 UA）。仅由共享缓存调用一次。</summary>
+    private static HttpClient CreateClient(string proxy)
+    {
         // OMDb 为国外站点，国内常被 GFW 拦截；若用户配置了全局代理则走代理。
         var handler = new HttpClientHandler { AutomaticDecompression = DecompressionMethods.All };
-        var proxy = AppSettings.HttpProxy;
         if (!string.IsNullOrWhiteSpace(proxy))
         {
             try
@@ -33,11 +43,9 @@ public class OmdbApiClient : IMovieApiClient
             }
             catch (Exception ex) { Serilog.Log.Error(ex, "配置代理失败"); }
         }
-        _http = http ?? new HttpClient(handler)
-        {
-            Timeout = TimeSpan.FromSeconds(10)
-        };
-        _http.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36");
+        var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(10) };
+        client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36");
+        return client;
     }
 
     public string SourceName => "omdb";
