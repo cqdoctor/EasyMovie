@@ -203,6 +203,78 @@ public class MovieRepositoryTests
 
     #endregion
 
+    #region 回归：列表查询结果不被跟踪 → 批量改字段必须显式写回（桩实体单列更新）
+
+    /// <summary>
+    /// 锁定真实 bug：MovieListView 的批量修改把列表查询（AsNoTracking）返回的实体改了字段就直接
+    /// SaveChanges，结果分类/状态/评分/收藏/合集**静默不落库**。这里固化两层契约：
+    /// ① SearchAsync 的返回实体与上下文无追踪关系；② 改内存字段不会被 SaveChanges 捕获。
+    /// 若将来有人为了让"直接改就生效"而摘掉 AsNoTracking，请同步改测试并明确承担 BLOB 常驻内存的代价。
+    /// </summary>
+    [Fact]
+    public async Task SearchAsync_ResultIsUntracked_InPlaceMutationIsNotPersisted()
+    {
+        // Arrange
+        const string dbName = nameof(SearchAsync_ResultIsUntracked_InPlaceMutationIsNotPersisted);
+        using var context = CreateInMemoryContext(dbName);
+        var repo = new MovieRepository(context);
+        var added = await repo.AddAsync(CreateTestMovie());
+        added.Rating.Should().Be(8);
+        context.ChangeTracker.Clear(); // 排除种子实体本身的跟踪，下面只看查询带来的副作用
+
+        var (movies, _) = await new EasyMovie.Core.Services.MovieService(repo, null!).SearchAsync(
+            null, null, null, null, null, null, null, null,
+            null, null, null, null, null, null, false, 1, 20, null);
+
+        // Act：只改内存对象，不做任何写回
+        var target = movies.Single(m => m.Id == added.Id);
+
+        // ① 查询结果不被跟踪
+        context.ChangeTracker.Entries<Movie>().Should().BeEmpty("SearchAsync 是 AsNoTracking 只读查询");
+        context.Entry(target).State.Should().Be(EntityState.Detached);
+        target.Rating = 1;
+        target.IsFavorite = false;
+        await context.SaveChangesAsync();
+
+        // ② 数据库里没变
+        using var verify = CreateInMemoryContext(dbName);
+        var persisted = await verify.Movies.AsNoTracking().SingleAsync(m => m.Id == added.Id);
+        persisted.Rating.Should().Be(8);
+        persisted.IsFavorite.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// 与上一条配对：批量修改的正确写法——桩实体 Attach + 逐列 IsModified。
+    /// 既不回读整行（含 86KB PosterData），也不会把 MovieTags/Category 导航图一并标脏。
+    /// </summary>
+    [Fact]
+    public async Task StubEntityColumnUpdate_ShouldPersist_WithoutAttachingNavigationGraph()
+    {
+        // Arrange
+        const string dbName = nameof(StubEntityColumnUpdate_ShouldPersist_WithoutAttachingNavigationGraph);
+        using var seed = CreateInMemoryContext(dbName);
+        var added = await new MovieRepository(seed).AddAsync(CreateTestMovie());
+
+        // Act
+        using var context = CreateInMemoryContext(dbName);
+        var stub = new Movie { Id = added.Id };
+        context.Movies.Attach(stub);
+        var entry = context.Entry(stub);
+        stub.Rating = 1;
+        entry.Property(x => x.Rating).IsModified = true;
+        stub.CategoryId = null;
+        entry.Property(x => x.CategoryId).IsModified = true;
+        await context.SaveChangesAsync();
+
+        // Assert
+        context.ChangeTracker.Entries<MovieTag>().Should().BeEmpty("桩实体不应牵连 MovieTags 导航图");
+        using var verify = CreateInMemoryContext(dbName);
+        var persisted = await verify.Movies.AsNoTracking().SingleAsync(m => m.Id == added.Id);
+        persisted.Rating.Should().Be(1);
+    }
+
+    #endregion
+
     #region SearchAsync Tests
 
     [Fact]

@@ -254,6 +254,46 @@ public class DoubanApiClientTests : IDisposable
             $"结果仅有短片名「{shortTitle}」而搜索词是「{query}」时，应判为无可靠匹配，" +
             "否则会把无关影片写入缓存");
     }
+
+    /// <summary>
+    /// 回归（2026-09-11 修复，豆瓣补全最致命根因）：主库「脏标题」（带编码/音轨标签）必须能匹配上干净结果。
+    /// 旧实现直接用脏标题做反向包含判定，长度比被标签撑到 0.5 以下 → 判「无可靠匹配」永久跳过：
+    ///   「东北警察故事2 EAC3 Atmos」vs 结果「东北警察故事2」= 7/16≈0.44 &lt; 0.5。
+    /// 症状与「限流 / 豆瓣无收录」完全一样，导致这批影片每一轮都被静默跳过。
+    /// 修法：PickBestMatch 内部先 CleanSearchTitle 再匹配（0.5 守卫本身不变，短片名截胡仍被挡住）。
+    /// </summary>
+    [Theory]
+    [InlineData("东北警察故事2 EAC3 Atmos", "东北警察故事2")]
+    [InlineData("毒战2 EAC3 Atmos", "毒战2")]
+    [InlineData("惊天魔盗团3 出神入化 EAC3 Atmos", "惊天魔盗团3")]
+    [InlineData("捕风追影 极盗跟踪 EAC3 Atmos", "捕风追影")]
+    [InlineData("夺宝奇兵5：命运转盘 EAC3 Atmos", "夺宝奇兵5：命运转盘")]
+    public void PickBestMatch_DirtyTitleWithCodecTags_ShouldMatch(string dirtyTitle, string cleanResult)
+    {
+        var results = new List<MovieSearchResult>
+        {
+            new MovieSearchResult { Title = cleanResult, Year = 2023, ExternalId = "correct", Rating = 7.2 }
+        };
+
+        var match = DoubanApiClient.PickBestMatch(results, dirtyTitle, null);
+
+        match.Should().NotBeNull($"脏标题「{dirtyTitle}」应能匹配干净结果「{cleanResult}」");
+        match!.Title.Should().Be(cleanResult);
+    }
+
+    /// <summary>
+    /// 反向回归：清洗后短片名仍不得截胡长片名（0.5 守卫必须继续生效，不能因清洗而放松）。
+    /// </summary>
+    [Fact]
+    public void PickBestMatch_DirtyTitleStillRejectsUnrelatedShortTitle()
+    {
+        var results = new List<MovieSearchResult>
+        {
+            new MovieSearchResult { Title = "杀", Year = 2018, ExternalId = "short" }
+        };
+
+        DoubanApiClient.PickBestMatch(results, "杀死比尔 EAC3 Atmos", null).Should().BeNull();
+    }
 }
 
 public class TmdbApiClientTests
