@@ -58,7 +58,9 @@ public class MovieApiService
     {
         var movie = new Movie
         {
-            Title = StripHtml(result.Title),
+            // Movie.Title 为非空 string，而 StripHtml 对空/模板占位符输入会返回 null —— 显式兜成空串，
+            // 既满足非空契约，也避免把 null 塞进实体后引发下游 NRE。
+            Title = StripHtml(result.Title) ?? string.Empty,
             OriginalTitle = StripHtml(result.OriginalTitle),
             Year = result.Year,
             Director = SanitizePersonName(result.Director),
