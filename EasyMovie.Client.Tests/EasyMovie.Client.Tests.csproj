@@ -1,0 +1,33 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- 必须跟随 EasyMovie.Client 的 TFM（net10.0-windows）才能引用它；UseWPF 提供 System.Windows.* 类型。
+         Directory.Build.props 全局关了自动程序集特性（为避开 Client 显式 AssemblyInfo 的 CS0579），
+         本测试项目自身没有 AssemblyInfo.cs，因此显式打开以保留正常的程序集元数据。 -->
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <GenerateTargetFrameworkAttribute>true</GenerateTargetFrameworkAttribute>
+    <!-- NU1701/CA1416 同 EasyMovie.Client：传递依赖元数据不完整 + MDIX 平台误判。 -->
+    <NoWarn>NU1701;CA1416</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FluentAssertions" Version="7.0.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\EasyMovie.Client\EasyMovie.Client.csproj" />
+  </ItemGroup>
+
+</Project>
