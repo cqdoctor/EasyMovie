@@ -94,3 +94,45 @@ __probe.txt
 
 ## Run-EasyMovie.bat 的启动打点标记（每次启动都会重新生成，勿提交）
 launched.txt
+
+## 运行/诊断/构建临时产物（自动化与本地诊断产生，勿提交；非源码）
+backfill_console*.txt
+backfill_runner*.txt
+backfill_runner.log
+backfill_runner_copy.txt
+_diag_*.txt
+_bf_*.txt
+_build_*.txt
+_build_*.log
+_test_*.txt
+_tmp_*.txt
+_verify*.txt
+_run_bf.ps1
+_run_backfill*.ps1
+/build_*.log
+
+## 根目录下划线前缀一律视为本地临时产物（统一命名约定；仓库根目录没有任何以 _ 开头的受版本控制文件）
+## 这样新增诊断日志/临时脚本无需再逐条补 .gitignore。
+/_*
+
+## dotnet test 结果目录（每次跑测试都会重新生成）
+TestResults/
+
+## 早期诊断/构建留痕（命名早于「根目录下划线前缀」约定，故未被 /_* 覆盖，勿提交）
+build_step*.txt
+headless_step*.txt
+test_*.txt
+run_backfill*.ps1
+
+## tools/audit：一次性探针与环境诊断脚本（针对单次排查，勿提交）
+## 反例：audit_*.py / audit_*.mjs / clean_*.py / inspect_cache.py / measure_rating.py
+## 是「永久固化 / 离线可跑 / 零第三方依赖」的审计护栏，属项目资产，已在版本控制内。
+tools/audit/diag_ps.ps1
+tools/audit/launch*.ps1
+tools/audit/launch*.mjs
+tools/audit/logs.mjs
+tools/audit/probe_*
+tools/audit/proc.mjs
+tools/audit/sess.mjs
+tools/audit/*.txt
+
