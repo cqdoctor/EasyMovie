@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using System.Linq.Expressions;
 using EasyMovie.Core.Enums;
 using EasyMovie.Core.Interfaces;
 using EasyMovie.Core.Models;
@@ -303,5 +304,87 @@ public class MovieRepository : IMovieRepository
     {
         // AsNoTracking + 只判存在：不物化实体，避免把 86KB 的 PosterData 读进内存
         return await _context.Movies.AsNoTracking().AnyAsync(m => m.FilePath == filePath);
+    }
+
+    // —— 定点更新（见 IMovieRepository 上的契约说明）——
+    //
+    // 统一走「桩实体 Attach + 逐列 IsModified」：构造一个只有 Id 的 Movie，附着为 Unchanged，
+    // 再把真正要改的那一列标脏。EF 只会为标脏列生成 UPDATE，既不用读取实体（86KB 海报不会进内存），
+    // 也不会像 Movies.Update(全实体) 那样把 Category / MovieTags 导航图和海报一并回写。
+    //
+    // ⚠️ 为什么不用 ExecuteUpdateAsync（EF Core 7+ 的单列 UPDATE，更现代）：
+    // 本项目 MovieService / Integration / EdgeCase / Regression 等 25+ 条测试跑在 **InMemory
+    // provider** 上，而 InMemory **不支持 ExecuteUpdate / ExecuteDelete**，会直接抛
+    // InvalidOperationException("The methods 'ExecuteUpdate' and 'ExecuteUpdateAsync' are not
+    // supported by the current database provider")。变更跟踪方式对所有 provider 通用。
+    // 代价是无法像 ExecuteUpdate 那样在 SQL 里直接对列求值（如 `IsFavorite = NOT IsFavorite`），
+    // 因此 ToggleFavoriteAsync 需要先窄读一次当前值。
+
+    public async Task<bool> SetRatingAsync(int movieId, int? rating)
+        => await SaveColumnAsync(movieId, m => m.Rating = rating, m => m.Rating);
+
+    public async Task<bool> SetWatchStatusAsync(int movieId, WatchStatus status, DateTime? watchDate)
+    {
+        if (!await SaveColumnAsync(movieId, m => m.WatchStatus = status, m => m.WatchStatus)) return false;
+        // WatchDate 要跟着一起改；分成两次单列写入，避免为多列场景引入更复杂的标脏签名。
+        return await SaveColumnAsync(movieId, m => m.WatchDate = watchDate, m => m.WatchDate);
+    }
+
+    /// <summary>翻转收藏状态。需先窄读当前值（只 SELECT IsFavorite 一列，不读海报）。</summary>
+    public async Task<bool> ToggleFavoriteAsync(int movieId)
+    {
+        var current = await _context.Movies
+            .AsNoTracking()
+            .Where(m => m.Id == movieId)
+            .Select(m => (bool?)m.IsFavorite)
+            .FirstOrDefaultAsync();
+        if (current == null) return false; // 电影不存在
+
+        return await SaveColumnAsync(movieId, m => m.IsFavorite = !current.Value, m => m.IsFavorite);
+    }
+
+    public async Task<bool> SetNotesAsync(int movieId, string? notes)
+        => await SaveColumnAsync(movieId, m => m.Notes = notes, m => m.Notes);
+
+    public async Task<bool> SetCategoryIdAsync(int movieId, int? categoryId)
+        => await SaveColumnAsync(movieId, m => m.CategoryId = categoryId, m => m.CategoryId);
+
+    /// <summary>
+    /// 「桩实体 + 单列标脏」写入。<paramref name="property"/> 同时是标脏依据和编译期校验，避免手写列名字符串。
+    /// </summary>
+    /// <returns>false = 电影不存在（UPDATE 未命中任何行）。</returns>
+    private async Task<bool> SaveColumnAsync<T>(
+        int movieId, Action<Movie> setValue, Expression<Func<Movie, T>> property)
+    {
+        // 若同 Id 的实体已被本 context 跟踪（长生命周期 context 场景），直接改它，
+        // 否则 Attach 会抛「another instance with the same key value is already being tracked」。
+        var tracked = _context.ChangeTracker.Entries<Movie>().FirstOrDefault(e => e.Entity.Id == movieId);
+        Movie entity;
+        if (tracked != null)
+        {
+            entity = tracked.Entity;
+        }
+        else
+        {
+            entity = new Movie { Id = movieId };
+            _context.Attach(entity); // Unchanged
+        }
+
+        setValue(entity);
+        entity.UpdatedAt = DateTime.UtcNow;
+
+        var entry = _context.Entry(entity);
+        entry.Property(property).IsModified = true;
+        entry.Property(m => m.UpdatedAt).IsModified = true;
+
+        try
+        {
+            return await _context.SaveChangesAsync() > 0;
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // 行不存在：UPDATE 未命中任何行。EF 把它表达为并发冲突。
+            return false;
+        }
     }
 }
