@@ -23,6 +23,11 @@ public class MovieService : IMovieService
         return await _movieRepo.GetByIdAsync(id);
     }
 
+    public async Task<string?> GetFilePathAsync(int id)
+    {
+        return await _movieRepo.GetFilePathAsync(id);
+    }
+
     public async Task<List<Movie>> GetAllAsync()
     {
         return await _movieRepo.GetAllAsync();

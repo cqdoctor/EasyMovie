@@ -18,6 +18,8 @@ public interface IMovieService
     Task<Movie> AddAsync(Movie movie);
     Task<Movie> UpdateAsync(Movie movie);
     Task<bool> DeleteAsync(int id);
+    /// <summary>只取文件路径（窄查询，不读 PosterData）。见 <see cref="IMovieRepository.GetFilePathAsync"/>。</summary>
+    Task<string?> GetFilePathAsync(int id);
     Task<bool> SetRatingAsync(int movieId, int? rating);
     Task<bool> SetWatchStatusAsync(int movieId, WatchStatus status, DateTime? watchDate);
     Task<bool> ToggleFavoriteAsync(int movieId);

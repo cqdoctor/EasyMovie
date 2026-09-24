@@ -149,4 +149,29 @@ public class MovieNarrowUpdateTests
         (await service.SetWatchStatusAsync(missingId, WatchStatus.Watched, null)).Should().BeFalse();
         (await service.SetCategoryAsync(missingId, null)).Should().BeFalse();
     }
+
+    [Fact]
+    public async Task GetFilePathAsync_ShouldReturnOnlyPath_AndNullForMissingMovie()
+    {
+        var (options, service, context) = Create(nameof(GetFilePathAsync_ShouldReturnOnlyPath_AndNullForMissingMovie));
+        var id = await SeedAsync(context);
+
+        (await service.GetFilePathAsync(id)).Should().BeNull(); // Seed 未设 FilePath
+
+        // 用**独立 context** 补上 FilePath（Seed 用的 context 还在跟踪该实体，
+        // 直接 Attach 同 Id 的桩实体会抛 identity conflict）。
+        using (var writer = new MovieDbContext(options))
+        {
+            var stub = new Movie { Id = id, FilePath = @"D:\movies\test.mkv" };
+            writer.Attach(stub);
+            writer.Entry(stub).Property(m => m.FilePath).IsModified = true;
+            await writer.SaveChangesAsync();
+        }
+
+        (await service.GetFilePathAsync(id)).Should().Be(@"D:\movies\test.mkv");
+        (await service.GetFilePathAsync(9999)).Should().BeNull(); // 不存在的 Id
+
+        // 前提校验：海报仍在，说明窄查询没有副作用
+        Reload(options, id).PosterData.Should().NotBeNull().And.Equal(Poster);
+    }
 }

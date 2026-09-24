@@ -1126,9 +1126,10 @@ public partial class MovieListView : UserControl
     {
         if (sender is Button b && b.Tag is int id && AppMessageBox.Confirm("确定删除？", "确认"))
         {
-            var movie = await _movieService.GetByIdAsync(id);
-            if (movie?.FilePath != null)
-                AppSettings.MarkFileDeleted(movie.FilePath);
+            // 只需要 FilePath：走单列窄查询，别为拿一个路径把整行（含 86KB 海报）读进来。
+            var filePath = await _movieService.GetFilePathAsync(id);
+            if (filePath != null)
+                AppSettings.MarkFileDeleted(filePath);
             await _movieService.DeleteAsync(id);
             EasyMovie.Client.Helpers.PosterCache.Delete(id);
             await LoadMoviesAsync();
@@ -1207,13 +1208,15 @@ public partial class MovieListView : UserControl
         if (string.IsNullOrEmpty(m.FilePath)) { AppMessageBox.ShowInfo(LanguageManager.GetString("Msg_NoFilePath"), LanguageManager.GetString("Msg_Hint")); return; }
         if (!File.Exists(m.FilePath)) { AppMessageBox.ShowWarning(string.Format(LanguageManager.GetString("Msg_FileNotFound"), m.FilePath), LanguageManager.GetString("Msg_Hint")); return; }
 
-        // 每次播放都标记为已看并更新观影日期
-        if (m.WatchStatus != WatchStatus.Watched)
-        {
-            m.WatchStatus = WatchStatus.Watched;
-        }
+        // 每次播放都标记为已看并更新观影日期。
+        // 用定点更新取代 UpdateAsync(全实体)：后者用 Movies.Update() 标脏全部列，
+        // 等于每次播放都要把 86KB 海报整体回写一遍。现在只写 WatchStatus / WatchDate / UpdatedAt。
+        // 注意：m 是本 context 的跟踪实体，定点更新会直接改到它身上，
+        // 下方 ShowMovieDetail(m) 与内存状态因此自动同步；这里再显式赋值一次，
+        // 是为了在 m 未被跟踪（退化路径）时 UI 也拿到正确状态。
+        await _movieService.SetWatchStatusAsync(id, WatchStatus.Watched, DateTime.Today);
+        m.WatchStatus = WatchStatus.Watched;
         m.WatchDate = DateTime.Today;
-        await _movieService.UpdateAsync(m);
 
         // 每次播放都添加观影记录，日历可显示
         var existingLog = await _context.WatchLogs
