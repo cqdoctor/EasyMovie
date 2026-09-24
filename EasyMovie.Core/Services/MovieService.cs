@@ -94,33 +94,23 @@ public class MovieService : IMovieService
         if (rating.HasValue && (rating < 1 || rating > 10))
             throw new ArgumentOutOfRangeException(nameof(rating), "评分必须在 1-10 之间");
 
-        var movie = await _movieRepo.GetByIdAsync(movieId);
-        if (movie == null) return false;
-
-        movie.Rating = rating;
-        await _movieRepo.UpdateAsync(movie);
-        return true;
+        // 定点更新：旧实现是「GetByIdAsync 读整实体（含 86KB 海报）→ UpdateAsync 标脏全列」，
+        // 改个评分会把 PosterData 拉进内存再整体回写一遍。改为直接下发 Rating 单列 UPDATE。
+        return await _movieRepo.SetRatingAsync(movieId, rating);
     }
 
     public async Task<bool> SetWatchStatusAsync(int movieId, WatchStatus status, DateTime? watchDate)
     {
-        var movie = await _movieRepo.GetByIdAsync(movieId);
-        if (movie == null) return false;
-
-        movie.WatchStatus = status;
-        movie.WatchDate = status == WatchStatus.Watched ? (watchDate ?? DateTime.Now) : null;
-        await _movieRepo.UpdateAsync(movie);
-        return true;
+        // 注意：这里沿用既有的 DateTime.Now（本地时间）而非 UtcNow，刻意不改变语义，
+        // 避免在本轮改动里引入时间基准回归（DateTime.Now/UtcNow 混用是另一项已知待办）。
+        DateTime? effectiveDate = status == WatchStatus.Watched ? (watchDate ?? DateTime.Now) : null;
+        return await _movieRepo.SetWatchStatusAsync(movieId, status, effectiveDate);
     }
 
     public async Task<bool> ToggleFavoriteAsync(int movieId)
     {
-        var movie = await _movieRepo.GetByIdAsync(movieId);
-        if (movie == null) return false;
-
-        movie.IsFavorite = !movie.IsFavorite;
-        await _movieRepo.UpdateAsync(movie);
-        return true;
+        // 直接在 SQL 里对列现值求反（IsFavorite = NOT IsFavorite），连「先读旧值」都省了。
+        return await _movieRepo.ToggleFavoriteAsync(movieId);
     }
 
     public async Task<bool> UpdateNotesAsync(int movieId, string? notes)
@@ -128,22 +118,12 @@ public class MovieService : IMovieService
         if (notes?.Length > 2000)
             throw new ArgumentException("笔记不能超过 2000 字");
 
-        var movie = await _movieRepo.GetByIdAsync(movieId);
-        if (movie == null) return false;
-
-        movie.Notes = notes;
-        await _movieRepo.UpdateAsync(movie);
-        return true;
+        return await _movieRepo.SetNotesAsync(movieId, notes);
     }
 
     public async Task<bool> SetCategoryAsync(int movieId, int? categoryId)
     {
-        var movie = await _movieRepo.GetByIdAsync(movieId);
-        if (movie == null) return false;
-
-        movie.CategoryId = categoryId;
-        await _movieRepo.UpdateAsync(movie);
-        return true;
+        return await _movieRepo.SetCategoryIdAsync(movieId, categoryId);
     }
 
     public async Task SetTagsAsync(int movieId, List<int> tagIds)

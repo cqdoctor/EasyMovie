@@ -41,4 +41,20 @@ public interface IMovieRepository
     /// 单文件导入（文件夹监控）用它替代「把整行查出来再比较」。
     /// </summary>
     Task<bool> ExistsByFilePathAsync(string filePath);
+
+    // —— 定点更新（ExecuteUpdate）：绕过「读整实体 → Update 全列」——
+    //
+    // 为什么不能用「GetByIdAsync + UpdateAsync」来做单列修改：
+    //   · 读的那一下会把 86KB 海报拉进内存，并把这个实体钉在 ChangeTracker 上
+    //     （PosterData 占库 99.4%，见 #影片库性能契约）；
+    //   · UpdateAsync 走 Movies.Update() 会把**全部**列标脏，等于改个收藏也要把海报回写一遍；
+    //   · 更危险的组合风险：一旦 GetByIdAsync 将来改成窄投影，这种写法会把没投影到的列写成 null。
+    // 这组方法直接下发单列 UPDATE：不读实体、不加载海报、不触碰未改列。
+    // UpdatedAt 由实现统一维护。返回值 false = 电影不存在（未命中任何行）。
+
+    Task<bool> SetRatingAsync(int movieId, int? rating);
+    Task<bool> SetWatchStatusAsync(int movieId, WatchStatus status, DateTime? watchDate);
+    Task<bool> ToggleFavoriteAsync(int movieId);
+    Task<bool> SetNotesAsync(int movieId, string? notes);
+    Task<bool> SetCategoryIdAsync(int movieId, int? categoryId);
 }
