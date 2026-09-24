@@ -320,6 +320,15 @@ public class MovieRepository : IMovieRepository
     // 代价是无法像 ExecuteUpdate 那样在 SQL 里直接对列求值（如 `IsFavorite = NOT IsFavorite`），
     // 因此 ToggleFavoriteAsync 需要先窄读一次当前值。
 
+    public async Task<string?> GetFilePathAsync(int id)
+        // 只 SELECT FilePath 一列：删除/播放等场景拿一个字符串即可，
+        // 不必把整行（含 86KB PosterData）物化成实体。
+        => await _context.Movies
+            .AsNoTracking()
+            .Where(m => m.Id == id)
+            .Select(m => m.FilePath)
+            .FirstOrDefaultAsync();
+
     public async Task<bool> SetRatingAsync(int movieId, int? rating)
         => await SaveColumnAsync(movieId, m => m.Rating = rating, m => m.Rating);
 

@@ -52,6 +52,12 @@ public interface IMovieRepository
     // 这组方法直接下发单列 UPDATE：不读实体、不加载海报、不触碰未改列。
     // UpdatedAt 由实现统一维护。返回值 false = 电影不存在（未命中任何行）。
 
+    /// <summary>
+    /// 只取文件路径（单列窄查询，不物化实体、不读 86KB 的 PosterData）。
+    /// 删除/播放等只需要 FilePath 的场景用它，别为拿一个字符串把整行读进来。
+    /// </summary>
+    Task<string?> GetFilePathAsync(int id);
+
     Task<bool> SetRatingAsync(int movieId, int? rating);
     Task<bool> SetWatchStatusAsync(int movieId, WatchStatus status, DateTime? watchDate);
     Task<bool> ToggleFavoriteAsync(int movieId);
