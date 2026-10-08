@@ -20,6 +20,13 @@ public class AlternativeRatingReport
     public int Total { get; set; }
     public int Filled { get; set; }      // 成功取得评分>0 并写回主库
     public int Skipped { get; set; }     // 两源均无可靠评分
+
+    /// <summary>
+    /// 已确认「豆瓣 + TMDB + OMDb 三源皆无可靠评分」的影片数（数据源天花板）。
+    /// 这类影片已写入终态标记（<see cref="BackfillTerminalMarks"/>），不再进入后续每轮队列。
+    /// </summary>
+    public int TerminalNoMatch { get; set; }
+
     public int Errors { get; set; }      // 网络/解析异常（已降级跳过，不阻塞）
     public int TmdbFilled { get; set; }
     public int OmdbFilled { get; set; }
@@ -81,6 +88,19 @@ public static class AlternativeRatingBackfill
         {
             if (ct.IsCancellationRequested) { rep.Error = "已取消。"; break; }
 
+            // 已被豆瓣标记终态（rating=0）的影片，替代源<b>仍要给机会</b>——豆瓣没分不代表
+            // TMDB/OMDb 也没分，这正是本服务存在的意义。但若标记里已记录「替代源也试过且失败」
+            // （ConfirmedSources 含 tmdb/omdb），则说明全链路已确认无评分，直接跳过：
+            // 否则这些冷门片每轮都要重试 3 个搜索词 × 2 个源，徒增延迟与配额消耗。
+            if (BackfillTerminalMarks.IsMarked(title)
+                && BackfillTerminalMarks.AltSourcesExhausted(title))
+            {
+                rep.Skipped++;
+                rep.TerminalNoMatch++;
+                progress?.Report($"[替代源·跳过] 全链路终态（豆瓣+TMDB+OMDb 均已确认无评分）：{title}");
+                continue;
+            }
+
             // 候选搜索词：英文名优先（TMDB/OMDb 以英文条目为主，纯中文搜索常漏匹配），
             // 其次中文核心，再次完整清洗标题。去重去空。
             // 例：「断卡风暴 Fire Storm EAC3 Atmos」→ ① "Fire Storm" ② "断卡风暴" ③ "断卡风暴 Fire Storm"。
@@ -117,6 +137,9 @@ public static class AlternativeRatingBackfill
                 // 双写：cache.db（离线复用）+ 主库（按 Id 标脏，保证落地）
                 WriteCache(best, title, year, bestSource);
                 WriteMainRating(mainOptions, id, best.Rating!.Value, bestSource);
+                // 该片已取得评分，不再是缺评分影片：清掉可能存在的终态标记，
+                // 避免它因「已被标记」而在后续轮次被错误剔除。
+                BackfillTerminalMarks.Clear(title);
                 rep.Filled++;
                 if (bestSource == "tmdb") rep.TmdbFilled++;
                 else if (bestSource == "omdb") rep.OmdbFilled++;
@@ -124,7 +147,17 @@ public static class AlternativeRatingBackfill
             else
             {
                 rep.Skipped++;
-                progress?.Report($"[替代源·跳过] 三源均无可靠评分：{title}");
+                // 豆瓣阶段 + 替代源（TMDB/OMDb）<b>全部</b>确认失败 → 三源皆无此评分，
+                // 属数据源天花板而非临时故障。此时写终态标记，使该片永久移出常驻队列：
+                // 否则每 3h 调度都会重试同一部冷门片，白耗豆瓣配额、掩盖真实进度。
+                // （豆瓣阶段的「无匹配/暂无评分」故意不写标记，必须等到这里——替代源也失败才够「确定」，
+                //   避免把概率性 need_login 造成的假阴性永久固化成终态。）
+                var tried = new List<string> { "douban" };
+                if (tmdb != null) tried.Add("tmdb");
+                if (omdb != null) tried.Add("omdb");
+                BackfillTerminalMarks.Mark(title, year, BackfillTerminalMarks.ReasonNoMatch, string.Join(",", tried));
+                rep.TerminalNoMatch++;
+                progress?.Report($"[替代源·跳过] 豆瓣+替代源均无可靠评分（已标记终态，不再重试）：{title}");
             }
         }
 

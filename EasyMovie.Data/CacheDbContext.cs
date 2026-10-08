@@ -10,6 +10,12 @@ public class CacheDbContext : DbContext
 {
     public DbSet<CachedMovie> CachedMovies => Set<CachedMovie>();
 
+    /// <summary>
+    /// 补全终态标记：已确认「数据源本身查不到评分」的影片（冷门片 / 脏标题）。
+    /// 使其不再进入后续每轮补全，避免每 3h 调度对同一部片重复搜索、白耗豆瓣配额。
+    /// </summary>
+    public DbSet<BackfillTerminalMark> BackfillTerminalMarks => Set<BackfillTerminalMark>();
+
     private static readonly SemaphoreSlim _writeLock = new(1, 1);
 
     public CacheDbContext(DbContextOptions<CacheDbContext> options) : base(options) { }
@@ -32,6 +38,7 @@ public class CacheDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
         modelBuilder.ApplyConfiguration(new CachedMovieConfiguration());
+        modelBuilder.ApplyConfiguration(new BackfillTerminalMarkConfiguration());
     }
 
     /// <summary>缓存库文件位置：与业务库同目录（%LocalAppData%/EasyMovie/cache.db）</summary>

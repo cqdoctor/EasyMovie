@@ -19,6 +19,18 @@ public class DoubanBackfillReport
     public int Done { get; set; }
     public int Filled { get; set; }     // 成功写入/补缺
     public int Skipped { get; set; }    // 无匹配/被冷却跳过
+
+    /// <summary>
+    /// 已确认「豆瓣条目存在但评分人数=0」的冷门片数量。属于<b>数据源天花板</b>，
+    /// 重试无用，已写入终态标记（见 <see cref="BackfillTerminalMarks"/>）并永久移出常驻队列。
+    /// </summary>
+    public int TerminalNoRating { get; set; }
+
+    /// <summary>
+    /// 豆瓣与替代源均确认搜不到的影片数量（脏标题或源未收录）。同样标记为终态。
+    /// </summary>
+    public int TerminalNoMatch { get; set; }
+
     public string? Error { get; set; }
     public bool StoppedByThrottle { get; set; }
 }
@@ -142,7 +154,9 @@ public static class DoubanBackfillService
                     progress?.Report(rep.Error);
                     break;
                 }
-                // 该影片多次搜索均无数据（概率性 need_login 或豆瓣确实无收录）
+                // 该影片多次搜索均无数据。注意：此处<b>不</b>写终态标记——「搜不到」也可能是
+                // 概率性 need_login 的假阴性，或脏标题。是否真为数据源天花板，须等替代源
+                // （TMDB/OMDb）也确认失败后再由 BackfillRunner 标记，否则临时故障会永久踢掉影片。
                 rep.Skipped++;
                 progress?.Report($"[跳过] 无可靠匹配：{title}");
                 if (++consecutiveEmpty >= wallStopThreshold)
@@ -157,6 +171,7 @@ public static class DoubanBackfillService
             consecutiveEmpty = 0;   // 有候选：IP 响应正常，重置“被墙”计数
 
             var match = DoubanApiClient.PickBestMatch(resp.Results, title, year);
+            // 搜到候选但没有可靠匹配：属于「标题匹配不上」而非「限流」，同样延后到替代源阶段再定终态。
             if (match == null) { rep.Skipped++; progress?.Report($"[跳过] 无可靠匹配：{title}"); continue; }
 
             // 豆瓣条目存在、但评分人数不足时 rating.value = 0。这类条目没有任何可回写的评分，
@@ -165,7 +180,12 @@ public static class DoubanBackfillService
             if (!match.Rating.HasValue || match.Rating.Value <= 0)
             {
                 rep.Skipped++;
-                progress?.Report($"[跳过] 豆瓣条目暂无评分：{title}");
+                rep.TerminalNoRating++;
+                // 豆瓣已确认收录该片、但 rating.count=0（未上映 / 评分人数不足 / 冷门）。
+                // 这是<b>数据源天花板</b>而非临时限流：重试再多次也不会产生评分。
+                // 故立即写终态标记，使其不再进入后续每轮队列，不再空耗豆瓣每日配额。
+                BackfillTerminalMarks.Mark(title, year, BackfillTerminalMarks.ReasonNoRating, "douban");
+                progress?.Report($"[跳过] 豆瓣条目暂无评分（已标记终态，不再重试）：{title}");
                 continue;
             }
 
@@ -205,7 +225,10 @@ public static class DoubanBackfillService
             if (!detail.Rating.HasValue || detail.Rating.Value <= 0)
             {
                 rep.Skipped++;
-                progress?.Report($"[跳过] 豆瓣条目暂无评分：{title}");
+                rep.TerminalNoRating++;
+                // 同上：详情页确认 rating=0 → 数据源天花板，写终态标记不再重试。
+                BackfillTerminalMarks.Mark(title, year, BackfillTerminalMarks.ReasonNoRating, "douban");
+                progress?.Report($"[跳过] 豆瓣条目暂无评分（已标记终态，不再重试）：{title}");
                 continue;
             }
 

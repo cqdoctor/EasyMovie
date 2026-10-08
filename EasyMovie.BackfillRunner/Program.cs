@@ -61,28 +61,48 @@ using (var ctx = new MovieDbContext(mainOptions))
 }
 Console.WriteLine($"[2/4] 待补全队列（全年份）：{queue.Count} 部");
 
+// 2.2) 过滤「终态片」：已确认三源皆无评分的数据源天花板影片（豆瓣 rating.count=0 的冷门片、
+//      或三源均命不中的脏标题片）不再进入本轮及后续每轮队列。
+//      旧实现每 3h 都对同一部冷门片重新搜索，白耗豆瓣每日配额（每部间隔 12s），
+//      且让「剩余待补全数」永不下降、掩盖真实进度。此处按归一化标题剔除。
+var terminalTotal = BackfillTerminalMarks.ListAll().Count;
+if (terminalTotal > 0)
+{
+    var before = queue.Count;
+    queue = BackfillTerminalMarks.FilterUnmarked(queue);
+    Console.WriteLine($"[2.2/4] 终态片过滤：剔除已确认无评分 {before - queue.Count} 部（累计标记 {terminalTotal} 部）");
+}
+
 // 2.5) 离线把 cache.db 里已有 donor 按「中文关键词双向子串 + 放宽年份容差」映射到主库脏标题键，
 //      无需联网即可消化大量缺口（脏标题「白象危城悍将」命中干净 donor「白象」等）。
 LocalMovieCache.SeedRawKeysFromLibrary(queue, yearTolerance: 8);
 var syncedKeys = RatingBackfill.Sync(mainOptions, cacheOptions);
 Console.WriteLine($"[2.5/4] 离线复用 cache.db 既有 donor 回写主库：{syncedKeys} 部");
-if (queue.Count == 0)
-{
-    Console.WriteLine("无需补全。");
-    return 0;
-}
 
 // 3) 慢速补全（豆瓣）→ 写入 cache.db（尊重内置防封控守卫：限流即安全停止，绝不重试加重封禁）
+//    注意：queue 为空（全部为终态片）时<b>不能</b>直接 return —— 替代源阶段（3.5）仍需走完，
+//    否则替代源可能补上的片永远没有机会被尝试（终态标记只代表豆瓣无评分，不代表 TMDB/OMDb 也无）。
 var progress = new Progress<string>(s => Console.WriteLine($"      {s}"));
-Console.WriteLine($"[3/4] 开始慢速补全（每部间隔 {DoubanBackfillService.BackfillGapSeconds}s，每日上限 {DoubanBackfillService.BackfillDailyCap}）…");
-var report = await DoubanBackfillService.RunAsync(queue, progress, CancellationToken.None);
+DoubanBackfillReport report;
+if (queue.Count == 0)
+{
+    Console.WriteLine("[3/4] 队列已无待补影片（全部为终态片），跳过豆瓣阶段");
+    report = new DoubanBackfillReport { Total = 0 };
+}
+else
+{
+    Console.WriteLine($"[3/4] 开始慢速补全（每部间隔 {DoubanBackfillService.BackfillGapSeconds}s，每日上限 {DoubanBackfillService.BackfillDailyCap}）…");
+    report = await DoubanBackfillService.RunAsync(queue, progress, CancellationToken.None);
+}
 
 // 3.5) 替代源补全（TMDB / OMDb）：豆瓣无法填充的影片（豆瓣 0 分冷门片 + 脏标题无匹配）试用替代源。
 //      仅对已确认豆瓣补不上的影片生效，评分写 cache.db（主库脏标题键），由下方 [4/4] Sync 回写主库。
-var stillMissingAlt = new List<(int Id, string Title, int? Year)>();
+//      此处<b>只</b>剔除「三源全败」的 no_match 终态片；豆瓣 0 分的 no_rating 必须保留尝试机会
+//      ——TMDB/OMDb 常能补上豆瓣没有的评分，一并剔除会永久丢掉替代源本可补全的片。
+var altCandidates = new List<(int Id, string Title, int? Year)>();
 using (var ctx = new MovieDbContext(mainOptions))
 {
-    stillMissingAlt = ctx.Movies
+    altCandidates = ctx.Movies
         .Where(m => m.ExternalRating == null)
         .OrderBy(m => m.Year)
         .Select(m => new { m.Id, m.Title, m.Year })
@@ -90,6 +110,14 @@ using (var ctx = new MovieDbContext(mainOptions))
         .Select(x => (x.Id, x.Title, (int?)x.Year))
         .ToList();
 }
+// 仅剔除「三源全败」的 no_match 终态片；no_rating（豆瓣 0 分）保留，替代源往往能补上。
+var stillMissingAlt = BackfillTerminalMarks.FilterByReason(
+    altCandidates,
+    titleSelector: x => x.Title,
+    projector: x => x,
+    excludeReason: BackfillTerminalMarks.ReasonNoMatch);
+if (altCandidates.Count != stillMissingAlt.Count)
+    Console.WriteLine($"        （已剔除全链路终态片 {altCandidates.Count - stillMissingAlt.Count} 部）");
 if (stillMissingAlt.Count > 0)
 {
     Console.WriteLine($"[3.5/4] 替代源（TMDB/OMDb）补全：{stillMissingAlt.Count} 部");
@@ -105,6 +133,12 @@ Console.WriteLine();
 Console.WriteLine("=== 补全报告 ===");
 Console.WriteLine($"队列总数 {report.Total} | 本次豆瓣补全写入 {report.Filled} | 跳过(无匹配/限流) {report.Skipped} | 触发限流停止={report.StoppedByThrottle}");
 if (!string.IsNullOrEmpty(report.Error)) Console.WriteLine($"备注：{report.Error}");
+// 终态片单独统计：这些是「三源确认无评分」的数据源天花板，已移出常驻队列、不再重复消耗配额。
+var marks = BackfillTerminalMarks.ListAll();
+var tNoRating = marks.Count(m => m.Reason == BackfillTerminalMarks.ReasonNoRating);
+var tNoMatch = marks.Count(m => m.Reason == BackfillTerminalMarks.ReasonNoMatch);
+if (marks.Count > 0)
+    Console.WriteLine($"终态标记累计 {marks.Count} 部（豆瓣0分冷门片 {tNoRating} / 三源全败 {tNoMatch}）——后续轮次自动跳过，不再重试");
 // 以主库实际剩余缺口为准（离线复用 + 本次豆瓣补全都已计入），避免重复计数
 int stillMissing;
 using (var ctx = new MovieDbContext(mainOptions))
