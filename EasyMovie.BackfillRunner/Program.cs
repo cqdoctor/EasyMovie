@@ -27,6 +27,13 @@ if (string.IsNullOrWhiteSpace(AppSettings.DoubanCookie))
     }
 }
 
+// ── --dry-run：只读探测模式（供调度脚本前置判断，见 run_backfill_automation.ps1）─────────
+// 只报告「有多少影片待补全、是否值得联网」，**不做任何写库、不发任何网络请求**。
+// 退出码：0=有活可干  3=无活可干（全部终态/已补全）  2=环境不可用（缺库）
+// 之所以做成只读：终态标记落地后，绝大多数轮次的队列为空，若照常启动会白跑进程、
+// 反复打开库文件并输出噪声报告。让调度在发起前就知道「这轮不必跑」。
+var dryRun = args.Contains("--dry-run", StringComparer.OrdinalIgnoreCase);
+
 Console.WriteLine($"Cookie: {(string.IsNullOrWhiteSpace(AppSettings.DoubanCookie) ? "未加载（游客模式）" : $"已加载 {AppSettings.DoubanCookie!.Length} 字符")}");
 
 var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
@@ -39,6 +46,34 @@ if (!File.Exists(mainDb))
 {
     Console.WriteLine($"SKIP: 主库不存在 {mainDb}");
     return 2;
+}
+
+if (dryRun)
+{
+    var pending = new List<(string Title, int? Year)>();
+    using (var ctx = new MovieDbContext(mainOptions))
+    {
+        pending = ctx.Movies
+            .Where(m => m.ExternalRating == null)
+            .Select(m => new { m.Title, m.Year })
+            .AsEnumerable()
+            .Select(x => (x.Title, (int?)x.Year))
+            .ToList();
+    }
+
+    var total = pending.Count;
+    var actionable = BackfillTerminalMarks.FilterUnmarked(pending).Count;
+    var markedCount = BackfillTerminalMarks.ListAll().Count;
+
+    Console.WriteLine($"[DRY-RUN] 主库缺 ExternalRating：{total} 部");
+    Console.WriteLine($"[DRY-RUN] 其中待处理（非终态）：{actionable} 部 | 终态标记：{markedCount} 部");
+    if (actionable == 0)
+    {
+        Console.WriteLine("[DRY-RUN] 无需联网：全部为终态片或已补全，跳过本轮。");
+        return 3;
+    }
+    Console.WriteLine($"[DRY-RUN] 有活可干：{actionable} 部待补全。");
+    return 0;
 }
 
 // 1) 先把 cache.db 中已有评分同步到主库（处理历史“孤儿”评分：曾被一次性 flag 挡住未回写的电影）
