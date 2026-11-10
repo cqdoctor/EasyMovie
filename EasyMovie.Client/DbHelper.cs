@@ -34,6 +34,9 @@ public static class DbHelper
     /// <summary>连接串：仅指定数据源。busy_timeout 由 BusyTimeoutInterceptor 在连接打开后通过 PRAGMA 设置。</summary>
     public static string ConnectionString => $"Data Source={DbPath}";
 
+    /// <summary>主库绝对路径（供数据库文件级维护使用，如启动时应用挂起的恢复）。</summary>
+    public static string DatabasePath => DbPath;
+
     /// <summary>构建带 BusyTimeout 拦截器的 DbContextOptions（统一所有 MovieDbContext 创建入口）。</summary>
     public static DbContextOptions<MovieDbContext> CreateOptions()
         => new DbContextOptionsBuilder<MovieDbContext>()

@@ -18,12 +18,14 @@ public class ImportExportServiceTests : IDisposable
     private readonly MovieDbContext _context;
     private readonly ImportExportService _service;
     private readonly string _testDir;
+    private readonly DbContextOptions<MovieDbContext> _options;
 
     public ImportExportServiceTests()
     {
         var options = new DbContextOptionsBuilder<MovieDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
+        _options = options;
         _context = new MovieDbContext(options);
         _service = new ImportExportService(_context);
         _testDir = Path.Combine(Path.GetTempPath(), "EasyMovieTests");
@@ -250,6 +252,223 @@ public class ImportExportServiceTests : IDisposable
         var movie = _context.Movies.First();
         movie.Title.Should().Be("肖申克的救赎");
         movie.CategoryId.Should().NotBeNull();
+    }
+
+    // ═══════════════ 全量备份完整性（WatchLogs / Collections 曾被漏掉）═══════════════
+
+    [Fact]
+    public async Task FullBackup_ShouldIncludeWatchLogsAndCollections()
+    {
+        var movie = new Movie { Title = "星际穿越", Year = 2014 };
+        _context.Movies.Add(movie);
+        var collection = new MovieCollection { Name = "诺兰三部曲", SortOrder = 1 };
+        _context.Collections.Add(collection);
+        await _context.SaveChangesAsync();
+
+        movie.CollectionId = collection.Id;
+        _context.WatchLogs.Add(new WatchLog
+        {
+            MovieId = movie.Id,
+            WatchDate = new DateTime(2026, 3, 15),
+            Rating = 9,
+            Location = "家里客厅",
+            Companion = "和小明",
+            Notes = "重温 Still Alive"
+        });
+        await _context.SaveChangesAsync();
+
+        var path = GetTempPath("full_backup_completeness.json");
+        await _service.ExportFullDataToJsonAsync(path);
+
+        var json = await File.ReadAllTextAsync(path, Encoding.UTF8);
+        // 「全量」必须名副其实：日记与合集缺一不可，否则用户以为存下了观影历史
+        json.Should().Contain("watchLogs");
+        json.Should().Contain("Still Alive");
+        json.Should().Contain("诺兰三部曲");
+    }
+
+    [Fact]
+    public async Task ImportFullBackup_ShouldRestoreWatchLogsAndCollections()
+    {
+        var movie = new Movie { Title = "星际穿越", Year = 2014 };
+        _context.Movies.Add(movie);
+        var collection = new MovieCollection { Name = "诺兰三部曲", SortOrder = 1 };
+        _context.Collections.Add(collection);
+        await _context.SaveChangesAsync();
+
+        movie.CollectionId = collection.Id;
+        _context.WatchLogs.Add(new WatchLog
+        {
+            MovieId = movie.Id,
+            WatchDate = new DateTime(2026, 3, 15),
+            Rating = 9,
+            Location = "家里客厅",
+            Companion = "和小明",
+            Notes = "重温 Still Alive"
+        });
+        await _context.SaveChangesAsync();
+
+        var backupPath = GetTempPath("full_backup_restore_full.json");
+        await _service.ExportFullDataToJsonAsync(backupPath);
+
+        // 清空全部业务数据。
+        // ⚠️ 必须 ChangeTracker.Clear()：否则被删实体仍留在变更跟踪里，
+        // 还原时 _context.Movies.Add(同 Id 实体) 会撞上"同键实体已被跟踪"的跟踪冲突
+        // （与生产侧 MovieDbContext 长生命周期 context 的清理契约同源）。
+        _context.WatchLogs.RemoveRange(_context.WatchLogs);
+        _context.Movies.RemoveRange(_context.Movies);
+        _context.Collections.RemoveRange(_context.Collections);
+        await _context.SaveChangesAsync();
+        _context.ChangeTracker.Clear();
+
+        var importResult = await _service.ImportFullDataFromJsonAsync(backupPath);
+
+        // ⚠️ 关键：用全新 DbContext 读回（同 options 但新实例），否则会被同一 context
+        // 的变更跟踪缓存掩盖成假阳性。与 MovieNarrowUpdateTests 保持同一范式。
+        using var fresh = new MovieDbContext(_options);
+
+        // 还原过程本身不能吞异常：ErrorCount>0 说明中途抛错被 catch 兜住，数据是残缺的
+        importResult.ErrorCount.Should().Be(0, string.Join(" | ", importResult.Errors));
+        importResult.SuccessCount.Should().Be(1);
+
+        fresh.Collections.Count().Should().Be(1);
+        fresh.WatchLogs.Count().Should().Be(1);
+
+        var restoredCollection = fresh.Collections.Single();
+        restoredCollection.Name.Should().Be("诺兰三部曲");
+
+        // 影片的合集外键必须被换算到新合集 Id，而不是指向备份里的旧 Id
+        var restoredMovie = fresh.Movies.Single();
+        restoredMovie.CollectionId.Should().Be(restoredCollection.Id);
+
+        var restoredLog = fresh.WatchLogs.Single();
+        restoredLog.MovieId.Should().Be(restoredMovie.Id);
+        restoredLog.Rating.Should().Be(9);
+        restoredLog.Location.Should().Be("家里客厅");
+        restoredLog.Companion.Should().Be("和小明");
+        restoredLog.Notes.Should().Be("重温 Still Alive");
+        restoredLog.WatchDate.Should().Be(new DateTime(2026, 3, 15));
+    }
+
+    [Fact]
+    public async Task ImportFullBackup_ShouldAcceptLegacyBackupWithoutLogsAndCollections()
+    {
+        // 老备份（1.0 版）不含 WatchLogs / Collections 字段，反序列化得到 null。
+        // 还原必须优雅跳过，不能因 null 抛异常—— 否则用户手里的历史备份文件就再也导不回来了。
+        var legacyJson = """
+        {
+          "exportedAt": "2026-01-01T00:00:00Z",
+          "version": "1.0",
+          "movies": [ { "id": 1, "title": "老备份影片", "year": 2000, "watchStatus": 0, "isFavorite": false, "createdAt": "2026-01-01T00:00:00Z", "updatedAt": "2026-01-01T00:00:00Z", "playbackPosition": 0 } ],
+          "categories": [],
+          "tags": []
+        }
+        """;
+
+        var path = GetTempPath("legacy_backup.json");
+        await File.WriteAllTextAsync(path, legacyJson, Encoding.UTF8);
+
+        var result = await _service.ImportFullDataFromJsonAsync(path);
+
+        result.SuccessCount.Should().Be(1);
+        result.ErrorCount.Should().Be(0);
+        _context.Movies.Single().Title.Should().Be("老备份影片");
+        _context.WatchLogs.Should().BeEmpty();
+    }
+
+    // ═══════════════ 写入侧护栏（C 第一期）：脏值规整 ═══════════════
+
+    [Fact]
+    public async Task ImportCsv_ShouldSanitizeTitleAndZeroDirtyYear()
+    {
+        var csv = "片名,原始片名,年份,导演,主演,国家,语言,片长,简介,评分,观看状态,观看日期,笔记,收藏\n"
+                + "三大队 Endless Journey EAC3,Endless Journey,1000,,,,,,,,,,,";
+        var path = GetTempPath("dirty_csv.csv");
+        await File.WriteAllTextAsync(path, csv, Encoding.UTF8);
+
+        var result = await _service.ImportMoviesFromCsvAsync(path);
+
+        // 脏值只做规整，不影响成功/失败计数语义
+        result.SuccessCount.Should().Be(1);
+        result.ErrorCount.Should().Be(0);
+
+        var saved = _context.Movies.Single();
+        saved.Title.Should().Be("三大队 Endless Journey");
+        saved.Year.Should().Be(0);
+        saved.OriginalTitle.Should().Be("Endless Journey");   // 原名不被清洗丢弃
+    }
+
+    [Fact]
+    public async Task ImportJson_ShouldSanitizeTitleAndZeroDirtyYear()
+    {
+        var json = """
+        [{
+            "title": "地师传人Tomb Making Notes EAC3",
+            "originalTitle": "Tomb Making Notes",
+            "year": 1000,
+            "filePath": "/tmp/dirty.mkv"
+        }]
+        """;
+        var path = GetTempPath("dirty_import.json");
+        await File.WriteAllTextAsync(path, json, Encoding.UTF8);
+
+        var result = await _service.ImportMoviesFromJsonAsync(path);
+
+        result.SuccessCount.Should().Be(1);
+        result.ErrorCount.Should().Be(0);
+
+        var saved = _context.Movies.Single();
+        saved.Title.Should().Be("地师传人Tomb Making Notes");
+        saved.Year.Should().Be(0);
+        saved.OriginalTitle.Should().Be("Tomb Making Notes");
+        saved.FilePath.Should().Be("/tmp/dirty.mkv");          // 路径等原始信息保留
+    }
+
+    [Fact]
+    public async Task ImportFullBackup_ShouldSanitizeTitleAndZeroDirtyYear()
+    {
+        var json = """
+        {
+          "exportedAt": "2026-01-01T00:00:00Z",
+          "version": "1.1",
+          "movies": [
+            {
+              "id": 7,
+              "title": "奥本海默 TrueHD",
+              "originalTitle": "Oppenheimer",
+              "year": 1951,
+              "filePath": "/tmp/oppenheimer.mkv",
+              "watchStatus": 0,
+              "isFavorite": false
+            },
+            {
+              "id": 8,
+              "title": "沙丘2 Dune: Part Two Atmos",
+              "year": 1000,
+              "filePath": "/tmp/dune2.mkv",
+              "watchStatus": 0,
+              "isFavorite": false
+            }
+          ],
+          "categories": [],
+          "tags": []
+        }
+        """;
+        var path = GetTempPath("dirty_full_restore.json");
+        await File.WriteAllTextAsync(path, json, Encoding.UTF8);
+
+        var result = await _service.ImportFullDataFromJsonAsync(path);
+
+        result.SuccessCount.Should().Be(2);
+        result.ErrorCount.Should().Be(0);
+
+        var oppenheimer = _context.Movies.Single(m => m.FilePath == "/tmp/oppenheimer.mkv");
+        oppenheimer.Title.Should().Be("奥本海默");
+        oppenheimer.Year.Should().Be(1951);                    // 合法年份保持不动
+
+        var dune = _context.Movies.Single(m => m.FilePath == "/tmp/dune2.mkv");
+        dune.Title.Should().Be("沙丘2 Dune: Part Two");
+        dune.Year.Should().Be(0);                              // 占位年份置 0
     }
 
     // ═══════════════ 映射辅助方法 ═══════════════

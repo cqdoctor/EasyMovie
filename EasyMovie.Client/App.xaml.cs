@@ -126,6 +126,22 @@ public partial class App : Application
         try { ThreadPool.SetMinThreads(16, 16); }
         catch (Exception ex) { LogStartup($"线程池最小线程数设置失败: {ex.Message}"); }
 
+        // 应用上次会话挂起的数据库恢复：必须发生在**任何数据库连接建立之前**。
+        // 校验失败时保留旧库继续启动；成功后会清理初始化/迁移标志，让 schema 补齐与迁移在恢复库上重跑。
+        try
+        {
+            if (DatabaseMaintenance.ApplyPendingRestore(DbHelper.DatabasePath))
+            {
+                LogStartup("已应用挂起的数据库恢复");
+                Log.Warning("已应用挂起的数据库恢复: {DbPath}", DbHelper.DatabasePath);
+            }
+        }
+        catch (Exception ex)
+        {
+            LogStartup("应用挂起的数据库恢复失败(已保留原库): " + ex.Message);
+            Log.Error(ex, "应用挂起的数据库恢复失败，已保留原数据库");
+        }
+
         // 后台预热数据库（首次 EnsureCreated 约数十秒重活）。尽早启动，让首次迁移在后台线程跑，
         // 避免被后续 UI 线程创建 DbContext 抢先触发、阻塞首帧渲染导致启动闪屏长时间不消失。
         _ = DbHelper.WarmupAsync();

@@ -2,10 +2,16 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using EasyMovie.Core;
 using Serilog;
 
-namespace EasyMovie.Core;
+namespace EasyMovie.Data;
 
+/// <summary>
+/// 备份历史管理。备份写入与恢复动作均委托 <see cref="DatabaseMaintenance"/>：
+/// 写入走 VACUUM INTO（含 WAL 中未 checkpoint 的数据），恢复只做"落 pending"，重启后生效。
+/// 位于 Data 层是因为 <c>Microsoft.Data.Sqlite</c> 只在本层被引用。
+/// </summary>
 public static class BackupService
 {
     private static readonly string BackupDir = Path.Combine(
@@ -54,7 +60,8 @@ public static class BackupService
         var fileName = $"EasyMovie_{timestamp:yyyyMMdd_HHmmss}.db";
         var backupPath = Path.Combine(BackupDir, fileName);
 
-        File.Copy(DbPath, backupPath, overwrite: true);
+        // 不再 File.Copy 主库：WAL 模式下会漏掉未 checkpoint 的事务。
+        DatabaseMaintenance.CreateConsistentSnapshot(DbPath, backupPath);
 
         CleanupOldBackups();
 
@@ -94,12 +101,15 @@ public static class BackupService
             .ToList();
     }
 
+    /// <summary>
+    /// 校验备份并登记为"下次启动恢复"。运行期绝不覆盖主库。
+    /// </summary>
     public static void RestoreBackup(string backupFilePath)
     {
         if (!File.Exists(backupFilePath))
             throw new FileNotFoundException("Backup file not found");
 
-        File.Copy(backupFilePath, DbPath, overwrite: true);
+        DatabaseMaintenance.StagePendingRestore(backupFilePath, DbPath);
     }
 
     public static void DeleteBackup(string backupFilePath)

@@ -6,6 +6,7 @@ using CsvHelper;
 using CsvHelper.Configuration;
 using Microsoft.EntityFrameworkCore;
 using EasyMovie.Core.Enums;
+using EasyMovie.Core.Helpers;
 using EasyMovie.Core.Interfaces;
 using EasyMovie.Core.Models;
 using EasyMovie.Data;
@@ -173,6 +174,10 @@ public class ImportExportService : IImportExportService
                     movie.CreatedAt = DateTime.UtcNow;
                     movie.UpdatedAt = DateTime.UtcNow;
 
+                    // 直接写 DbContext，绕过 MovieService 的校验：在此补齐写入护栏。
+                    movie.Title = MovieFieldSanitizer.SanitizeTitle(movie.Title);
+                    if (!MovieFieldSanitizer.IsPlausibleYear(movie.Year)) movie.Year = 0;
+
                     if (!string.IsNullOrWhiteSpace(movie.FilePath) && !knownPaths.Add(movie.FilePath!))
                     {
                         result.ErrorCount++;
@@ -227,13 +232,20 @@ public class ImportExportService : IImportExportService
         var categories = await _context.Categories.ToListAsync();
         var tags = await _context.Tags.ToListAsync();
 
+        // 合集与观影日志必须一并导出：Movies.CollectionId / WatchLogs.MovieId 都是外键，
+        // 缺了它们还原后影片会散落成孤儿合集、日记直接消失，而"全量备份"却不会报任何错。
+        var collections = await _context.Collections.ToListAsync();
+        var watchLogs = await _context.WatchLogs.AsNoTracking().ToListAsync();
+
         var backup = new FullDataBackup
         {
             ExportedAt = DateTime.UtcNow,
-            Version = "1.0",
+            Version = "1.1",
             Movies = movies,
             Categories = categories,
-            Tags = tags
+            Tags = tags,
+            Collections = collections,
+            WatchLogs = watchLogs
         };
 
         var json = JsonSerializer.Serialize(backup, JsonOptions);
@@ -287,6 +299,22 @@ public class ImportExportService : IImportExportService
                 }
             }
 
+            // 导入合集（必须在电影之前：Movies.CollectionId 是指向合集表的外键，
+            // 顺序颠倒会让电影落进"无合集"状态，之后再也无法判断原本属于哪个合集）。
+            var collectionIdMap = new Dictionary<int, int>();
+            if (backup.Collections != null)
+            {
+                foreach (var col in backup.Collections)
+                {
+                    var oldId = col.Id;
+                    col.Id = 0;
+                    col.Movies?.Clear(); // 防止 EF 因反序列化带出的导航集合重复添加影片
+                    _context.Collections.Add(col);
+                    await _context.SaveChangesAsync();
+                    collectionIdMap[oldId] = col.Id;
+                }
+            }
+
             // 导入标签
             var tagIdMap = new Dictionary<int, int>();
             if (backup.Tags != null)
@@ -302,6 +330,8 @@ public class ImportExportService : IImportExportService
             }
 
             // 导入电影
+            var movieIdMap = new Dictionary<int, int>();      // 旧影片 Id → 新影片 Id
+            var pendingMovieIdMap = new Dictionary<int, Movie>(); // 旧 Id → 待 SaveChanges 的实体
             if (backup.Movies != null)
             {
                 // 按 FilePath 去重（H3）：库中已存在、或本批已出现过的路径跳过，避免重复还原产生重复影片。
@@ -313,6 +343,8 @@ public class ImportExportService : IImportExportService
                 foreach (var movie in backup.Movies)
                 {
                     currentMovieTitle = movie.Title;
+                    // 先留底旧 Id：下方要把 Id 归零让 EF 重新分配，而观影日志要用它换算新的 MovieId。
+                    var oldMovieId = movie.Id;
                     movie.Id = 0;
 
                     if (!string.IsNullOrWhiteSpace(movie.FilePath) && !knownPaths.Add(movie.FilePath!))
@@ -327,7 +359,21 @@ public class ImportExportService : IImportExportService
                     else
                         movie.CategoryId = null;
 
+                    // 合集归属同理：用旧→新映射换算；老备份无合集时映射为空表，一律置空。
+                    if (movie.CollectionId.HasValue && collectionIdMap.ContainsKey(movie.CollectionId.Value))
+                        movie.CollectionId = collectionIdMap[movie.CollectionId.Value];
+                    else
+                        movie.CollectionId = null;
+
+                    // ⚠️ 所有导航集合/引用都必须显式置空后再 Add。
+                    // 备份 JSON 是连同导航一起导出的（ReferenceHandler.IgnoreCycles 只砍循环引用，
+                    // 不会砍 Movie→Collection / Movie→WatchLogs 这类单向引用），反序列化后它们仍挂在图上。
+                    // EF 在 Add 时遍历导航图构建内部字典，遇到未置空的反向引用会以 null 键崩溃
+                    // （ArgumentNullException: Value cannot be null. (Parameter 'key')）。
+                    // Collection/Category 由外键承载、MovieTags 在下方重建、WatchLogs 在影片入库后单独还原。
                     movie.Category = null;
+                    movie.Collection = null;
+                    movie.WatchLogs?.Clear();
 
                     // 保留标签关联（F1 修复）：全量备份/还原曾经把 MovieTags 直接清空且不重建，
                     // 导致还原后影片全部丢失标签绑定。这里用反序列化得到的旧 MovieTags 映射到
@@ -343,13 +389,50 @@ public class ImportExportService : IImportExportService
                     movie.CreatedAt = DateTime.UtcNow;
                     movie.UpdatedAt = DateTime.UtcNow;
 
+                    // 直接写 DbContext，绕过 MovieService 的校验：在此补齐写入护栏。
+                    movie.Title = MovieFieldSanitizer.SanitizeTitle(movie.Title);
+                    if (!MovieFieldSanitizer.IsPlausibleYear(movie.Year)) movie.Year = 0;
+
                     _context.Movies.Add(movie);
+                    // 先记下"待插入"关系，真正赋值要等 SaveChanges 之后（EF 在那之前不分配 Id）。
+                    pendingMovieIdMap[oldMovieId] = movie;
                     result.SuccessCount++;
                     result.ImportedMovies.Add(movie);
                 }
 
                 if (result.SuccessCount > 0)
                     await _context.SaveChangesAsync();
+
+                // SaveChanges 之后 EF 才把真实 Id 写回实体，据此固化旧→新映射供日志还原使用。
+                foreach (var (oldId, entity) in pendingMovieIdMap)
+                    movieIdMap[oldId] = entity.Id;
+            }
+
+            // 导入观影日志（必须在电影之后：WatchLogs.MovieId 是指向影片表的外键）。
+            // 日志的 Rating/Location/Companion/Notes 是日记页与统计页的全部信息来源，
+            // 不还原等于"全量备份"丢掉了用户最在意的观影历史。
+            if (backup.WatchLogs != null)
+            {
+                foreach (var log in backup.WatchLogs)
+                {
+                    // 找不到对应影片（老备份、去重跳过、或影片已不存在）则跳过该日志，
+                    // 不让一条孤儿记录破坏整个事务。
+                    if (!movieIdMap.TryGetValue(log.MovieId, out var newMovieId))
+                        continue;
+
+                    _context.WatchLogs.Add(new WatchLog
+                    {
+                        MovieId = newMovieId,
+                        WatchDate = log.WatchDate,
+                        Rating = log.Rating,
+                        Location = log.Location,
+                        Companion = log.Companion,
+                        Notes = log.Notes,
+                        CreatedAt = log.CreatedAt
+                    });
+                }
+
+                await _context.SaveChangesAsync();
             }
 
             if (transaction != null)
@@ -378,8 +461,8 @@ public class ImportExportService : IImportExportService
 
         await _context.Database.CloseConnectionAsync();
 
-        // 关闭连接会触发 WAL checkpoint，把 -wal 合并回主库；仍顺带拷贝 -wal/-shm 伴随文件以防残留未落盘。
-        CopyDbWithCompanions(dbPath, backupPath);
+        // VACUUM INTO：读取 WAL 中已提交但未 checkpoint 的事务，产出单文件一致性快照。
+        await Task.Run(() => DatabaseMaintenance.CreateConsistentSnapshot(dbPath, backupPath));
     }
 
     public async Task RestoreDatabaseAsync(string backupPath)
@@ -388,22 +471,10 @@ public class ImportExportService : IImportExportService
             throw new FileNotFoundException("备份文件不存在", backupPath);
 
         var dbPath = GetActualDbPath();
-
         await _context.Database.CloseConnectionAsync();
 
-        CopyDbWithCompanions(backupPath, dbPath);
-    }
-
-    /// <summary>拷贝 SQLite 主库及其 WAL/SHM 伴随文件（存在才拷）。</summary>
-    private static void CopyDbWithCompanions(string src, string dst)
-    {
-        File.Copy(src, dst, true);
-        foreach (var ext in new[] { "-wal", "-shm" })
-        {
-            var companion = src + ext;
-            if (File.Exists(companion))
-                File.Copy(companion, dst + ext, true);
-        }
+        // 只校验并落 restore-pending，不在运行中覆盖主库；下次启动时由 App 应用。
+        await Task.Run(() => DatabaseMaintenance.StagePendingRestore(backupPath, dbPath));
     }
 
     private static string GetActualDbPath()
@@ -451,11 +522,16 @@ public class ImportExportService : IImportExportService
 
     private static Movie MapFromCsvRecord(CsvMovieRecord record)
     {
+        // 年份不合规（如 1000/1951 这类占位值）一律置 0（未知），不抛异常、不丢整条记录。
+        var year = record.Year ?? 0;
+        if (!MovieFieldSanitizer.IsPlausibleYear(year)) year = 0;
+
         var movie = new Movie
         {
-            Title = record.Title?.Trim() ?? "",
+            // CSV 是绕过 MovieService 校验的直接写入路径，标题需先剥发布标签（清洗为空则回退原值）。
+            Title = MovieFieldSanitizer.SanitizeTitle(record.Title?.Trim() ?? ""),
             OriginalTitle = string.IsNullOrWhiteSpace(record.OriginalTitle) ? null : record.OriginalTitle.Trim(),
-            Year = record.Year ?? 0,
+            Year = year,
             Director = string.IsNullOrWhiteSpace(record.Director) ? null : record.Director.Trim(),
             Cast = string.IsNullOrWhiteSpace(record.Cast) ? null : record.Cast.Trim(),
             Country = string.IsNullOrWhiteSpace(record.Country) ? null : record.Country.Trim(),
@@ -693,4 +769,9 @@ public class FullDataBackup
     public List<Movie>? Movies { get; set; }
     public List<Category>? Categories { get; set; }
     public List<Tag>? Tags { get; set; }
+
+    // 以下三者是后补的：1.0 版备份文件不含它们，反序列化得到 null 时还原分支整体跳过，
+    // 保持向后兼容（不因读老备份而报错）。
+    public List<MovieCollection>? Collections { get; set; }
+    public List<WatchLog>? WatchLogs { get; set; }
 }

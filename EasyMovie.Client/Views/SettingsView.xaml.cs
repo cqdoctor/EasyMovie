@@ -154,7 +154,7 @@ public partial class SettingsView : UserControl
     private async void ImportJson_Click(object sender, RoutedEventArgs e) { var d = new OpenFileDialog { Filter = "JSON|*.json" }; if (d.ShowDialog() != true) return; try { var r = await _vm.ImportExportService.ImportMoviesFromJsonAsync(d.FileName); AppMessageBox.ShowInfo(string.Format(LanguageManager.GetString("Msg_ImportCount"), r.SuccessCount)); } catch (Exception ex) { AppMessageBox.ShowError(ex.Message); } }
     private async void RestoreBackup_Click(object sender, RoutedEventArgs e) { if (!AppMessageBox.Confirm(LanguageManager.GetString("Msg_ConfirmOverwrite"), LanguageManager.GetString("Msg_Confirm"))) return; var d = new OpenFileDialog { Filter = "JSON|*.json" }; if (d.ShowDialog() != true) return; try { var r = await _vm.ImportExportService.ImportFullDataFromJsonAsync(d.FileName); AppMessageBox.ShowInfo(string.Format(LanguageManager.GetString("Msg_RestoreCount"), r.SuccessCount)); } catch (Exception ex) { AppMessageBox.ShowError(ex.Message); } }
     private async void BackupDbFile_Click(object sender, RoutedEventArgs e) { var d = new SaveFileDialog { Filter = "DB|*.db", FileName = $"EasyMovie_{DateTime.Now:yyyyMMdd_HHmm}.db" }; if (d.ShowDialog() != true) return; try { await _vm.ImportExportService.BackupDatabaseAsync(d.FileName); AppMessageBox.ShowInfo(LanguageManager.GetString("Msg_BackupDone")); } catch (Exception ex) { AppMessageBox.ShowError(ex.Message); } }
-    private async void RestoreDbFile_Click(object sender, RoutedEventArgs e) { if (!AppMessageBox.Confirm(LanguageManager.GetString("Msg_ConfirmReplaceDb"), LanguageManager.GetString("Msg_Confirm"))) return; var d = new OpenFileDialog { Filter = "DB|*.db" }; if (d.ShowDialog() != true) return; try { await _vm.ImportExportService.RestoreDatabaseAsync(d.FileName); AppMessageBox.ShowInfo(LanguageManager.GetString("Msg_RestartRequired")); } catch (Exception ex) { AppMessageBox.ShowError(ex.Message); } }
+    private async void RestoreDbFile_Click(object sender, RoutedEventArgs e) { if (!AppMessageBox.Confirm(LanguageManager.GetString("Msg_ConfirmReplaceDb"), LanguageManager.GetString("Msg_Confirm"))) return; var d = new OpenFileDialog { Filter = "DB|*.db" }; if (d.ShowDialog() != true) return; try { await _vm.ImportExportService.RestoreDatabaseAsync(d.FileName); AppMessageBox.ShowInfo(LanguageManager.GetString("Backup_RestorePending")); } catch (Exception ex) { AppMessageBox.ShowError(ex.Message); } }
 
     #endregion
 
@@ -274,14 +274,15 @@ public partial class SettingsView : UserControl
         catch (Exception ex) { AppMessageBox.ShowError(ex.Message); }
     }
 
-    private void RestoreBackupItem_Click(object sender, RoutedEventArgs e)
+    private async void RestoreBackupItem_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not System.Windows.Controls.Button btn || btn.Tag is not string path) return;
         if (!AppMessageBox.Confirm(LanguageManager.GetString("Backup_ConfirmRestore"), LanguageManager.GetString("Msg_Confirm"))) return;
         try
         {
-            BackupService.RestoreBackup(path);
-            AppMessageBox.ShowInfo(LanguageManager.GetString("Backup_RestoreSuccess"));
+            // 只校验并落 restore-pending，运行期不覆盖主库；下次启动时生效。
+            await Task.Run(() => BackupService.RestoreBackup(path));
+            AppMessageBox.ShowInfo(LanguageManager.GetString("Backup_RestorePending"), LanguageManager.GetString("Msg_Confirm"));
         }
         catch (Exception ex) { AppMessageBox.ShowError(ex.Message); }
     }
