@@ -119,6 +119,16 @@
                             </StackPanel>
                         </Button>
 
+                        <!-- 分类与标签 - 顶层导航 -->
+                        <Button x:Name="NavBtn_Categories" Tag="Categories" Click="NavBtn_Click"
+                                Style="{StaticResource MaterialDesignFlatButton}"
+                                HorizontalContentAlignment="Left" Padding="12,8" Margin="4,1">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="TagOutline" Margin="0,0,12,0" />
+                                <TextBlock Text="{DynamicResource Nav_Categories}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+
                         <!-- 统计分析 - 分组 -->
                         <ToggleButton x:Name="AnalysisToggle" Click="GroupToggle_Click"
                                       Style="{StaticResource MaterialDesignFlatButton}"

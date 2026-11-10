@@ -369,7 +369,7 @@ public partial class MainWindow : Window
         if (sender is Button btn && btn.Tag is string tag)
         {
             // 点击一级导航项（非分组子项）时，折叠所有分组面板
-            if (tag is "Dashboard" or "Movies" or "Settings")
+            if (tag is "Dashboard" or "Movies" or "Categories" or "Settings")
                 CollapseAllGroups();
 
             NavigateTo(tag);
@@ -453,6 +453,7 @@ public partial class MainWindow : Window
             {
                 "Dashboard" => new DashboardView(),
                 "Movies" => new MovieListView(this),
+                "Categories" => new CategoryTagManageView(),
                 "Statistics" => new StatisticsView(),
                 "Calendar" => new WatchCalendarView(),
                 "Relation" => new MovieRelationView(this),
@@ -902,7 +903,7 @@ public partial class MainWindow : Window
     /// <summary>根据页面 tag 自动展开对应分组</summary>
     private void ExpandGroup(string page)
     {
-        if (page is "Statistics" or "Heatmap" or "Calendar")
+        if (page is "Statistics" or "Heatmap" or "Calendar" or "Diary")
         {
             AnalysisToggle.IsChecked = true;
             AnalysisSubPanel.Visibility = Visibility.Visible;
