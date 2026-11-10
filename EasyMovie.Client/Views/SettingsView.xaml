@@ -398,6 +398,7 @@
                             <TextBlock Text="EasyMovie v1.03" FontSize="14" FontWeight="Bold"/>
                             <TextBlock Text="WPF + .NET 10 + SQLite" FontSize="13" Foreground="{DynamicResource MaterialDesignHintForeground}"/>
                             <TextBlock Text="{DynamicResource Settings_DataSources}" FontSize="13" Foreground="{DynamicResource MaterialDesignHintForeground}"/>
+                            <TextBlock Text="此产品使用 TMDB API，但未获得 TMDB 认可或认证。" FontSize="13" Foreground="{DynamicResource MaterialDesignHintForeground}" TextWrapping="Wrap"/>
                         </StackPanel>
                     </Grid>
                 </Border>

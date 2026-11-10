@@ -291,6 +291,13 @@ public class MovieInfoFetcher
     /// </summary>
     private static void CleanMerged(MovieSearchResult m)
     {
+        // 标题：各数据源偶有把发布标签（EAC3/Atmos/TrueHD…）带进标题的情况，
+        // 这里统一剥除；清洗为空则保留原值（SanitizeTitle 内部已兜底）。
+        if (!string.IsNullOrEmpty(m.Title))
+            m.Title = MovieFieldSanitizer.SanitizeTitle(m.Title);
+        // 年份：这是各来源汇合后的唯一清洗点，脏年份（1000 等占位值）一律归零（未知），
+        // 避免主源年份绕过合并守卫直接写回。
+        if (!MovieFieldSanitizer.IsPlausibleYear(m.Year)) m.Year = 0;
         if (!string.IsNullOrEmpty(m.Synopsis))
             m.Synopsis = TextCleaner.StripHtml(m.Synopsis);
         if (!string.IsNullOrEmpty(m.Director))
@@ -452,7 +459,8 @@ public class MovieInfoFetcher
             target.PosterUrl = source.PosterUrl;
         if (!target.Runtime.HasValue && source.Runtime.HasValue)
             target.Runtime = source.Runtime;
-        if (target.Year == 0 && source.Year > 0)
+        // 年份：仅接受可信值，避免源端的 1000/1951 之类占位年份被合并进来。
+        if (target.Year == 0 && source.Year > 0 && MovieFieldSanitizer.IsPlausibleYear(source.Year))
             target.Year = source.Year;
         if (!target.Rating.HasValue && source.Rating.HasValue)
             target.Rating = source.Rating;

@@ -1,4 +1,6 @@
 ﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.Net;
+using System.Net.Security;
+using System.Net.Sockets;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Web;
@@ -26,32 +28,136 @@ public class TmdbApiClient : IMovieApiClient
             () => CreateClient(EasyMovie.Core.AppSettings.HttpProxy ?? ""));
     }
 
+    /// <summary>
+    /// 网页抓取路径开关（默认关闭）：www.themoviedb.org 自 2026-11-06 起全站返回 Cloudflare 403，
+    /// 保留方法体便于将来恢复，但正常流程不再调用（只走官方 API）。
+    /// </summary>
+    private static readonly bool EnableWebScrapingFallback = false;
+
     /// <summary>自建 HttpClient（含 UA / Accept-Language）。仅由共享缓存调用一次。</summary>
     private static HttpClient CreateClient(string proxy)
     {
-        var handler = new HttpClientHandler
-        {
-            AutomaticDecompression = System.Net.DecompressionMethods.All
-        };
-        // 应用代理设置
+        HttpMessageHandler handler;
         if (!string.IsNullOrWhiteSpace(proxy))
         {
+            // 配了代理就交给代理做 DNS/连接；SocketsHttpHandler.ConnectCallback 与 Proxy 互斥，不能同时使用。
+            var h = new HttpClientHandler
+            {
+                AutomaticDecompression = System.Net.DecompressionMethods.All
+            };
             try
             {
                 // 确保 URL 有 scheme（WebProxy 需要 http:// 前缀）
                 if (!proxy.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
                     !proxy.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
                     proxy = "http://" + proxy;
-                handler.Proxy = new WebProxy(proxy, true);
-                handler.UseProxy = true;
+                h.Proxy = new WebProxy(proxy, true);
+                h.UseProxy = true;
             }
             catch (Exception ex) { Log.Error(ex, "配置代理失败"); }
+            handler = h;
         }
-        var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(10) };
+        else
+        {
+            // 系统 DNS 对 api.themoviedb.org 返回污染 IP（实测全部 TCP 超时），
+            // 因此改用 www.themoviedb.org 的 A 记录建连，TLS 仍校验真实域名（见 ConnectViaIpPoolAsync）。
+            handler = new SocketsHttpHandler
+            {
+                AutomaticDecompression = System.Net.DecompressionMethods.All,
+                ConnectTimeout = TimeSpan.FromSeconds(8),
+                ConnectCallback = ConnectViaIpPoolAsync
+            };
+        }
+        var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(15) };
         client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36");
         client.DefaultRequestHeaders.Add("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8");
         return client;
     }
+
+    // ===== DNS 安全直连（IP 池 + 真实域名 TLS）=====
+    private static readonly TimeSpan IpConnectTimeout = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan IpPoolTtl = TimeSpan.FromMinutes(10);
+    private static readonly object IpPoolLock = new();
+    private static string[] _ipPool = Array.Empty<string>();
+    private static DateTime _ipPoolExpiresUtc = DateTime.MinValue;
+    private static int _transportFailures;
+
+    /// <summary>
+    /// 逐 IP 建 TCP，再用真实主机名做 TLS 握手。
+    /// 关键点：SNI 与证书校验都用 <paramref name="context"/> 里的真实域名（api.themoviedb.org），
+    /// 绝不能传 IP；HttpClient 仍使用原 URI，Host 头也保持不变。
+    /// </summary>
+    private static async ValueTask<Stream> ConnectViaIpPoolAsync(SocketsHttpConnectionContext context, CancellationToken ct)
+    {
+        var host = context.DnsEndPoint.Host;
+        var port = context.DnsEndPoint.Port;
+        var pool = await GetIpPoolAsync(ct).ConfigureAwait(false);
+        Exception? last = null;
+        foreach (var ip in pool)
+        {
+            Socket? socket = null;
+            try
+            {
+                socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                cts.CancelAfter(IpConnectTimeout);   // 单 IP 2s 超时，逐个回退
+                await socket.ConnectAsync(IPAddress.Parse(ip), port, cts.Token).ConfigureAwait(false);
+
+                var ssl = new SslStream(new NetworkStream(socket, ownsSocket: true), leaveInnerStreamOpen: false);
+                await ssl.AuthenticateAsClientAsync(new SslClientAuthenticationOptions { TargetHost = host }, ct).ConfigureAwait(false);
+                return ssl;
+            }
+            catch (Exception ex)
+            {
+                last = ex;
+                socket?.Dispose();
+                // 建连/握手失败：立即失效缓存，下次请求重新解析（应对 CloudFront IP 漂移）
+                InvalidateIpPool();
+                if (ct.IsCancellationRequested) break;
+            }
+        }
+        throw new HttpRequestException($"TMDB 直连失败（IP 池 {pool.Length} 个，主机 {host}）", last);
+    }
+
+    private static async Task<string[]> GetIpPoolAsync(CancellationToken ct)
+    {
+        lock (IpPoolLock)
+        {
+            if (_ipPool.Length > 0 && DateTime.UtcNow < _ipPoolExpiresUtc) return _ipPool;
+        }
+        // 只用 www.themoviedb.org 的 A 记录：api 域名被污染，但两者同属 CloudFront，边缘 IP 可复用。
+        var addresses = await Dns.GetHostAddressesAsync("www.themoviedb.org", ct).ConfigureAwait(false);
+        var pool = addresses.Where(a => a.AddressFamily == AddressFamily.InterNetwork)
+                            .Select(a => a.ToString())
+                            .Distinct()
+                            .ToArray();
+        if (pool.Length == 0) throw new HttpRequestException("TMDB 直连失败：www.themoviedb.org 无可用 A 记录");
+        lock (IpPoolLock)
+        {
+            _ipPool = pool;
+            _ipPoolExpiresUtc = DateTime.UtcNow.Add(IpPoolTtl);
+        }
+        return pool;
+    }
+
+    private static void InvalidateIpPool()
+    {
+        lock (IpPoolLock)
+        {
+            _ipPool = Array.Empty<string>();
+            _ipPoolExpiresUtc = DateTime.MinValue;
+        }
+    }
+
+    /// <summary>连续 3 次 5xx/超时：立即清空 IP 池，让下一次请求重新解析。</summary>
+    private static void NoteTransportFailure()
+    {
+        if (Interlocked.Increment(ref _transportFailures) < 3) return;
+        Interlocked.Exchange(ref _transportFailures, 0);
+        InvalidateIpPool();
+    }
+
+    private static void NoteTransportSuccess() => Interlocked.Exchange(ref _transportFailures, 0);
 
     private static readonly string[] InvalidLabels = { "人员", "人物", "演员", "主演", "导演", "暂无", "未知", "暂未录入", "更多" };
 
@@ -79,14 +185,16 @@ public class TmdbApiClient : IMovieApiClient
         if (string.IsNullOrWhiteSpace(keyword))
             keyword = DoubanApiClient.ExtractEnglishHint(request.Keyword) ?? request.Keyword.Trim();
 
-        // 配置了 API Key 且有代理时优先使用官方 API（API 在国内被墙，需代理）
-        var proxy = EasyMovie.Core.AppSettings.HttpProxy;
-        if (!string.IsNullOrWhiteSpace(_apiKey) && !string.IsNullOrWhiteSpace(proxy))
+        // 只要配置了 API Key 就走官方 API：直连由 ConnectViaIpPoolAsync 解决 DNS 污染，
+        // 配了代理则由代理建连（两条路径互斥），不再要求「未配置代理才走 API」。
+        if (!string.IsNullOrWhiteSpace(_apiKey))
         {
             var apiResult = await SearchViaApiAsync(keyword, request.PageSize, ct);
             if (apiResult != null) return apiResult;
-            // API 失败时回退到网站爬取
         }
+
+        // 网页抓取路径默认关闭（Cloudflare 403）：方法体保留，仅不再调用。
+        if (!EnableWebScrapingFallback) return new MovieSearchResponse();
 
         // 网站爬取（www.themoviedb.org 在国内可访问）
         try
@@ -169,14 +277,15 @@ public class TmdbApiClient : IMovieApiClient
         if (string.IsNullOrWhiteSpace(externalId))
             return null;
 
-        // 配置了 API Key 且有代理时优先使用官方 API（API 在国内被墙，需代理）
-        var proxy = EasyMovie.Core.AppSettings.HttpProxy;
-        if (!string.IsNullOrWhiteSpace(_apiKey) && !string.IsNullOrWhiteSpace(proxy) && int.TryParse(externalId, out var movieId))
+        // 只要配置了 API Key 就走官方 API（直连/代理由 CreateClient 决定），不再要求配置代理。
+        if (!string.IsNullOrWhiteSpace(_apiKey) && int.TryParse(externalId, out var movieId))
         {
             var apiResult = await FetchDetailFromApiAsync(movieId, ct);
             if (apiResult != null) return apiResult;
-            // API 失败时回退到网站爬取
         }
+
+        // 网页抓取路径默认关闭（Cloudflare 403）：方法体保留，仅不再调用。
+        if (!EnableWebScrapingFallback) return null;
 
         // 网站爬取（www.themoviedb.org 在国内可访问）
         try
@@ -433,6 +542,20 @@ public class TmdbApiClient : IMovieApiClient
             var ratingM = Regex.Match(html, @"class=""user_score_chart""[^>]*data-percent=""([\d.]+)""");
             if (ratingM.Success) rating = double.Parse(ratingM.Groups[1].Value) / 10.0;
 
+            // 类型：详情页 genres 以 <a href="/genre/...">链接呈现，锚文本即类型名。
+            // API 被墙时这条 HTML 路径是 MovieTags 的唯一来源，必须解析。
+            List<string>? genres = null;
+            var genreMatches = Regex.Matches(html, @"<a[^>]*href=""/genre/[^""]*""[^>]*>([^<]{1,20})</a>");
+            if (genreMatches.Count > 0)
+            {
+                var gs = genreMatches.Cast<Match>()
+                    .Select(m => WebUtility.HtmlDecode(m.Groups[1].Value.Trim()))
+                    .Where(s => !string.IsNullOrWhiteSpace(s))
+                    .Distinct()
+                    .ToList();
+                if (gs.Count > 0) genres = gs;
+            }
+
             return new MovieSearchResult
             {
                 Title = title,
@@ -446,7 +569,8 @@ public class TmdbApiClient : IMovieApiClient
                 Runtime = runtime > 0 ? runtime : null,
                 Rating = rating > 0 ? rating : null,
                 ExternalId = externalId,
-                Source = "tmdb"
+                Source = "tmdb",
+                Genres = genres
             };
         }
         catch
@@ -509,9 +633,10 @@ public class TmdbApiClient : IMovieApiClient
                     });
                 }
             }
+                NoteTransportSuccess();
                 return response;
         }
-        catch (Exception ex) { Log.Error(ex, "TMDB 官方 API 搜索失败"); return null; }
+        catch (Exception ex) { Log.Error(ex, "TMDB 官方 API 搜索失败"); NoteTransportFailure(); return null; }
     }
 
     /// <summary>
@@ -548,24 +673,34 @@ public class TmdbApiClient : IMovieApiClient
             }
 
             var country = "";
-            if (root.TryGetProperty("production_countries", out var pcProp) && pcProp.ValueKind == JsonValueKind.Array && pcProp.GetArrayLength() > 0)
+            // 优先 origin_country（ISO-3166-1 alpha-2）：production_countries 在 zh-CN 下仍是英文名。
+            if (root.TryGetProperty("origin_country", out var ocProp) && ocProp.ValueKind == JsonValueKind.Array && ocProp.GetArrayLength() > 0)
+            {
+                var code = ocProp[0].ValueKind == JsonValueKind.String ? ocProp[0].GetString() ?? "" : "";
+                country = CountryNameHelper.FromIso(code);
+            }
+            // 缺失回退：production_countries[].name
+            if (string.IsNullOrEmpty(country) && root.TryGetProperty("production_countries", out var pcProp) && pcProp.ValueKind == JsonValueKind.Array && pcProp.GetArrayLength() > 0)
             {
                 var first = pcProp[0];
                 if (first.TryGetProperty("name", out var cnProp) && cnProp.ValueKind == JsonValueKind.String)
                     country = cnProp.GetString() ?? "";
             }
-            // 兜底：用 origin_country 国家代码映射为中文名
-            if (string.IsNullOrEmpty(country) && root.TryGetProperty("origin_country", out var ocProp) && ocProp.ValueKind == JsonValueKind.Array && ocProp.GetArrayLength() > 0)
+            // 沿用既有归一规则（拆分多国、取第一个合法国别），不在这里另造分类逻辑。
+            country = CountryNameHelper.FirstValid(country) ?? country;
+
+            // 类型（genres）：url 带 language=zh-CN，故 name 直接是中文标签。
+            // 这是 MovieTags 关联的主要来源之一（豆瓣不可达时的替代路径）。
+            List<string>? genres = null;
+            if (root.TryGetProperty("genres", out var gProp) && gProp.ValueKind == JsonValueKind.Array)
             {
-                var code = ocProp[0].GetString() ?? "";
-                country = code switch
-                {
-                    "US" => "美国", "CN" => "中国", "HK" => "中国香港", "TW" => "中国台湾",
-                    "JP" => "日本", "KR" => "韩国", "GB" => "英国", "FR" => "法国",
-                    "DE" => "德国", "IT" => "意大利", "ES" => "西班牙", "CA" => "加拿大",
-                    "AU" => "澳大利亚", "IN" => "印度", "RU" => "俄罗斯", "TH" => "泰国",
-                    _ => ""
-                };
+                var gs = gProp.EnumerateArray()
+                    .Select(g => g.TryGetProperty("name", out var gn) && gn.ValueKind == JsonValueKind.String
+                        ? gn.GetString() ?? "" : "")
+                    .Where(s => !string.IsNullOrWhiteSpace(s))
+                    .Distinct()
+                    .ToList();
+                if (gs.Count > 0) genres = gs;
             }
 
             var directors = new List<string>();
@@ -602,6 +737,9 @@ public class TmdbApiClient : IMovieApiClient
                 }
             }
 
+            NoteTransportSuccess();
+            var originalLanguage = root.TryGetProperty("original_language", out var olProp) && olProp.ValueKind == JsonValueKind.String
+                ? olProp.GetString() : null;
             return new MovieSearchResult
             {
                 Title = title,
@@ -615,9 +753,37 @@ public class TmdbApiClient : IMovieApiClient
                 Runtime = runtime,
                 Rating = rating,
                 ExternalId = movieId.ToString(),
-                Source = "tmdb"
+                Source = "tmdb",
+                OriginalLanguage = originalLanguage,
+                Genres = genres
             };
         }
-        catch (Exception ex) { Log.Error(ex, "TMDB 官方 API 获取详情失败"); return null; }
+        catch (Exception ex) { Log.Error(ex, "TMDB 官方 API 获取详情失败"); NoteTransportFailure(); return null; }
+    }
+
+    /// <summary>
+    /// 拉取 TMDB 别名（alternative_titles）。仅在首轮无合格候选时调用，用于别名兜底；
+    /// 失败返回空列表，不影响主流程。
+    /// </summary>
+    public async Task<IReadOnlyList<string>> GetAlternativeTitlesAsync(string externalId, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(_apiKey) || !int.TryParse(externalId, out var movieId))
+            return Array.Empty<string>();
+        try
+        {
+            var url = $"https://api.themoviedb.org/3/movie/{movieId}/alternative_titles?api_key={Uri.EscapeDataString(_apiKey)}";
+            var json = await _http.GetStringAsync(url, ct);
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            NoteTransportSuccess();
+            if (!root.TryGetProperty("titles", out var titlesProp) || titlesProp.ValueKind != JsonValueKind.Array)
+                return Array.Empty<string>();
+            return titlesProp.EnumerateArray()
+                .Select(t => t.TryGetProperty("title", out var tt) && tt.ValueKind == JsonValueKind.String ? tt.GetString() ?? "" : "")
+                .Where(t => !string.IsNullOrWhiteSpace(t))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+        catch (Exception ex) { Log.Error(ex, "TMDB 别名获取失败"); NoteTransportFailure(); return Array.Empty<string>(); }
     }
 }

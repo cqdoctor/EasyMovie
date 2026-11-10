@@ -191,8 +191,9 @@
     <sys:String x:Key="Backup_Restore">恢复</sys:String>
     <sys:String x:Key="Backup_Delete">删除</sys:String>
     <sys:String x:Key="Backup_Success">备份完成</sys:String>
-    <sys:String x:Key="Backup_ConfirmRestore">确定要恢复此备份吗？当前数据将被替换，恢复后需要重启应用。</sys:String>
+    <sys:String x:Key="Backup_ConfirmRestore">确定要恢复此备份吗？恢复将在下次启动应用时生效，期间请勿启动其它实例。</sys:String>
     <sys:String x:Key="Backup_RestoreSuccess">恢复成功，请重启应用以加载恢复的数据。</sys:String>
+    <sys:String x:Key="Backup_RestorePending">恢复已就绪，将在下次启动应用时生效。请重启应用，并在重启前不要启动其它实例。</sys:String>
 
     <!-- SettingsView -->
     <sys:String x:Key="Settings_Title">⚙️ 系统设置</sys:String>
@@ -321,10 +322,10 @@
     <sys:String x:Key="Shortcuts_Refresh">刷新电影列表</sys:String>
     <sys:String x:Key="Shortcuts_SelectAll">全选当前页</sys:String>
     <sys:String x:Key="Shortcuts_CycleView">切换视图模式</sys:String>
-    <sys:String x:Key="Shortcuts_Nav1">电影库</sys:String>
-    <sys:String x:Key="Shortcuts_Nav2">分类与标签</sys:String>
+    <sys:String x:Key="Shortcuts_Nav1">数据概览</sys:String>
+    <sys:String x:Key="Shortcuts_Nav2">电影库</sys:String>
     <sys:String x:Key="Shortcuts_Nav3">统计面板</sys:String>
-    <sys:String x:Key="Shortcuts_Nav4">观影日历</sys:String>
+    <sys:String x:Key="Shortcuts_Nav4">设置</sys:String>
     <sys:String x:Key="Shortcuts_Help">显示快捷键帮助</sys:String>
     <sys:String x:Key="Shortcuts_ClickToEdit">点击快捷键可重新设置，按 Esc 取消录制</sys:String>
     <sys:String x:Key="Shortcuts_PressKey">按键设置...</sys:String>

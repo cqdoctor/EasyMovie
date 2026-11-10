@@ -193,8 +193,9 @@
     <sys:String x:Key="Backup_Restore">Restore</sys:String>
     <sys:String x:Key="Backup_Delete">Delete</sys:String>
     <sys:String x:Key="Backup_Success">Backup completed</sys:String>
-    <sys:String x:Key="Backup_ConfirmRestore">Are you sure you want to restore this backup? Current data will be replaced. Restart required after restore.</sys:String>
+    <sys:String x:Key="Backup_ConfirmRestore">Are you sure you want to restore this backup? It will take effect on next launch. Do not start another instance before restarting.</sys:String>
     <sys:String x:Key="Backup_RestoreSuccess">Restore successful. Please restart the app to load the restored data.</sys:String>
+    <sys:String x:Key="Backup_RestorePending">Restore is staged and will take effect on next launch. Please restart now and do not start another instance before that.</sys:String>
 
     <!-- SettingsView -->
     <sys:String x:Key="Settings_Title">⚙️ Settings</sys:String>
@@ -323,10 +324,10 @@
     <sys:String x:Key="Shortcuts_Refresh">Refresh movie list</sys:String>
     <sys:String x:Key="Shortcuts_SelectAll">Select all on current page</sys:String>
     <sys:String x:Key="Shortcuts_CycleView">Switch view mode</sys:String>
-    <sys:String x:Key="Shortcuts_Nav1">Movie Library</sys:String>
-    <sys:String x:Key="Shortcuts_Nav2">Categories &amp; Tags</sys:String>
+    <sys:String x:Key="Shortcuts_Nav1">Dashboard</sys:String>
+    <sys:String x:Key="Shortcuts_Nav2">Movie Library</sys:String>
     <sys:String x:Key="Shortcuts_Nav3">Statistics</sys:String>
-    <sys:String x:Key="Shortcuts_Nav4">Watch Calendar</sys:String>
+    <sys:String x:Key="Shortcuts_Nav4">Settings</sys:String>
     <sys:String x:Key="Shortcuts_Help">Show keyboard shortcuts</sys:String>
     <sys:String x:Key="Shortcuts_ClickToEdit">Click a shortcut to reassign. Press Esc to cancel recording.</sys:String>
     <sys:String x:Key="Shortcuts_PressKey">Press key...</sys:String>

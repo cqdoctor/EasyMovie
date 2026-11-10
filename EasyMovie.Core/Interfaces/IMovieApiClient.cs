@@ -19,6 +19,20 @@ public class MovieSearchResult
     public int? RatingCount { get; set; }      // 评分人数
     public string? ExternalId { get; set; }     // 外部 ID（豆瓣或 TMDB）
     public string Source { get; set; } = string.Empty; // "douban" / "tmdb"
+
+    /// <summary>
+    /// TMDB original_language（ISO-639-1，如 "en"/"fr"）。仅用于匹配守卫的软校验，
+    /// 不参与界面展示，也不写回数据库的 Language 字段。
+    /// </summary>
+    public string? OriginalLanguage { get; set; }
+
+    /// <summary>
+    /// 类型/题材标签（豆瓣 genres、TMDB genre_ids 对应的中文名）。
+    /// ⚠️ 这个字段曾经缺席，导致豆瓣/TMDB 明明返回了类型却在解析阶段就无处安放，
+    /// MovieTags 关联恒为 0 行，进而让统计页「类型分布」、推荐算法标签权重、
+    /// 关系图谱、AI 摘要、去重完整度打分五处全部空转。新增解析时务必填它。
+    /// </summary>
+    public List<string>? Genres { get; set; }
 }
 
 /// <summary>

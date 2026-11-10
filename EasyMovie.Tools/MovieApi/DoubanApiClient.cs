@@ -35,6 +35,34 @@ public class DoubanApiClient : IMovieApiClient
     private static int _rateLimitStrikes = 0;
     private static bool InCooldown => DateTime.UtcNow < _cooldownUntil;
 
+    // ===== 搜索门控（IP 级令牌桶）=====
+    // 实测（2026-11-06 只读探测）：豆瓣搜索配额是 IP 维度（换 UA / 删 Cookie 均无效），
+    // rexxar search 的令牌桶容量约 7 次、回补约 1 次/50s；桶空时 rexxar 返回 403 need_login，
+    // 网页搜索返回 200 + error_info="搜索访问太频繁"，且惩罚期可达 15~20 分钟。
+    // 因此这里做三件事：① 每成功 7 次主动休息 60s，尽量不触发门控；
+    // ② 403 时按 20/40/60s 退避重试；③ 连续 3 次仍 403 则暂停搜索 10 分钟，期间直接标记“配额跳过”。
+    private static DateTime _searchSuspendedUntil = DateTime.MinValue;   // 门控暂停：搜索直接跳过，不发请求
+    private static DateTime _searchRestUntil = DateTime.MinValue;        // 令牌桶休息：请求被延迟，但不跳过
+    private static DateTime _gateHoldUntil = DateTime.MinValue;          // 403 退避：所有请求在此时间前排队等待
+    private static DateTime _htmlDisabledUntil = DateTime.MinValue;      // 网页搜索命中配额页后停用 30 分钟
+    private static int _successStreak;                                   // 连续成功次数（达到 7 触发休息）
+    private static int _soft403Streak;                                   // 连续 403 次数（达到 3 触发暂停）
+    private static DateTime _lastSuspendLogUtc = DateTime.MinValue;
+
+    /// <summary>40x 退避阶梯（秒）。公开以便测试置零，避免单测真的等待两分钟。</summary>
+    public static int[] SearchBackoffSeconds = { 20, 40, 60 };
+
+    private const int RestAfterSuccesses = 7;   // 对齐实测令牌桶容量
+    private const int RestSeconds = 60;         // 对齐实测回补速度（约 1 次/50s）
+    private const int SuspendMinutes = 10;      // 连续 3 次 403 后的暂停时长
+    private const int HtmlDisableMinutes = 30;  // 网页搜索配额页惩罚期（实测 ≥18 分钟）
+
+    /// <summary>搜索是否处于门控暂停期。上层据此把该片计入「配额跳过」而非普通失败。</summary>
+    public static bool IsSearchSuspended => DateTime.UtcNow < _searchSuspendedUntil;
+
+    /// <summary>网页搜索路径是否因命中配额页而临时停用。</summary>
+    public static bool IsHtmlSearchDisabled => DateTime.UtcNow < _htmlDisabledUntil;
+
     private static void TriggerCooldown()
     {
         _rateLimitStrikes++;
@@ -55,6 +83,13 @@ public class DoubanApiClient : IMovieApiClient
         {
             _rateLimitStrikes = 0;
             _cooldownUntil = DateTime.MinValue;
+            _searchSuspendedUntil = DateTime.MinValue;
+            _searchRestUntil = DateTime.MinValue;
+            _gateHoldUntil = DateTime.MinValue;
+            _htmlDisabledUntil = DateTime.MinValue;
+            _successStreak = 0;
+            _soft403Streak = 0;
+            _lastSuspendLogUtc = DateTime.MinValue;
         }
     }
 
@@ -122,7 +157,21 @@ public class DoubanApiClient : IMovieApiClient
     private static async Task ThrottleAsync()
     {
         TimeSpan wait;
-        lock (_lock) { var e = DateTime.UtcNow - _lastRequest; wait = TimeSpan.FromMilliseconds(MinIntervalMs) - e; if (wait <= TimeSpan.Zero) { _lastRequest = DateTime.UtcNow; return; } _lastRequest = DateTime.UtcNow.Add(wait); }
+        lock (_lock)
+        {
+            var now = DateTime.UtcNow;
+            var next = now;
+            // ① 基础间隔：任意两次豆瓣请求至少相隔 MinIntervalMs
+            var gap = TimeSpan.FromMilliseconds(MinIntervalMs) - (now - _lastRequest);
+            if (gap > TimeSpan.Zero) next = now.Add(gap);
+            // ② 令牌桶休息（每成功 7 次歇 60s）：这里的请求只是被推迟，不会被跳过
+            if (_searchRestUntil > next) next = _searchRestUntil;
+            // ③ 403 退避：退避期内所有请求统一排队，避免多个并发调用绕过退避继续打
+            if (_gateHoldUntil > next) next = _gateHoldUntil;
+            _lastRequest = next;
+            wait = next - now;
+            if (wait <= TimeSpan.Zero) return;
+        }
         await Task.Delay(wait);
     }
 
@@ -163,7 +212,7 @@ public class DoubanApiClient : IMovieApiClient
     /// <summary>
     /// 是否为「软限流」：单次请求被随机拒绝，但账号/IP 并未被封。
     /// 判据：403/401 状态码，或响应体含 need_login / code 103。
-    /// 软限流不触发冷却，改由网页搜索兜底路径补救。
+    /// 软限流不触发冷却；rexxar 侧按退避阶梯重试，网页搜索侧交由兜底路径处理。
     /// </summary>
     private static bool IsSoftThrottle(HttpStatusCode status, string body)
     {
@@ -427,15 +476,29 @@ public class DoubanApiClient : IMovieApiClient
         if (InCooldown) return new MovieSearchResponse();
         LastSearchQuotaExceeded = false;   // 每次搜索重算，避免上一次的标记污染本次判定
 
+        // 搜索门控暂停期（连续 403 后）：不再发请求，直接标记配额跳过。
+        // 上层据此把该片计入「配额跳过」而不是普通失败，避免把惩罚期越拖越长。
+        if (IsSearchSuspended)
+        {
+            LastSearchQuotaExceeded = true;
+            var now = DateTime.UtcNow;
+            if ((now - _lastSuspendLogUtc).TotalMinutes >= 1)
+            {
+                _lastSuspendLogUtc = now;
+                Log.Warning("豆瓣搜索处于 IP 门控暂停期，剩余 {Seconds}s：跳过 {Keyword}",
+                    Math.Max(0, (int)(_searchSuspendedUntil - now).TotalSeconds), req.Keyword);
+            }
+            return new MovieSearchResponse();
+        }
+
         var keyword = CleanSearchTitle(req.Keyword);
         if (string.IsNullOrWhiteSpace(keyword)) keyword = req.Keyword;
 
         // 关键词分工（修复英文名影片匹配缺口 #豆瓣补全）：
         //   · 混合标题（中+英，如「困兽Death Stranding」「唐探1900Detective Chinatown」）：
-        //     用【完整关键词】作主查询。完整词含英文，配合网页搜索（结果带 OriginalTitle）
-        //     才能让 PickBestMatch 走英文校验分支命中；若网页搜索无候选，再用【中文核心】兜底。
-        //   · 纯中文标题：用原样（rexxar 命中率高）；rexxar 的 OriginalTitle 恒为 null 不影响中文校验。
-        //   注：SearchOnceAsync 内部对含拉丁字母的关键词优先走网页搜索，天然契合上述分工。
+        //     用【完整关键词】作主查询，命中后由 PickBestMatch 走英文鉴别分支。
+        //   · 纯中文标题：用原样（rexxar 命中率高）。
+        //   搜索顺序为 rexxar 优先（实测带 Referer 可用，令牌桶容量约 7），网页搜索仅作请求级失败兜底。
         var primary = keyword;
         string? fallback = null;
         if (SearchKeywordPurifier.TryExtractChineseCore(keyword, out var core))
@@ -463,94 +526,167 @@ public class DoubanApiClient : IMovieApiClient
     }
 
     /// <summary>
-    /// 单次查询：按关键词形态选择主路径——
-    ///   · 含拉丁字母（英文名影片）：rexxar 返回的 OriginalTitle 恒为 null，
-    ///     导致 PickBestMatch 无法按英文名校验，且网页搜索在同窗口更宽容、字段更全
-    ///     （含原名/导演/主演）→ <b>优先走网页搜索</b>，失败再回退 rexxar。
-    ///   · 纯中文：rexxar 优先（干净 JSON、命中率高），失败兜底网页搜索。
-    /// 两条路径返回 (结果集, 是否命中硬封禁)。
+    /// 单次查询：<b>rexxar 优先、网页搜索兜底</b>。
+    /// 实测（2026-11-06）：rexxar 带 <c>Referer: https://m.douban.com/</c> 可用（缺 Referer 会 400
+    /// <c>invalid_request_1284</c>），配额是 IP 维度的令牌桶；网页搜索是最差路径（每次都打配额、惩罚期 15~20 分钟），
+    /// 因此只在 rexxar 请求级失败时兜底一次，命中配额页后再停用 30 分钟。
+    /// 返回 (结果集, 是否命中硬封禁)。
     /// </summary>
     private async Task<(List<MovieSearchResult> results, bool hardBan)> SearchOnceAsync(
         string keyword, int pageSize, CancellationToken ct)
     {
-        if (ContainsLatin(keyword))
+        // 门控暂停期（连续 403 后）：不再发任何请求，直接标记配额跳过，交由上层统计。
+        if (IsSearchSuspended)
         {
-            // 英文名影片：网页搜索优先（字段更全，且对这类片名更宽容）
-            var html = await TryHtmlSearchAsync(keyword, pageSize, ct);
-            if (html.ok) return (html.results.Take(pageSize).ToList(), false);
-            if (html.hardBan) return (new List<MovieSearchResult>(), true);
-
-            // 网页搜索软失败 → rexxar 兜底（rexxar 偶尔能命中而网页被限）
-            var rexxar = await TryRexxarSearchAsync(keyword, pageSize, ct);
-            if (rexxar.ok) return (rexxar.results.Take(pageSize).ToList(), false);
-            if (rexxar.hardBan) return (new List<MovieSearchResult>(), true);
+            LastSearchQuotaExceeded = true;
             return (new List<MovieSearchResult>(), false);
         }
 
-        // 纯中文：rexxar 优先
-        var r = await TryRexxarSearchAsync(keyword, pageSize, ct);
-        if (r.ok) return (r.results.Take(pageSize).ToList(), false);
-        if (r.hardBan) return (new List<MovieSearchResult>(), true);
+        var rexxar = await TryRexxarSearchAsync(keyword, pageSize, ct);
+        if (rexxar.ok) return (rexxar.results.Take(pageSize).ToList(), false);
+        if (rexxar.hardBan) return (new List<MovieSearchResult>(), true);
+        // rexxar 请求成功（200）但 items=[]：豆瓣确实没收录，不必再打网页搜索。
+        if (!rexxar.requestFailed) return (new List<MovieSearchResult>(), false);
+        // 连续 403 已触发暂停：此时打网页搜索只会延长惩罚期，直接跳过。
+        if (IsSearchSuspended) return (new List<MovieSearchResult>(), false);
 
-        // 路径 2：网页搜索页兜底。rexxar 的概率性 403（need_login）与「无结果」都走这里。
-        // 实测该路径字段更全（评分/原名/片长/国别/导演/主演）且在同一时间窗内更宽容，
-        // 是 rexxar 被限流时唯一能拿到数据的通道。
-        var h = await TryHtmlSearchAsync(keyword, pageSize, ct);
-        if (h.ok)
+        // 网页搜索仅作请求级失败兜底；命中配额页后的 30 分钟内不再使用这条路径。
+        if (IsHtmlSearchDisabled)
         {
-            Log.Information("豆瓣 rexxar 未命中，已由网页搜索兜底：{Keyword}", keyword);
-            return (h.results.Take(pageSize).ToList(), false);
+            Log.Information("豆瓣网页搜索处于停用期（此前命中配额页），跳过兜底：{Keyword}", keyword);
+            return (new List<MovieSearchResult>(), false);
         }
-        return (new List<MovieSearchResult>(), h.hardBan);
+
+        var html = await TryHtmlSearchAsync(keyword, pageSize, ct);
+        if (html.ok)
+        {
+            Log.Information("豆瓣 rexxar 请求级失败，已回退网页搜索：{Keyword}", keyword);
+            return (html.results.Take(pageSize).ToList(), false);
+        }
+        if (html.hardBan) return (new List<MovieSearchResult>(), true);
+        return (new List<MovieSearchResult>(), false);
     }
 
-    /// <summary>关键词是否含拉丁字母（英文名影片判定）。</summary>
-    private static bool ContainsLatin(string s)
-    {
-        if (string.IsNullOrWhiteSpace(s)) return false;
-        foreach (var c in s)
-            if (c is >= 'a' and <= 'z' or >= 'A' and <= 'Z') return true;
-        return false;
-    }
-
-    /// <summary>路径 1：rexxar 移动端搜索。返回 (是否拿到数据, 是否硬封禁, 结果集)。</summary>
-    private async Task<(bool ok, bool hardBan, List<MovieSearchResult> results)> TryRexxarSearchAsync(
+    /// <summary>
+    /// 主路径：rexxar 移动端搜索。
+    /// 403/401 实测为 <b>IP 维度令牌桶耗尽</b>（换 UA、删 Cookie 均无效），不是鉴权失败，
+    /// 因此按 <see cref="SearchBackoffSeconds"/> 阶梯退避重试；连续 3 次 403 则暂停搜索 10 分钟。
+    /// 返回 (是否拿到有效响应, 是否硬封禁, 是否请求级失败, 结果集)：
+    /// <c>requestFailed=false</c> 且 <c>ok=true</c> 表示「200 但无收录」，是确定无结果，不需要兜底。
+    /// </summary>
+    private async Task<(bool ok, bool hardBan, bool requestFailed, List<MovieSearchResult> results)> TryRexxarSearchAsync(
         string keyword, int pageSize, CancellationToken ct)
     {
-        try
+        if (IsSearchSuspended) return (false, false, true, new List<MovieSearchResult>());
+        ResetSuspensionIfExpired();
+        for (;;)
         {
-            await ThrottleAsync();
-            var url = "https://m.douban.com/rexxar/api/v2/search?type=movie&q=" + Uri.EscapeDataString(keyword);
-            using var req = CreateRequest(url, html: false);
-            using var resp = await _http.SendAsync(req, ct);
-            if (IsRedirectToInterstitial(resp, out var loc))
+            // 暂停要立刻对所有并发任务生效，否则它们会继续打完退避阶梯、把暂停计时无限续期。
+            if (IsSearchSuspended) return (false, false, true, new List<MovieSearchResult>());
+            try
             {
-                Log.Warning("豆瓣 rexxar 搜索被重定向到风控页：{Loc}", loc);
-                return (false, true, new List<MovieSearchResult>());
-            }
-            var body = await resp.Content.ReadAsStringAsync(ct);
-            // 概率性 403 need_login：软失败，交给网页搜索兜底，绝不进冷却。
-            if (IsSoftThrottle(resp.StatusCode, body)) return (false, false, new List<MovieSearchResult>());
-            // 其它非 2xx / 风控页 / 登录页(HTML) → 硬封禁
-            if (!resp.IsSuccessStatusCode || ContainsBanSignal(body) || body.TrimStart().StartsWith("<"))
-                return (false, true, new List<MovieSearchResult>());
+                await ThrottleAsync();
+                var url = "https://m.douban.com/rexxar/api/v2/search?type=movie&q=" + Uri.EscapeDataString(keyword);
+                using var req = CreateRequest(url, html: false);   // 内含 Referer: https://m.douban.com/
+                using var resp = await _http.SendAsync(req, ct);
+                if (IsRedirectToInterstitial(resp, out var loc))
+                {
+                    Log.Warning("豆瓣 rexxar 搜索被重定向到风控页：{Loc}", loc);
+                    return (false, true, false, new List<MovieSearchResult>());
+                }
 
-            var results = ParseRexxarSearch(body);
-            // 空结果不是封禁（片子确实没收录），但不算命中——交给兜底路径再用网页搜索确认一次
-            if (results.Count == 0) return (false, false, new List<MovieSearchResult>());
-            return (true, false, results.Take(pageSize).ToList());
-        }
-        catch (Exception ex)
-        {
-            Log.Error(ex, "豆瓣 rexxar 搜索失败");
-            return (false, false, new List<MovieSearchResult>());   // 网络异常按软失败处理，交由兜底
+                var body = await resp.Content.ReadAsStringAsync(ct);
+                if (IsSoftThrottle(resp.StatusCode, body))
+                {
+                    _soft403Streak++;
+                    if (_soft403Streak >= SearchBackoffSeconds.Length)
+                    {
+                        SuspendSearch();
+                        return (false, false, true, new List<MovieSearchResult>());
+                    }
+                    var delaySec = SearchBackoffSeconds[Math.Clamp(_soft403Streak - 1, 0, SearchBackoffSeconds.Length - 1)];
+                    lock (_lock) { _gateHoldUntil = DateTime.UtcNow.AddSeconds(delaySec); }
+                    Log.Warning("豆瓣 rexxar 搜索 403：判定为 IP 搜索门控（与 Cookie/鉴权无关），{Delay}s 后重试（连续第 {Streak} 次）",
+                        delaySec, _soft403Streak);
+                    if (delaySec > 0) await Task.Delay(TimeSpan.FromSeconds(delaySec), ct);
+                    continue;
+                }
+
+                // 风控页 / 登录页(HTML) → 硬封禁；其它非 2xx（5xx、404 等）只是请求级失败，走网页搜索兜底
+                if (ContainsBanSignal(body) || body.TrimStart().StartsWith("<"))
+                    return (false, true, false, new List<MovieSearchResult>());
+                if (!resp.IsSuccessStatusCode)
+                    return (false, false, true, new List<MovieSearchResult>());
+
+                var results = ParseRexxarSearch(body);
+                MarkSearchSuccess();
+                // 200 + items=[] 是「确实没收录」，不是请求级失败——不回退网页搜索。
+                return (true, false, false, results.Take(pageSize).ToList());
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "豆瓣 rexxar 搜索失败");
+                return (false, false, true, new List<MovieSearchResult>());   // 网络异常按请求级失败处理，交由网页搜索兜底
+            }
         }
     }
 
-    /// <summary>路径 2：网页搜索页（movie.douban.com/subject_search）解析 window.__DATA__。</summary>
-    private async Task<(bool ok, bool hardBan, List<MovieSearchResult> results)> TryHtmlSearchAsync(
+    /// <summary>一次搜索成功：重置 403 连击；连续成功 7 次后主动休息 60s（对齐令牌桶容量 7、回补约 1 次/50s）。</summary>
+    private static void MarkSearchSuccess()
+    {
+        _soft403Streak = 0;
+        if (++_successStreak < RestAfterSuccesses) return;
+        _successStreak = 0;
+        lock (_lock) { _searchRestUntil = DateTime.UtcNow.AddSeconds(RestSeconds); }
+        Log.Information("豆瓣搜索已连续成功 {Count} 次，主动休息 {Seconds}s（对齐令牌桶容量）", RestAfterSuccesses, RestSeconds);
+    }
+
+    /// <summary>暂停到期后清空连击，让下一轮重新获得完整的退避阶梯。</summary>
+    private static void ResetSuspensionIfExpired()
+    {
+        if (_searchSuspendedUntil == DateTime.MinValue || DateTime.UtcNow < _searchSuspendedUntil) return;
+        lock (_lock)
+        {
+            if (DateTime.UtcNow < _searchSuspendedUntil) return;
+            _searchSuspendedUntil = DateTime.MinValue;
+            _soft403Streak = 0;
+            _successStreak = 0;
+        }
+    }
+
+    /// <summary>连续 403 达到阈值：暂停本轮搜索 10 分钟（内存态，不落盘）。</summary>
+    private static void SuspendSearch()
+    {
+        lock (_lock)
+        {
+            // 已在暂停期：不重复计时、不重复打日志（并发任务会同时命中这里）。
+            if (DateTime.UtcNow < _searchSuspendedUntil) return;
+            _searchSuspendedUntil = DateTime.UtcNow.AddMinutes(SuspendMinutes);
+            _successStreak = 0;
+            _gateHoldUntil = DateTime.MinValue;
+            // 注意：不重置 _soft403Streak，否则其余在途任务会重新攒满 3 次并把暂停期无限延长。
+        }
+        LastSearchQuotaExceeded = true;   // 上层据此把该片计入「配额跳过」而非「未收录」
+        _lastSuspendLogUtc = DateTime.MinValue;
+        Log.Warning("豆瓣 rexxar 连续 {Count} 次 403：判定为 IP 搜索门控（与 Cookie/鉴权无关，网页搜索同样受限），本轮搜索停用 {Minutes} 分钟",
+            SearchBackoffSeconds.Length, SuspendMinutes);
+    }
+
+    /// <summary>
+    /// 路径 1：网页搜索页（movie.douban.com/subject_search）解析 window.__DATA__。
+    /// <c>requestFailed</c> 用于区分「请求成功但确实没有收录（200 + items=[]）」与
+    /// 「请求级失败（异常/非 200/3xx/软 403）」：前者是确定无结果，后者才值得回退 rexxar。
+    /// </summary>
+    private async Task<(bool ok, bool hardBan, bool requestFailed, List<MovieSearchResult> results)> TryHtmlSearchAsync(
         string keyword, int pageSize, CancellationToken ct)
     {
+        // 搜索已被门控暂停、或网页路径已命中配额页：一律不再发请求（排队等待也只会延长惩罚期）。
+        if (IsSearchSuspended || IsHtmlSearchDisabled)
+            return (false, false, true, new List<MovieSearchResult>());
         try
         {
             await ThrottleAsync();
@@ -560,34 +696,38 @@ public class DoubanApiClient : IMovieApiClient
             if (IsRedirectToInterstitial(resp, out var loc))
             {
                 Log.Warning("豆瓣网页搜索被重定向到风控页：{Loc}", loc);
-                return (false, true, new List<MovieSearchResult>());
+                return (false, true, false, new List<MovieSearchResult>());
             }
-            // 非风控类跳转（如 subject_search → movie/subject_search）无法取到数据，按软失败
+            // 非风控类跳转（如 subject_search → movie/subject_search）无法取到数据，按请求级失败
             if ((int)resp.StatusCode >= 300 && (int)resp.StatusCode < 400)
-                return (false, false, new List<MovieSearchResult>());
+                return (false, false, true, new List<MovieSearchResult>());
 
             var body = await resp.Content.ReadAsStringAsync(ct);
-            // 概率性 403 need_login（code 103）按软限流处理（与 rexxar 对齐）：不进冷却、交由上层重试/兜底，
+            // 概率性 403 need_login（code 103）按软限流处理（与 rexxar 对齐）：不进冷却、交由上层兜底，
             // 否则拉丁关键词走网页搜索优先时会把瞬时拒绝误判为硬封禁而直接停 run（典型的“被方差劝退”）。
-            if (IsSoftThrottle(resp.StatusCode, body)) return (false, false, new List<MovieSearchResult>());
+            if (IsSoftThrottle(resp.StatusCode, body)) return (false, false, true, new List<MovieSearchResult>());
             if (!resp.IsSuccessStatusCode || ContainsBanSignal(body))
-                return (false, true, new List<MovieSearchResult>());
+                return (false, true, false, new List<MovieSearchResult>());
 
             var results = DoubanHtmlSearchParser.Parse(body);
             // 配额软限流（HTTP 200 + error_info="搜索访问太频繁" + items=[]）：不是「豆瓣没收录」，
             // 标记后交由上层提前停止 run，避免把剩余配额全耗在必然为空的请求上。
+            // 网页搜索一旦命中配额页，30 分钟内不再走这条路径（实测惩罚期 ≥18 分钟，继续打只会延长）。
             if (results.Count == 0 && IsSearchQuotaExceeded(body))
             {
                 LastSearchQuotaExceeded = true;
-                Log.Warning("豆瓣网页搜索命中配额软限流（搜索访问太频繁）：{Keyword}", keyword);
+                lock (_lock) { _htmlDisabledUntil = DateTime.UtcNow.AddMinutes(HtmlDisableMinutes); }
+                Log.Warning("豆瓣网页搜索命中配额软限流（搜索访问太频繁）：{Keyword}；网页搜索路径停用 {Minutes} 分钟",
+                    keyword, HtmlDisableMinutes);
             }
-            if (results.Count == 0) return (false, false, new List<MovieSearchResult>());
-            return (true, false, results.Take(pageSize).ToList());
+            if (results.Count == 0) return (false, false, false, new List<MovieSearchResult>());
+            MarkSearchSuccess();
+            return (true, false, false, results.Take(pageSize).ToList());
         }
         catch (Exception ex)
         {
-            Log.Error(ex, "豆瓣网页搜索兜底失败");
-            return (false, false, new List<MovieSearchResult>());
+            Log.Error(ex, "豆瓣网页搜索失败");
+            return (false, false, true, new List<MovieSearchResult>());
         }
     }
 
@@ -679,12 +819,21 @@ public class DoubanApiClient : IMovieApiClient
                     else if (y.ValueKind == JsonValueKind.String && int.TryParse(y.GetString(), out var yi)) year = yi;
                 }
                 // card_subtitle 形如 "中国大陆 / 科幻 / 郭帆 / 吴京 屈楚萧"，取导演(第3段)与主演(第4段)
-                string? director = null; string? cast = null;
+                // 第 2 段是类型，顺带取出——搜索阶段就有 genres，调用方不必等详情端点。
+                string? director = null; string? cast = null; List<string>? genres = null;
                 if (t.TryGetProperty("card_subtitle", out var s) && s.ValueKind == JsonValueKind.String)
                 {
                     var parts = s.GetString()!.Split('/').Select(p => p.Trim()).ToArray();
                     if (parts.Length >= 3) director = parts[2];
                     if (parts.Length >= 4) cast = parts[3];
+                    // 第 1 段是国别、第 2 段是类型：形态为"中文纯词"且不含年份/时长噪声。
+                    // 只取恰好一段，避免"中国大陆 科幻 悬疑"这种多段合并的情况误判。
+                    if (parts.Length >= 2)
+                    {
+                        var g = parts[1];
+                        if (g.Length is >= 2 and <= 6 && g.All(c => char.IsLetterOrDigit(c) || c == '·'))
+                            genres = new List<string> { g };
+                    }
                 }
 
                 results.Add(new MovieSearchResult
@@ -699,7 +848,8 @@ public class DoubanApiClient : IMovieApiClient
                     PosterUrl = cover,
                     Runtime = null,
                     ExternalId = id,
-                    Source = "douban"
+                    Source = "douban",
+                    Genres = genres
                 });
             }
         }
@@ -765,6 +915,18 @@ public class DoubanApiClient : IMovieApiClient
 
             if (root.TryGetProperty("countries", out var ctry) && ctry.ValueKind == JsonValueKind.Array)
                 r.Country = string.Join(", ", ctry.EnumerateArray().Select(c => c.GetString() ?? "").Where(s => !string.IsNullOrWhiteSpace(s)));
+
+            // 类型（genres）：MovieTags 关联的全部来源。以前这个字段被整体丢弃，
+            // 导致统计页「类型分布」恒空、推荐算法退化为只按国家/导演打分。
+            if (root.TryGetProperty("genres", out var genres) && genres.ValueKind == JsonValueKind.Array)
+            {
+                var gs = genres.EnumerateArray()
+                    .Select(g => g.GetString() ?? "")
+                    .Where(s => !string.IsNullOrWhiteSpace(s))
+                    .Distinct()
+                    .ToList();
+                if (gs.Count > 0) r.Genres = gs;
+            }
 
             if (root.TryGetProperty("languages", out var lang) && lang.ValueKind == JsonValueKind.Array)
                 r.Language = string.Join(", ", lang.EnumerateArray().Select(c => c.GetString() ?? "").Where(s => !string.IsNullOrWhiteSpace(s)));

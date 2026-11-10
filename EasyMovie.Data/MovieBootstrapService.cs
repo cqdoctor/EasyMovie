@@ -233,10 +233,7 @@ public class MovieBootstrapService
 
         foreach (var row in uncat)
         {
-            var firstCountry = row.Country!
-                .Split('/', '·')
-                .FirstOrDefault(c => CategoryNameValidator.IsValidCategoryName(c.Trim()))
-                ?.Trim();
+            var firstCountry = CountryNameHelper.FirstValid(row.Country);
             if (string.IsNullOrEmpty(firstCountry)
                 || !CategoryNameValidator.IsValidCategoryName(firstCountry)) continue;
 

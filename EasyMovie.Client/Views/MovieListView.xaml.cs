@@ -51,6 +51,7 @@ public partial class MovieListView : UserControl
     private bool _isSearching;
     private bool _quickFilterFavorites;
     private bool _quickFilterWatchlist;
+    private bool _isFetchingAll; // 批量抓取期间跳过可见性触发的列表刷新，避免与 _context 并发
 
     public MovieListView(MainWindow? mainWindow = null)
     {
@@ -89,7 +90,7 @@ public partial class MovieListView : UserControl
         // 每次进入页面刷新当前列表（PreWarm 预热后 Loaded 只触发一次，看完电影/改状态/加片后回来自动更新）
         IsVisibleChanged += (s, e) =>
         {
-            if (IsVisible && !_isFirstLoad) _ = RefreshMoviesAsync();
+            if (IsVisible && !_isFirstLoad && !_isFetchingAll) _ = RefreshMoviesAsync();
         };
     }
 
@@ -1021,7 +1022,7 @@ public partial class MovieListView : UserControl
 
                 if (!string.IsNullOrEmpty(info.Country) && !m.CategoryId.HasValue)
                 {
-                    var firstCountry = info.Country.Split('/', '·').FirstOrDefault(c => CategoryNameValidator.IsValidCategoryName(c.Trim()))?.Trim();
+                    var firstCountry = CountryNameHelper.FirstValid(info.Country);
                     if (!string.IsNullOrEmpty(firstCountry) && CategoryNameValidator.IsValidCategoryName(firstCountry))
                     {
                         try { var category = await _categoryService.GetOrCreateByNameAsync(firstCountry); m.CategoryId = category.Id; } catch (Exception ex) { Log.Error(ex, "MovieListView 操作异常"); }
@@ -1347,7 +1348,7 @@ public partial class MovieListView : UserControl
                 if (!string.IsNullOrEmpty(info.Country))
                 {
                     // 按分隔符拆分国家，但不按空格拆分（英文国名如"United States of America"含空格）
-                    var firstCountry = info.Country.Split('/', '·').FirstOrDefault(c => CategoryNameValidator.IsValidCategoryName(c.Trim()))?.Trim();
+                    var firstCountry = CountryNameHelper.FirstValid(info.Country);
                     if (!string.IsNullOrEmpty(firstCountry) && CategoryNameValidator.IsValidCategoryName(firstCountry))
                     {
                         try
@@ -1380,6 +1381,10 @@ public partial class MovieListView : UserControl
 
     private async void FetchAll_Click(object sender, RoutedEventArgs e)
     {
+        _isFetchingAll = true;
+        var fetchBtn = sender as Button;
+        try
+        {
         var cookie = EasyMovie.Core.AppSettings.DoubanCookie;
         var tmdbKey = EasyMovie.Core.AppSettings.TmdbApiKey;
 
@@ -1391,13 +1396,14 @@ public partial class MovieListView : UserControl
         if (needFetch.Count == 0) { AppMessageBox.ShowInfo("所有电影已有信息"); return; }
 
         _mainWindow?.SetStatus($"正在搜索 {needFetch.Count} 部电影，请稍候...", true);
-        var fetchBtn = sender as Button;
         if (fetchBtn != null) fetchBtn.IsEnabled = false;
 
         var done = 0;
         var failed = 0;
+        var quotaSkipped = 0;   // 豆瓣搜索门控暂停期间被跳过的（不是「未收录」，稍后可重试）
         var updatedMovies = new List<Movie>();
         var updateLock = new object();
+        var pendingCategoryNames = new Dictionary<int, string>();
 
         // 配置了豆瓣 Cookie 时中文电影会走豆瓣（500ms 限流），并发不宜过高；否则 TMDB 可高并发
         var semaphore = new SemaphoreSlim(string.IsNullOrEmpty(cookie) ? 10 : 3);
@@ -1409,8 +1415,11 @@ public partial class MovieListView : UserControl
         {
             var d = Volatile.Read(ref done);
             var f = Volatile.Read(ref failed);
+            var q = Volatile.Read(ref quotaSkipped);
             _mainWindow?.Dispatcher.BeginInvoke(() =>
-                _mainWindow?.SetStatus($"已获取 {d}/{total} (失败{f})...", true));
+                _mainWindow?.SetStatus(q > 0
+                    ? $"已获取 {d}/{total} (失败{f}，配额跳过{q})..."
+                    : $"已获取 {d}/{total} (失败{f})...", true));
         };
         progressTimer.Start();
 
@@ -1423,34 +1432,33 @@ public partial class MovieListView : UserControl
             {
                 var kw = DoubanApiClient.ExtractChineseKeyword(m.Title);
                 var engHint = DoubanApiClient.ExtractEnglishHint(m.Title);
-                var hasChinese = !string.IsNullOrEmpty(kw);
                 var hasCookie = !string.IsNullOrEmpty(cookie);
 
-                // 有中文的标题：豆瓣为默认，搜索不到再 TMDB
-                if (hasChinese && hasCookie)
+                // 1) 已有豆瓣 ID：优先用 rexxar detail 端点补齐（该端点不受搜索配额限制）
+                if (!string.IsNullOrEmpty(m.DoubanId))
                 {
                     try
                     {
                         var douban = new DoubanApiClient();
-                        info = await TryFetchFromDoubanAsync(douban, m, engHint);
+                        info = await douban.GetDetailAsync(m.DoubanId);
                         if (info != null) source = "douban";
                     }
                     catch (Exception ex) { Log.Error(ex, "MovieListView 操作异常"); }
                 }
 
-                // 无中文或豆瓣无结果：走 TMDB
+                // 2) TMDB 主源（含匹配守卫）
                 if (info == null)
                 {
                     try
                     {
                         var tmdb = new TmdbApiClient(tmdbKey ?? "");
-                        info = await TryFetchFromTmdbAsync(tmdb, engHint, kw, m.Title);
+                        info = await TryFetchFromTmdbAsync(tmdb, m, engHint, kw);
                         if (info != null) source = "tmdb";
                     }
                     catch (Exception ex) { Log.Error(ex, "MovieListView 操作异常"); }
                 }
 
-                // 最终兜底：TMDB 失败且有 Cookie 时，再试一次豆瓣
+                // 3) 豆瓣搜索兜底（TMDB 无结果或守卫不通过；搜索门控期间内部直接跳过）
                 if (info == null && hasCookie)
                 {
                     try
@@ -1465,7 +1473,13 @@ public partial class MovieListView : UserControl
             catch (Exception ex) { Log.Error(ex, "MovieListView 操作异常"); }
             finally { semaphore.Release(); }
 
-            if (info == null) { Interlocked.Increment(ref failed); return; }
+            if (info == null)
+            {
+                // 豆瓣处于 IP 门控暂停期：该片是「配额跳过」而非「未收录」，需要区分统计。
+                if (DoubanApiClient.IsSearchSuspended) Interlocked.Increment(ref quotaSkipped);
+                else Interlocked.Increment(ref failed);
+                return;
+            }
 
             // 清理 Synopsis 中的 HTML 标签
             if (!string.IsNullOrEmpty(info.Synopsis))
@@ -1503,15 +1517,11 @@ public partial class MovieListView : UserControl
 
             if (!string.IsNullOrEmpty(info.Country) && !m.CategoryId.HasValue)
             {
-                var firstCountry = info.Country.Split('/', '·').FirstOrDefault(c => CategoryNameValidator.IsValidCategoryName(c.Trim()))?.Trim();
+                var firstCountry = CountryNameHelper.FirstValid(info.Country);
                 if (!string.IsNullOrEmpty(firstCountry) && CategoryNameValidator.IsValidCategoryName(firstCountry))
                 {
-                    try
-                    {
-                        var category = await _categoryService.GetOrCreateByNameAsync(firstCountry);
-                        m.CategoryId = category.Id;
-                    }
-                    catch (Exception ex) { Log.Error(ex, "MovieListView 操作异常"); }
+                    // 并发阶段只记录国家名，写库统一放到 WhenAll 之后串行执行
+                    lock (updateLock) { pendingCategoryNames[m.Id] = firstCountry; }
                 }
             }
 
@@ -1521,6 +1531,29 @@ public partial class MovieListView : UserControl
 
         await Task.WhenAll(tasks);
         progressTimer.Stop();
+
+        // 串行解析去重后的国家名：并发阶段不碰数据库，避免 DbContext 并发与同名分类重复创建
+        if (pendingCategoryNames.Count > 0)
+        {
+            var categoryIdByName = new Dictionary<string, int>(StringComparer.Ordinal);
+            foreach (var name in pendingCategoryNames.Values.Distinct())
+            {
+                try
+                {
+                    var category = await _categoryService.GetOrCreateByNameAsync(name);
+                    categoryIdByName[name] = category.Id;
+                }
+                catch (Exception ex) { Log.Error(ex, $"批量分类创建失败: {name}"); }
+            }
+            foreach (var movie in updatedMovies)
+            {
+                if (pendingCategoryNames.TryGetValue(movie.Id, out var countryName) &&
+                    categoryIdByName.TryGetValue(countryName, out var resolvedCategoryId))
+                {
+                    movie.CategoryId = resolvedCategoryId;
+                }
+            }
+        }
 
         if (updatedMovies.Count > 0)
         {
@@ -1549,10 +1582,17 @@ public partial class MovieListView : UserControl
             await ctx.SaveChangesAsync();
         }
 
-        if (fetchBtn != null) fetchBtn.IsEnabled = true;
-        _mainWindow?.SetStatus($"获取完成: {done} 成功, {failed} 失败", false);
+        _mainWindow?.SetStatus(quotaSkipped > 0
+            ? $"获取完成: {done} 成功, {failed} 失败, {quotaSkipped} 配额跳过（豆瓣搜索门控，稍后重试）"
+            : $"获取完成: {done} 成功, {failed} 失败", false);
         await LoadMoviesAsync();
         await RefreshCategoryFilterAsync();
+        }
+        finally
+        {
+            _isFetchingAll = false;
+            if (fetchBtn != null) fetchBtn.IsEnabled = true;
+        }
     }
 
     
@@ -1599,51 +1639,132 @@ public partial class MovieListView : UserControl
         catch (Exception ex) { Log.Error(ex, "TMDB 获取详情失败"); return null; }
     }
 
-    private static async Task<MovieSearchResult?> TryFetchFromTmdbAsync(TmdbApiClient tmdb, string? engHint, string? kw, string title)
+    private static async Task<MovieSearchResult?> TryFetchFromTmdbAsync(TmdbApiClient tmdb, Movie m, string? engHint, string? kw)
     {
+        var rejections = new List<MovieTitleMatcher.Rejected>();
         try
         {
             var queries = new List<string>();
             if (!string.IsNullOrEmpty(engHint)) queries.Add(engHint);
             if (!string.IsNullOrEmpty(kw) && kw != engHint) queries.Add(kw);
-            if (queries.Count == 0) queries.Add(title);
+            if (queries.Count == 0) queries.Add(m.Title);
 
             foreach (var q in queries)
             {
                 var sr = await tmdb.SearchAsync(new MovieSearchRequest { Keyword = q, Page = 1, PageSize = 10 });
                 if (sr.Results.Count == 0) continue;
 
-                MovieSearchResult? best = null;
+                // 第一轮：标题/原名打分（阈值 0.60）。「包含关系且同年」仍需片长/导演/主演佐证；
+                // 精确标题命中再做导演/原语言软校验，挡住同名不同片（Id 76《指尖》）。
+                var ranked = MovieTitleMatcher.Rank(sr.Results, m.Title, m.Year, 10, null, rejections);
+                var picked = await TryPickFromRankedAsync(tmdb, m, ranked, rejections);
+                if (picked != null) { LogTmdbGuard(m, rejections, true); return picked; }
 
-                // 1. 优先完全匹配 title 或 originalTitle
-                var exactMatches = sr.Results.Where(r =>
-                    (!string.IsNullOrEmpty(r.Title) && r.Title.Equals(q, StringComparison.OrdinalIgnoreCase)) ||
-                    (!string.IsNullOrEmpty(r.OriginalTitle) && r.OriginalTitle.Equals(q, StringComparison.OrdinalIgnoreCase))
-                ).ToList();
-                if (exactMatches.Count > 0)
-                    best = exactMatches.OrderByDescending(r => r.Year).First();
-
-                // 2. 再按 engHint 模糊匹配
-                if (best == null && !string.IsNullOrEmpty(engHint))
+                // 第二轮（别名兜底）：仅在首轮没有任何合格候选时才额外请求 alternative_titles。
+                // 取舍：用最多 3 次额外请求换召回，避免每部电影都无条件多打一轮 API。
+                if (ranked.Count == 0)
                 {
-                    var titleMatches = sr.Results.Where(r =>
-                        (!string.IsNullOrEmpty(r.OriginalTitle) && r.OriginalTitle.Contains(engHint, StringComparison.OrdinalIgnoreCase)) ||
-                        (!string.IsNullOrEmpty(r.Title) && r.Title.Contains(engHint, StringComparison.OrdinalIgnoreCase))
-                    ).ToList();
-                    if (titleMatches.Count > 0)
-                        best = titleMatches.OrderByDescending(r => r.Year).First();
+                    var aliases = await FetchTmdbAliasesAsync(tmdb, sr.Results, m.Year);
+                    if (aliases.Count > 0)
+                    {
+                        var rankedWithAliases = MovieTitleMatcher.Rank(sr.Results, m.Title, m.Year, 10, aliases, rejections);
+                        picked = await TryPickFromRankedAsync(tmdb, m, rankedWithAliases, rejections);
+                        if (picked != null) { LogTmdbGuard(m, rejections, true); return picked; }
+                    }
                 }
-
-                // 3. 兜底取第一个
-                best ??= sr.Results[0];
-
-                var detail = await tmdb.GetDetailAsync(best.ExternalId ?? "");
-                return detail ?? best;
             }
+            LogTmdbGuard(m, rejections, false);
             return null;
         }
-        catch (Exception ex) { Log.Error(ex, "TMDB 获取详情失败"); return null; }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "TMDB 获取详情失败");
+            LogTmdbGuard(m, rejections, false);
+            return null;
+        }
     }
+
+    /// <summary>按排名依次取详情并应用守卫；被拒候选写入 rejections 供汇总日志。</summary>
+    private static async Task<MovieSearchResult?> TryPickFromRankedAsync(
+        TmdbApiClient tmdb, Movie m, IReadOnlyList<MovieTitleMatcher.Candidate> ranked,
+        List<MovieTitleMatcher.Rejected> rejections)
+    {
+        foreach (var candidate in ranked)
+        {
+            var detail = await tmdb.GetDetailAsync(candidate.Result.ExternalId ?? "");
+            var yearDiff = m.Year > 0 && candidate.Result.Year > 0 ? Math.Abs(candidate.Result.Year - m.Year) : 0;
+
+            if (candidate.NeedsEvidence)
+            {
+                if (detail == null || !MovieTitleMatcher.MetadataOverlap(
+                        detail.Runtime, detail.Director, detail.Cast, m.Runtime, m.Director, m.Cast))
+                {
+                    rejections.Add(new MovieTitleMatcher.Rejected(
+                        candidate.Result.Title ?? "", candidate.Result.ExternalId, candidate.Score, yearDiff,
+                        "包含同年缺佐证"));
+                    continue;
+                }
+            }
+            else if (candidate.Exact)
+            {
+                var reason = MovieTitleMatcher.ExactMismatchReason(
+                    m.Runtime, m.Director, m.Language,
+                    detail?.Runtime, detail?.Director, detail?.OriginalLanguage);
+                if (reason != null)
+                {
+                    rejections.Add(new MovieTitleMatcher.Rejected(
+                        candidate.Result.Title ?? "", candidate.Result.ExternalId, candidate.Score, yearDiff, reason));
+                    continue;
+                }
+            }
+            return detail ?? candidate.Result;
+        }
+        return null;
+    }
+
+    /// <summary>拉取前 3 条同年候选的 TMDB 别名（首轮无合格候选时才调用）。</summary>
+    private static async Task<Dictionary<string, IReadOnlyList<string>>> FetchTmdbAliasesAsync(
+        TmdbApiClient tmdb, List<MovieSearchResult> results, int year)
+    {
+        var dict = new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal);
+        foreach (var r in results.Take(3))
+        {
+            if (year > 0 && r.Year > 0 && Math.Abs(r.Year - year) > 1) continue;
+            if (string.IsNullOrEmpty(r.ExternalId) || dict.ContainsKey(r.ExternalId)) continue;
+            var alts = await tmdb.GetAlternativeTitlesAsync(r.ExternalId);
+            if (alts.Count > 0) dict[r.ExternalId] = alts;
+        }
+        return dict;
+    }
+
+    /// <summary>每部电影最多一条守卫汇总日志（Info=有拒绝但仍命中；Warn=全部拒绝）。</summary>
+    private static void LogTmdbGuard(Movie m, List<MovieTitleMatcher.Rejected> rejections, bool accepted)
+    {
+        if (rejections.Count == 0)
+        {
+            if (!accepted) Log.Information($"TMDB 守卫：本地《{m.Title}》({m.Year}) 无候选");
+            return;
+        }
+        // 优先展示软校验/缺佐证/相似度不足，年份超容差排最后（最常见、信息量最低）
+        var lines = rejections
+            .GroupBy(r => (r.ExternalId ?? "") + "|" + r.Reason)
+            .Select(g => g.First())
+            .OrderBy(r => ReasonPriority(r.Reason))
+            .ThenByDescending(r => r.Score)
+            .Take(6)
+            .Select(r => $"《{r.Title}》id={r.ExternalId} 相似度={r.Score:0.00} 年差={r.YearDiff} 原因={r.Reason}");
+        var text = string.Join("；", lines);
+        if (accepted)
+            Log.Information($"TMDB 守卫：本地《{m.Title}》({m.Year}) 拒绝 {rejections.Count} 条 → {text}");
+        else
+            Log.Warning($"TMDB 守卫：本地《{m.Title}》({m.Year}) 全部拒绝 {rejections.Count} 条 → {text}");
+    }
+
+    private static int ReasonPriority(string reason)
+        => reason.StartsWith("软校验", StringComparison.Ordinal) ? 0
+            : reason.Contains("缺佐证", StringComparison.Ordinal) ? 1
+            : reason.Contains("相似度", StringComparison.Ordinal) ? 2
+            : 3;
     private async void FirstPage_Click(object sender, RoutedEventArgs e) { if (_filterState.CanGoPrev) { _filterState.GoToFirst(); await LoadMoviesAsync(); } }
     private async void PrevPage_Click(object sender, RoutedEventArgs e) { if (_filterState.CanGoPrev) { _filterState.GoToPrev(); await LoadMoviesAsync(); } }
     private async void NextPage_Click(object sender, RoutedEventArgs e) { if (_filterState.CanGoNext) { _filterState.GoToNext(); await LoadMoviesAsync(); } }
@@ -1750,7 +1871,7 @@ public partial class MovieListView : UserControl
 
                             if (!string.IsNullOrEmpty(info.Country) && !m.CategoryId.HasValue)
                             {
-                                var firstCountry = info.Country.Split('/', '·').FirstOrDefault(c => CategoryNameValidator.IsValidCategoryName(c.Trim()))?.Trim();
+                                var firstCountry = CountryNameHelper.FirstValid(info.Country);
                                 if (!string.IsNullOrEmpty(firstCountry) && CategoryNameValidator.IsValidCategoryName(firstCountry))
                                 {
                                     try { var category = await _categoryService.GetOrCreateByNameAsync(firstCountry); m.CategoryId = category.Id; } catch (Exception ex) { Log.Error(ex, "MovieListView 操作异常"); }

@@ -1,13 +1,21 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
 using Moq;
 using Moq.Protected;
 using EasyMovie.Core;
+using EasyMovie.Core.Helpers;
 using EasyMovie.Core.Interfaces;
+using EasyMovie.Core.Models;
+using EasyMovie.Core.Services;
+using EasyMovie.Data;
+using EasyMovie.Data.Repositories;
 using EasyMovie.Tools.MovieApi;
 using Xunit;
 
@@ -103,47 +111,50 @@ public class DoubanApiClientTests : IDisposable
                 "SendAsync",
                 ItExpr.IsAny<HttpRequestMessage>(),
                 ItExpr.IsAny<CancellationToken>())
-            .ReturnsAsync(new HttpResponseMessage
-            {
-                StatusCode = HttpStatusCode.OK,
-                Content = new StringContent(responseJson)
-            });
+            .ReturnsAsync((HttpRequestMessage req, CancellationToken _) =>
+                // 2026-11-06 起 rexxar 是搜索主路径、网页搜索仅兜底：
+                // 这里让 rexxar 请求级失败（500），以便验证网页搜索兜底路径的解析结果。
+                req.RequestUri != null && req.RequestUri.Host.Contains("m.douban.com")
+                    ? new HttpResponseMessage(HttpStatusCode.InternalServerError)
+                    : new HttpResponseMessage
+                    {
+                        StatusCode = HttpStatusCode.OK,
+                        Content = new StringContent(responseJson)
+                    });
 
         return new HttpClient(handler.Object);
     }
 
     /// <summary>
-    /// 解析 rexxar 移动端搜索响应。
-    /// 样本取自 2026-08-28 抓到的真实响应结构（m.douban.com/rexxar/api/v2/search），
-    /// 字段类型与线上一致：id/year 均为字符串，rating 为对象，导演/主演来自 card_subtitle 第 3/4 段。
+    /// 解析网页搜索 window.__DATA__ 响应（rexxar 请求级失败时的兜底路径）。
+    /// 样本取自 2026-09-10 实测结构（movie.douban.com/subject_search）。
     ///
-    /// 注意：不要改回网页版 window.__DATA__ 格式——DoubanApiClient 早已全面切到 rexxar，
-    /// 网页版解析路径已废弃（仅 MovieNewsService 抓新闻页时仍用 __DATA__，与本客户端无关）。
-    /// 用错格式会让本测试永远挂在「解析返回 0 条」上，掩盖真实回归。
+    /// 2026-11-06 起搜索主路径为 rexxar（m.douban.com/rexxar/api/v2/search），
+    /// 网页搜索仅在其请求级失败时兜底。
     /// </summary>
     [Fact]
-    public async Task SearchAsync_ShouldParseRexxarResults()
+    public async Task SearchAsync_ShouldParseHtmlResults()
     {
-        var json = @"{""subjects"":{""items"":[{""target"":{
-            ""title"":""星际穿越"",
-            ""id"":""1889243"",
-            ""year"":""2014"",
-            ""rating"":{""value"":9.4,""count"":2220848,""max"":10},
-            ""card_subtitle"":""美国 英国 加拿大 / 剧情 科幻 冒险 / 克里斯托弗·诺兰 / 马修·麦康纳 安妮·海瑟薇"",
-            ""cover_url"":""https://img.douban.com/poster.jpg""}}]}}";
+        var html = "<html><body><script>window.__DATA__ = {\"items\":[{" +
+            "\"id\":35267208,\"title\":\"流浪地球2 (2023)\"," +
+            "\"abstract\":\"中国大陆 / 科幻 / 冒险 / The Wandering Earth II / 173分钟\"," +
+            "\"abstract_2\":\"郭帆 / 吴京 / 刘德华 / 李雪健\"," +
+            "\"cover_url\":\"https://img9.doubanio.com/view/photo/s_ratio_poster/public/p2916835424.jpg\"," +
+            "\"rating\":{\"count\":1427722,\"value\":8.3}," +
+            "\"url\":\"https://movie.douban.com/subject/35267208/\"}]};</script></body></html>";
 
-        var client = new DoubanApiClient(CreateMockHttpClient(json));
-        var response = await client.SearchAsync(new MovieSearchRequest { Keyword = "星际穿越" });
+        var client = new DoubanApiClient(CreateMockHttpClient(html));
+        var response = await client.SearchAsync(new MovieSearchRequest { Keyword = "流浪地球2" });
 
         response.TotalCount.Should().Be(1);
         response.Results.Should().HaveCount(1);
-        response.Results[0].Title.Should().Be("星际穿越");
-        response.Results[0].Year.Should().Be(2014);
-        response.Results[0].Director.Should().Be("克里斯托弗·诺兰");
-        response.Results[0].Cast.Should().Contain("马修·麦康纳");
-        response.Results[0].Rating.Should().Be(9.4);
-        response.Results[0].RatingCount.Should().Be(2220848);
-        response.Results[0].ExternalId.Should().Be("1889243");
+        response.Results[0].Title.Should().Be("流浪地球2");
+        response.Results[0].Year.Should().Be(2023);
+        response.Results[0].Director.Should().Be("郭帆");
+        response.Results[0].Cast.Should().Contain("吴京");
+        response.Results[0].Rating.Should().Be(8.3);
+        response.Results[0].RatingCount.Should().Be(1427722);
+        response.Results[0].ExternalId.Should().Be("35267208");
         response.Results[0].Source.Should().Be("douban");
     }
 
@@ -323,7 +334,7 @@ public class TmdbApiClientTests
     [Fact]
     public async Task SearchAsync_ShouldReturnEmpty_WhenApiKeyIsEmpty()
     {
-        // 无 API Key 时走网站爬取路径，不应调用官方 API；空页面返回空结果
+        // 无 API Key 且网页抓取默认关闭：直接返回空结果（由上层回落豆瓣）
         var client = new TmdbApiClient("", CreateMockHttpClient("<html><body>no results</body></html>"));
         var response = await client.SearchAsync(new MovieSearchRequest { Keyword = "test" });
 
@@ -331,13 +342,13 @@ public class TmdbApiClientTests
     }
 
     [Fact]
-    public async Task GetDetailAsync_ShouldFallbackToScraping_WhenApiKeyIsEmpty()
+    public async Task GetDetailAsync_ShouldReturnNull_WhenApiKeyIsEmpty()
     {
-        // 无 API Key 时走网站爬取路径，不应调用官方 API；返回对象而非抛异常
+        // 无 API Key 且网页抓取默认关闭：返回 null，由上层回落豆瓣
         var client = new TmdbApiClient("", CreateMockHttpClient("<html><body>no detail</body></html>"));
         var result = await client.GetDetailAsync("123");
 
-        result.Should().NotBeNull();
+        result.Should().BeNull();
     }
 
     [Fact]
@@ -371,25 +382,330 @@ public class TmdbApiClientTests
                 Content = new StringContent(json)
             });
 
-        // 官方 API 分支需要 API Key + 代理（API 在国内被墙），这里模拟已配置代理
-        var oldProxy = AppSettings.HttpProxy;
-        AppSettings.HttpProxy = "http://127.0.0.1:8080";
-        try
-        {
-            var client = new TmdbApiClient("fake_key", new HttpClient(handler.Object));
-            var response = await client.SearchAsync(new MovieSearchRequest { Keyword = "Interstellar" });
+        // 有 API Key 即走官方 API（直连由 ConnectViaIpPoolAsync 处理），不再要求配置代理
+        var client = new TmdbApiClient("fake_key", new HttpClient(handler.Object));
+        var response = await client.SearchAsync(new MovieSearchRequest { Keyword = "Interstellar" });
 
-            response.TotalCount.Should().Be(1);
-            response.Results.Should().HaveCount(1);
-            response.Results[0].Title.Should().Be("星际穿越");
-            response.Results[0].Year.Should().Be(2014);
-            response.Results[0].ExternalId.Should().Be("157336");
-            response.Results[0].Source.Should().Be("tmdb");
-        }
-        finally
+        response.TotalCount.Should().Be(1);
+        response.Results.Should().HaveCount(1);
+        response.Results[0].Title.Should().Be("星际穿越");
+        response.Results[0].Year.Should().Be(2014);
+        response.Results[0].ExternalId.Should().Be("157336");
+        response.Results[0].Source.Should().Be("tmdb");
+    }
+
+    [Fact]
+    public async Task SearchAsync_ShouldReturnEmpty_WhenTransportFails()
+    {
+        // 模拟 IP 池全失败（建连/握手异常）：请求级失败应降级为空结果，不向调用方抛异常
+        var handler = new Mock<HttpMessageHandler>();
+        handler.Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>())
+            .ThrowsAsync(new HttpRequestException("TMDB 直连失败（IP 池 0 个）"));
+
+        var client = new TmdbApiClient("fake_key", new HttpClient(handler.Object));
+        var response = await client.SearchAsync(new MovieSearchRequest { Keyword = "Interstellar" });
+
+        response.Results.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task GetDetailAsync_ShouldReturnNull_WhenTransportFails()
+    {
+        var handler = new Mock<HttpMessageHandler>();
+        handler.Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>())
+            .ThrowsAsync(new HttpRequestException("TMDB 直连失败"));
+
+        var client = new TmdbApiClient("fake_key", new HttpClient(handler.Object));
+        var result = await client.GetDetailAsync("157336");
+
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task SearchAsync_ShouldFallbackToDouban_WhenTmdbTransportFails()
+    {
+        // TMDB 请求级失败 → 空结果 → MovieApiService 回落豆瓣
+        var handler = new Mock<HttpMessageHandler>();
+        handler.Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>())
+            .ThrowsAsync(new HttpRequestException("TMDB 直连失败（IP 池全失败）"));
+
+        var fallback = new Mock<IMovieApiClient>();
+        fallback.SetupGet(c => c.SourceName).Returns("douban");
+        fallback.Setup(c => c.SearchAsync(It.IsAny<MovieSearchRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MovieSearchResponse
+            {
+                Results = new List<MovieSearchResult>
+                {
+                    new() { Title = "星际穿越", Year = 2014, ExternalId = "1889243", Source = "douban" }
+                },
+                TotalCount = 1
+            });
+
+        var service = new MovieApiService(new TmdbApiClient("fake_key", new HttpClient(handler.Object)), fallback.Object);
+        var response = await service.SearchAsync("Interstellar");
+
+        response.Results.Should().ContainSingle();
+        response.Results[0].Source.Should().Be("douban");
+    }
+
+    [Fact]
+    public async Task GetDetailAsync_ShouldMapOriginCountryIsoToChinese()
+    {
+        // origin_country 是 ISO-3166-1 alpha-2，需映射成与豆瓣一致的中文分类名
+        var json = @"{
+            ""id"": 603,
+            ""title"": ""黑客帝国"",
+            ""original_title"": ""The Matrix"",
+            ""release_date"": ""1999-03-31"",
+            ""origin_country"": [""US""],
+            ""production_countries"": [{ ""iso_3166_1"": ""US"", ""name"": ""United States of America"" }]
+        }";
+        var client = new TmdbApiClient("fake_key", CreateMockHttpClient(json));
+
+        var result = await client.GetDetailAsync("603");
+
+        result.Should().NotBeNull();
+        result!.Country.Should().Be("美国");
+    }
+
+    [Fact]
+    public async Task GetDetailAsync_ShouldFallbackToProductionCountries_WhenOriginCountryMissing()
+    {
+        var json = @"{
+            ""id"": 1,
+            ""title"": ""某部法国片"",
+            ""release_date"": ""2020-01-01"",
+            ""production_countries"": [{ ""iso_3166_1"": ""FR"", ""name"": ""France"" }]
+        }";
+        var client = new TmdbApiClient("fake_key", CreateMockHttpClient(json));
+
+        var result = await client.GetDetailAsync("1");
+
+        result.Should().NotBeNull();
+        result!.Country.Should().Be("France");
+    }
+
+    [Fact]
+    public async Task GetAlternativeTitlesAsync_ShouldParseTitles()
+    {
+        var json = @"{
+            ""id"": 1146302,
+            ""titles"": [
+                { ""iso_3166_1"": ""CN"", ""title"": ""史泰龙的传奇"", ""type"": ""alternative"" },
+                { ""iso_3166_1"": ""US"", ""title"": ""Sly"", ""type"": ""alternative"" }
+            ]
+        }";
+        var client = new TmdbApiClient("fake_key", CreateMockHttpClient(json));
+
+        var titles = await client.GetAlternativeTitlesAsync("1146302");
+
+        titles.Should().BeEquivalentTo(new[] { "史泰龙的传奇", "Sly" });
+    }
+
+    [Fact]
+    public async Task GetAlternativeTitlesAsync_ShouldReturnEmpty_WhenApiKeyIsEmpty()
+    {
+        var client = new TmdbApiClient("", CreateMockHttpClient("{}"));
+
+        var titles = await client.GetAlternativeTitlesAsync("1146302");
+
+        titles.Should().BeEmpty();
+    }
+}
+
+/// <summary>
+/// 片名匹配守卫：归一化 + 相似度 + 年份窗口 + 包含关系证据核对。
+/// 回归场景（2026-11-06 实测）：搜「烈火中」时首条是 1965《烈火中永生》，正解 id=946215 在第 2 条。
+/// </summary>
+public class MovieTitleMatcherTests
+{
+    private static MovieSearchResult C(string title, int year, string id) =>
+        new() { Title = title, Year = year, ExternalId = id };
+
+    [Fact]
+    public void Pick_烈火中_跳过包含关系错配_采用精确匹配()
+    {
+        var results = new List<MovieSearchResult>
         {
-            AppSettings.HttpProxy = oldProxy;
-        }
+            C("烈火中永生", 1965, "1965"),
+            C("烈火中", 2024, "946215")
+        };
+
+        var picked = MovieTitleMatcher.Pick(results, "烈火中", 2024);
+
+        picked.Should().NotBeNull();
+        picked!.ExternalId.Should().Be("946215");
+    }
+
+    [Fact]
+    public void Rank_包含关系且同年_标记为需要额外证据()
+    {
+        var results = new List<MovieSearchResult> { C("烈火中永生", 2024, "1965") };
+
+        var ranked = MovieTitleMatcher.Rank(results, "烈火中", 2024);
+
+        ranked.Should().ContainSingle();
+        ranked[0].Exact.Should().BeFalse();
+        ranked[0].NeedsEvidence.Should().BeTrue();
+        // 没有第 2 顺位候选时，不允许把「包含关系 + 同年」直接当成命中
+        MovieTitleMatcher.Pick(results, "烈火中", 2024).Should().BeNull();
+    }
+
+    [Fact]
+    public void Rank_年份超出容差_直接丢弃()
+    {
+        var results = new List<MovieSearchResult> { C("烈火中", 1965, "1965") };
+
+        MovieTitleMatcher.Rank(results, "烈火中", 2024).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void MetadataOverlap_片长接近_视为同一部作品()
+    {
+        MovieTitleMatcher.MetadataOverlap(169, null, null, 171, null, null).Should().BeTrue();
+    }
+
+    [Fact]
+    public void MetadataOverlap_导演或主演有交集_视为同一部作品()
+    {
+        MovieTitleMatcher.MetadataOverlap(null, "克里斯托弗·诺兰", "墨菲", null, "克里斯托弗·诺兰", null).Should().BeTrue();
+        MovieTitleMatcher.MetadataOverlap(null, "甲", "演员A / 演员B", 150, "乙", "演员B").Should().BeTrue();
+    }
+
+    [Fact]
+    public void MetadataOverlap_全都不一致_返回false()
+    {
+        MovieTitleMatcher.MetadataOverlap(100, "甲", "演员A", 150, "乙", "演员B").Should().BeFalse();
+        MovieTitleMatcher.MetadataOverlap(null, null, null, null, null, null).Should().BeFalse();
+    }
+
+    [Fact]
+    public void Normalize_去除字幕与分辨率噪声()
+    {
+        MovieTitleMatcher.Normalize("烈火中.2024.中字.4K.BluRay").Should().Be("烈火中");
+    }
+
+    // ===== 2026-11-07：阈值 0.60、别名兜底、精确命中软校验 =====
+
+    [Fact]
+    public void Rank_阈值060_史泰龙译名差异仍命中()
+    {
+        // Id 19 实测：本地《史泰龙的传奇》vs TMDB《史泰龙：不只是传奇》，相似度 0.625
+        var results = new List<MovieSearchResult> { C("史泰龙：不只是传奇", 2023, "1146302") };
+
+        var ranked = MovieTitleMatcher.Rank(results, "史泰龙的传奇", 2023);
+
+        ranked.Should().ContainSingle();
+        ranked[0].Score.Should().BeGreaterThan(0.60);
+        ranked[0].Result.ExternalId.Should().Be("1146302");
+    }
+
+    [Fact]
+    public void Rank_别名精确命中_参与打分()
+    {
+        var results = new List<MovieSearchResult> { C("Sly", 2023, "1146302") };
+        var aliases = new Dictionary<string, IReadOnlyList<string>>
+        {
+            ["1146302"] = new[] { "史泰龙的传奇", "En Sylvester Stallone Dokumentär" }
+        };
+
+        // 仅标题/原名时相似度为 0，被丢弃
+        MovieTitleMatcher.Rank(results, "史泰龙的传奇", 2023).Should().BeEmpty();
+        // 别名参与后精确命中
+        var ranked = MovieTitleMatcher.Rank(results, "史泰龙的传奇", 2023, 10, aliases);
+        ranked.Should().ContainSingle();
+        ranked[0].Exact.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Rank_阈值060_烈火中1965错配仍需证据()
+    {
+        // 放宽阈值不得绕过「包含关系 + 同年」的佐证要求
+        var results = new List<MovieSearchResult> { C("烈火中永生", 1965, "202603") };
+
+        var ranked = MovieTitleMatcher.Rank(results, "烈火中", 1965);
+
+        ranked.Should().ContainSingle();
+        ranked[0].NeedsEvidence.Should().BeTrue();
+        MovieTitleMatcher.Pick(results, "烈火中", 1965).Should().BeNull();
+    }
+
+    [Fact]
+    public void ExactMismatchReason_Id76型同名不同片_降级()
+    {
+        // 本地泰国片《指尖》vs TMDB 法国片 481157：导演、原语言均不符；
+        // 片长恰好都是 105（本地片长为历史脏数据）仍必须降级。
+        var reason = MovieTitleMatcher.ExactMismatchReason(
+            105, "纳卢拜·库诺", "泰语",
+            105, "Ludovic Bernard", "fr");
+
+        reason.Should().NotBeNull();
+        reason.Should().Contain("软校验不通过");
+    }
+
+    [Fact]
+    public void ExactMismatchReason_三项全部不符_降级()
+    {
+        var reason = MovieTitleMatcher.ExactMismatchReason(
+            100, "甲", "日语",
+            150, "乙", "fr");
+
+        reason.Should().NotBeNull();
+    }
+
+    [Fact]
+    public void ExactMismatchReason_语言相符_不降级()
+    {
+        // 译名/导演写法差异常见，语言一致时不应误伤
+        MovieTitleMatcher.ExactMismatchReason(
+            100, "甲", "韩语",
+            120, "乙", "ko").Should().BeNull();
+    }
+
+    [Fact]
+    public void ExactMismatchReason_导演相符_不降级()
+    {
+        MovieTitleMatcher.ExactMismatchReason(
+            100, "克里斯托弗·诺兰", "英语",
+            130, "克里斯托弗·诺兰", "fr").Should().BeNull();
+    }
+
+    [Fact]
+    public void ExactMismatchReason_语言无法映射_不降级()
+    {
+        // 本地语言名不在映射表（如「汉语普通话」）时视为不可比较，保守放行
+        MovieTitleMatcher.ExactMismatchReason(
+            100, "甲", "汉语普通话",
+            130, "乙", "fr").Should().BeNull();
+    }
+
+    [Fact]
+    public void Rank_记录拒绝原因_供汇总日志()
+    {
+        var results = new List<MovieSearchResult>
+        {
+            C("烈火中", 1965, "1965"),          // 年份超容差
+            C("完全无关的片名", 2024, "999")    // 相似度不足
+        };
+        var rejected = new List<MovieTitleMatcher.Rejected>();
+
+        MovieTitleMatcher.Rank(results, "烈火中", 2024, 10, null, rejected);
+
+        rejected.Should().HaveCount(2);
+        rejected.Should().Contain(r => r.Reason == "年份超容差" && r.YearDiff > 1);
+        rejected.Should().Contain(r => r.Reason == "相似度不足" && r.Score < MovieTitleMatcher.Threshold);
     }
 }
 
@@ -464,5 +780,113 @@ public class MovieApiServiceFallbackTests
         var response = await service.SearchAsync("");
 
         response.Results.Should().BeEmpty();
+    }
+
+    // ═══════════════ 自动打标（genres → MovieTags）═══════════════
+    // 这组测试锁死一个真实缺陷：MovieSearchResult 曾经没有 Genres 字段，
+    // 豆瓣/TMDB 返回的类型在解析阶段就无处安放，导致库里 290 部影片 0 条标签关联，
+    // 统计页「类型分布」、推荐算法标签权重、关系图谱、AI 摘要、去重完整度打分五处全部空转。
+
+    [Fact]
+    public async Task MapToMovieAsync_ShouldAttachTagsFromGenres()
+    {
+        using var ctx = new MovieDbContext(new DbContextOptionsBuilder<MovieDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        var tagService = new TagService(new TagRepository(ctx));
+
+        var result = new MovieSearchResult
+        {
+            Title = "星际穿越",
+            Year = 2014,
+            Genres = new List<string> { "科幻", "剧情" }
+        };
+
+        var movie = await MovieApiService.MapToMovieAsync(result, null, tagService);
+
+        movie.MovieTags.Should().HaveCount(2);
+
+        // 标签实体必须真的建出来了（不只是内存里的临时对象）
+        var tags = ctx.Tags.ToList();
+        tags.Should().HaveCount(2);
+        tags.Should().Contain(t => t.Name == "科幻");
+        tags.Should().Contain(t => t.Name == "剧情");
+    }
+
+    [Fact]
+    public async Task MapToMovieAsync_ShouldReuseExistingTag_NotDuplicate()
+    {
+        using var ctx = new MovieDbContext(new DbContextOptionsBuilder<MovieDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        var tagService = new TagService(new TagRepository(ctx));
+        ctx.Tags.Add(new Tag { Name = "科幻" });
+        await ctx.SaveChangesAsync();
+
+        var movie = await MovieApiService.MapToMovieAsync(
+            new MovieSearchResult { Title = "星际穿越", Genres = new List<string> { "科幻" } },
+            null, tagService);
+
+        movie.MovieTags.Should().HaveCount(1);
+        ctx.Tags.Should().HaveCount(1);   // 没被重复插入
+    }
+
+    [Fact]
+    public async Task MapToMovieAsync_ShouldDedupeRepeatedGenres()
+    {
+        using var ctx = new MovieDbContext(new DbContextOptionsBuilder<MovieDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        var tagService = new TagService(new TagRepository(ctx));
+
+        var movie = await MovieApiService.MapToMovieAsync(
+            new MovieSearchResult { Title = "重复类型片", Genres = new List<string> { "动作", "动作", "动作" } },
+            null, tagService);
+
+        movie.MovieTags.Should().HaveCount(1);
+    }
+
+    [Fact]
+    public async Task MapToMovieAsync_ShouldSkipInvalidGenreNames()
+    {
+        using var ctx = new MovieDbContext(new DbContextOptionsBuilder<MovieDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        var tagService = new TagService(new TagRepository(ctx));
+
+        // 空白 / 纯数字 / 超长 都应被跳过，且不阻断整部影片的映射
+        var movie = await MovieApiService.MapToMovieAsync(
+            new MovieSearchResult
+            {
+                Title = "含噪声类型",
+                Genres = new List<string> { "  ", "123", new string('长', 60), "剧情" }
+            },
+            null, tagService);
+
+        movie.Title.Should().Be("含噪声类型");
+        movie.MovieTags.Should().HaveCount(1);
+        ctx.Tags.Should().Contain(t => t.Name == "剧情");
+    }
+
+    [Fact]
+    public async Task MapToMovieAsync_ShouldNotThrow_WhenTagServiceIsNull()
+    {
+        // 旧调用方（不传标签服务）必须保持原行为，不能因新参数崩掉
+        var movie = await MovieApiService.MapToMovieAsync(
+            new MovieSearchResult { Title = "无标签服务", Genres = new List<string> { "科幻" } },
+            null, null);
+
+        movie.Title.Should().Be("无标签服务");
+        movie.MovieTags.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task MapToMovieAsync_ShouldNotThrow_WhenGenresIsNull()
+    {
+        using var ctx = new MovieDbContext(new DbContextOptionsBuilder<MovieDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        var tagService = new TagService(new TagRepository(ctx));
+
+        var movie = await MovieApiService.MapToMovieAsync(
+            new MovieSearchResult { Title = "无类型字段", Genres = null },
+            null, tagService);
+
+        movie.MovieTags.Should().BeEmpty();
     }
 }

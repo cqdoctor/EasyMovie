@@ -206,10 +206,7 @@ public class MovieBootstrapTests : IDisposable
             var validCats = await ctx.Categories.Include(c => c.Children).OrderBy(c => c.Name).ToListAsync();
             foreach (var movie in uncatMovies)
             {
-                var firstCountry = movie.Country!
-                    .Split('/', '·')
-                    .FirstOrDefault(c => CategoryNameValidator.IsValidCategoryName(c.Trim()))
-                    ?.Trim();
+                var firstCountry = CountryNameHelper.FirstValid(movie.Country);
                 if (string.IsNullOrEmpty(firstCountry)
                     || !CategoryNameValidator.IsValidCategoryName(firstCountry)) continue;
 

@@ -7,17 +7,19 @@ using Xunit;
 namespace EasyMovie.Tests.Core.Tests;
 
 /// <summary>
-/// 豆瓣限流策略契约测试（#10）。
+/// 豆瓣限流策略契约测试。
 ///
-/// 锁定的核心事实：rexxar 接口会以约 40%~50% 的概率随机返回 <c>403 {"msg":"need_login","code":103}</c>，
-/// 这是「软限流」而非封禁——旧实现把它当硬封禁，一次命中就冷却 60s 并逐次翻倍到 600s，
-/// 实测 12 个片名只有 2 个能查到、其余 9 个被冷却跳过，补全被彻底饿死。
+/// 2026-11-06 起搜索主路径回到 rexxar（m.douban.com/rexxar/api/v2/search，带 Referer 可用），
+/// 网页搜索（movie.douban.com/subject_search）仅在 rexxar **请求级失败**时兜底，
+/// 且一旦命中配额页就停用 30 分钟。
 ///
 /// 本组测试用桩 handler 精确控制响应，断言：
-///   1) 软 403 → 走网页搜索兜底，且**不进冷却**；
-///   2) 硬封禁（302 到 /misc/sorry）→ 立刻进冷却；
-///   3) rexxar 成功 → 不额外消耗网页搜索请求；
-///   4) 两条路径都拿不到数据达阈值 → 才升级为冷却（防止无限空转）。
+///   1) rexxar 成功 → 只发一次请求，不浪费网页搜索；
+///   2) rexxar 硬封禁（302 到 /misc/sorry、验证码页）→ 立刻进冷却，不兜底；
+///   3) rexxar 请求级失败（500）→ 回退网页搜索一次，且不进冷却；
+///   4) rexxar 200 + items=[] → 确定无收录，不打网页搜索；
+///   5) 连续 3 次软 403 → 暂停搜索 10 分钟（不是冷却），期间不再发请求并标记配额；
+///   6) 网页搜索命中配额页 → 打配额标记 + 网页路径停用 30 分钟。
 /// </summary>
 // 冷却/软失败计数是 DoubanApiClient 的 static 状态，xunit 默认并行跑不同测试类，
 // 另一用例的构造/Dispose 重置会清掉本类的计数（实测全量跑时偶发失败）。
@@ -38,12 +40,31 @@ public class DoubanThrottlePolicyTests : IDisposable
     private const string HtmlWithoutData =
         "<html><body><script>window.__DATA__ = {\"items\":[]};</script></body></html>";
 
+    // rexxar 搜索响应：subjects.items[].target
+    private const string RexxarWithData =
+        "{\"subjects\":{\"items\":[{\"target\":{\"id\":\"35267208\",\"title\":\"流浪地球2\"," +
+        "\"year\":\"2023\",\"rating\":{\"value\":8.3,\"count\":1427722}," +
+        "\"card_subtitle\":\"中国大陆 / 科幻 / 郭帆 / 吴京\"}}]}}";
+
+    private const string RexxarEmpty = "{\"subjects\":{\"items\":[]}}";
+
+    private static readonly int[] DefaultBackoff = { 20, 40, 60 };
+
     private static readonly string SoftThrottleBody =
         "{\"request\":\"GET /v2/search\",\"msg\":\"need_login\",\"code\":103,\"localized_message\":\"需要登录\"}";
 
-    public DoubanThrottlePolicyTests() => DoubanApiClient.ResetThrottleState();
+    public DoubanThrottlePolicyTests()
+    {
+        DoubanApiClient.ResetThrottleState();
+        // 退避阶梯置零：单测不真的等 20/40/60 秒（生产值见 DoubanApiClient.SearchBackoffSeconds）
+        DoubanApiClient.SearchBackoffSeconds = new[] { 0, 0, 0 };
+    }
 
-    public void Dispose() => DoubanApiClient.ResetThrottleState();
+    public void Dispose()
+    {
+        DoubanApiClient.ResetThrottleState();
+        DoubanApiClient.SearchBackoffSeconds = DefaultBackoff;
+    }
 
     private sealed class StubHandler : HttpMessageHandler
     {
@@ -51,6 +72,7 @@ public class DoubanThrottlePolicyTests : IDisposable
         private int _call;
         public List<string> Urls { get; } = new();
         public List<string> UserAgents { get; } = new();
+        public List<string> Referers { get; } = new();
 
         public StubHandler(Func<HttpRequestMessage, int, HttpResponseMessage> responder) => _responder = responder;
 
@@ -59,6 +81,7 @@ public class DoubanThrottlePolicyTests : IDisposable
             var index = _call++;
             Urls.Add(request.RequestUri?.ToString() ?? "");
             UserAgents.Add(request.Headers.TryGetValues("User-Agent", out var v) ? string.Join("", v) : "");
+            Referers.Add(request.Headers.TryGetValues("Referer", out var r) ? string.Join("", r) : "");
             return Task.FromResult(_responder(request, index));
         }
     }
@@ -73,6 +96,8 @@ public class DoubanThrottlePolicyTests : IDisposable
         Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json")
     };
 
+    private static HttpResponseMessage ServerError() => new(HttpStatusCode.InternalServerError);
+
     private static HttpResponseMessage Redirect(string location)
     {
         var resp = new HttpResponseMessage(HttpStatusCode.Found);
@@ -81,127 +106,109 @@ public class DoubanThrottlePolicyTests : IDisposable
     }
 
     [Fact]
-    public async Task SoftFourThree_FallsBackToHtmlSearch_AndDoesNotCooldown()
+    public async Task RexxarPrimary_ReturnsData_WithoutHtmlFallback()
     {
-        var handler = new StubHandler((_, i) => i == 0 ? Forbidden(SoftThrottleBody) : Ok(HtmlWithData));
+        var handler = new StubHandler((_, _) => Ok(RexxarWithData));
         var client = new DoubanApiClient(new HttpClient(handler));
 
         var resp = await client.SearchAsync(new MovieSearchRequest { Keyword = "流浪地球2", PageSize = 5 });
 
-        // 兜底路径必须真的被走到，且拿到数据
         resp.Results.Should().HaveCount(1);
         resp.Results[0].Title.Should().Be("流浪地球2");
         resp.Results[0].Year.Should().Be(2023);
         resp.Results[0].Rating.Should().Be(8.3);
-        resp.Results[0].Director.Should().Be("郭帆");
 
-        // 第二条请求必须打到网页搜索页，并使用桌面端 UA（rexxar 用的是移动端 UA）
-        handler.Urls.Should().HaveCount(2);
-        handler.Urls[1].Should().Contain("movie.douban.com/subject_search");
-        handler.UserAgents[1].Should().Contain("Windows NT");
-
-        // 关键：软限流绝不能触发冷却，否则后续补全会被饿死
+        // rexxar 已是主路径：成功就不能再打网页搜索（网页搜索最耗配额）
+        handler.Urls.Should().HaveCount(1);
+        handler.Urls[0].Should().Contain("m.douban.com/rexxar/api/v2/search");
+        handler.UserAgents[0].Should().Contain("iPhone");
+        // 缺 Referer 会 400 invalid_request_1284，必须带上
+        handler.Referers[0].Should().Be("https://m.douban.com/");
         client.IsThrottled().Should().BeFalse();
     }
 
     [Fact]
-    public async Task SoftFourThreeThenHtmlBan_DoesCooldown()
+    public async Task RexxarRedirectToSorry_IsHardBan_AndDoesNotFallBack()
     {
-        var handler = new StubHandler((_, i) => i == 0
-            ? Forbidden(SoftThrottleBody)
-            : Redirect("https://www.douban.com/misc/sorry?original-url=x"));
+        var handler = new StubHandler((_, _) => Redirect("https://www.douban.com/misc/sorry?original-url=x"));
         var client = new DoubanApiClient(new HttpClient(handler));
 
         var resp = await client.SearchAsync(new MovieSearchRequest { Keyword = "沙丘2" });
 
         resp.Results.Should().BeEmpty();
-        client.IsThrottled().Should().BeTrue();   // 网页搜索被重定向到限流页 → 硬封禁
-    }
-
-    [Fact]
-    public async Task HtmlBanPage_IsRecognizedEvenWithoutRedirect()
-    {
-        // 有些限流页直接 200 返回风控文案（未走 302），同样必须识别为硬封禁
-        var handler = new StubHandler((_, i) => i == 0
-            ? Forbidden(SoftThrottleBody)
-            : Ok("<html><body>检测到有异常请求，请输入验证码</body></html>"));
-        var client = new DoubanApiClient(new HttpClient(handler));
-
-        await client.SearchAsync(new MovieSearchRequest { Keyword = "封神第一部" });
-
+        handler.Urls.Should().HaveCount(1);
         client.IsThrottled().Should().BeTrue();
     }
 
     [Fact]
-    public async Task RexxarSuccess_DoesNotSpendHtmlRequest()
+    public async Task RexxarBanPage_IsRecognizedEvenWithoutRedirect()
     {
-        const string rexxarJson =
-            "{\"subjects\":{\"items\":[{\"target\":{\"id\":\"35267208\",\"title\":\"流浪地球2\"," +
-            "\"year\":\"2023\",\"rating\":{\"value\":8.3,\"count\":1427722}," +
-            "\"card_subtitle\":\"中国大陆 / 科幻 / 郭帆 / 吴京\"}}]}}";
-        var handler = new StubHandler((_, _) => Ok(rexxarJson));
+        // 有些限流页直接 200 返回风控文案（未走 302），同样必须识别为硬封禁，且不再回退网页搜索
+        var handler = new StubHandler((_, _) => Ok("<html><body>检测到有异常请求，请输入验证码</body></html>"));
+        var client = new DoubanApiClient(new HttpClient(handler));
+
+        await client.SearchAsync(new MovieSearchRequest { Keyword = "封神第一部" });
+
+        handler.Urls.Should().HaveCount(1);
+        client.IsThrottled().Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task RexxarRequestFailed_FallsBackToHtmlOnce()
+    {
+        // 第 0 次 rexxar 请求级失败（500）→ 第 1 次网页搜索兜底成功
+        var handler = new StubHandler((_, i) => i == 0 ? ServerError() : Ok(HtmlWithData));
         var client = new DoubanApiClient(new HttpClient(handler));
 
         var resp = await client.SearchAsync(new MovieSearchRequest { Keyword = "流浪地球2", PageSize = 5 });
 
         resp.Results.Should().HaveCount(1);
-        handler.Urls.Should().HaveCount(1);                                  // 成功就别再浪费网页搜索的配额
-        handler.Urls[0].Should().Contain("m.douban.com/rexxar");
-        handler.UserAgents[0].Should().Contain("iPhone");                    // rexxar 走移动端 UA
-        client.IsThrottled().Should().BeFalse();
-    }
-
-    [Fact]
-    public async Task RepeatedSoftFailures_DoNotCooldown()
-    {
-        // 软限流（need_login 概率性 403）不再是“连续即冷却”的硬停止——
-        // 它由上层补全服务按影片重试（保持 12s 节奏，不密集探测）。仅硬封禁（302 风控页/验证码）才冷却。
-        // 这里断言：即便连续 12 次软失败，客户端自身也不进入冷却（不阻断后续请求）。
-        var handler = new StubHandler((_, i) => i % 2 == 0 ? Forbidden(SoftThrottleBody) : Ok(HtmlWithoutData));
-        var client = new DoubanApiClient(new HttpClient(handler));
-
-        for (var i = 0; i < 12; i++)
-        {
-            var resp = await client.SearchAsync(new MovieSearchRequest { Keyword = $"片名{i}" });
-            resp.Results.Should().BeEmpty();
-            client.IsThrottled().Should().BeFalse($"第 {i + 1} 次软失败不应冷却（交由上层重试）");
-        }
-    }
-
-    [Fact]
-    public async Task LatinKeyword_HtmlPrimaryReturnsData()
-    {
-        // 英文名影片（关键词含拉丁字母）优先走网页搜索（结果带 OriginalTitle，匹配更稳）
-        var handler = new StubHandler((_, _) => Ok(HtmlWithData));
-        var client = new DoubanApiClient(new HttpClient(handler));
-
-        var resp = await client.SearchAsync(new MovieSearchRequest { Keyword = "Detective Chinatown" });
-
-        resp.Results.Should().HaveCount(1);
-        handler.Urls.Should().HaveCount(1);
-        handler.Urls[0].Should().Contain("movie.douban.com/subject_search");
-        handler.UserAgents[0].Should().Contain("Windows NT");
-        client.IsThrottled().Should().BeFalse();
-    }
-
-    [Fact]
-    public async Task LatinKeyword_HtmlSoftFails_RexxarFallback()
-    {
-        // 英文名影片：网页搜索软失败（need_login）后回退 rexxar
-        var handler = new StubHandler((_, i) => i == 0
-            ? Forbidden(SoftThrottleBody)
-            : Ok("{\"subjects\":{\"items\":[{\"target\":{\"id\":\"35267208\",\"title\":\"唐人街探案3\"," +
-                  "\"year\":\"2023\",\"rating\":{\"value\":8.3,\"count\":1427722}," +
-                  "\"card_subtitle\":\"中国大陆 / 喜剧 / 陈思诚 / 刘昊然\"}}]}}"));
-        var client = new DoubanApiClient(new HttpClient(handler));
-
-        var resp = await client.SearchAsync(new MovieSearchRequest { Keyword = "Detective Chinatown" });
-
-        resp.Results.Should().HaveCount(1);
         handler.Urls.Should().HaveCount(2);
-        handler.Urls[0].Should().Contain("subject_search");   // 先网页
-        handler.Urls[1].Should().Contain("m.douban.com/rexxar"); // 后 rexxar 兜底
+        handler.Urls[0].Should().Contain("m.douban.com/rexxar");
+        handler.Urls[1].Should().Contain("movie.douban.com/subject_search");
+        handler.UserAgents[1].Should().Contain("Windows NT");
         client.IsThrottled().Should().BeFalse();
+        DoubanApiClient.LastSearchQuotaExceeded.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task RexxarEmpty_IsPlainMiss_NoHtmlFallback()
+    {
+        // rexxar 200 + items=[]：这是「确定没收录」，不必再打网页搜索。
+        var handler = new StubHandler((_, _) => Ok(RexxarEmpty));
+        var client = new DoubanApiClient(new HttpClient(handler));
+
+        // 用纯中文关键词，避免触发「剥离英文后二次搜索」的核心重试（那只影响请求次数，不影响本断言）
+        var resp = await client.SearchAsync(new MovieSearchRequest { Keyword = "不存在的片名", PageSize = 5 });
+
+        resp.Results.Should().BeEmpty();
+        handler.Urls.Should().HaveCount(1);
+        handler.Urls[0].Should().Contain("m.douban.com/rexxar");
+        DoubanApiClient.LastSearchQuotaExceeded.Should().BeFalse("真的没收录时不能谎报配额用尽");
+        client.IsThrottled().Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task ConsecutiveSoft403_SuspendsSearch_ButDoesNotCooldown()
+    {
+        // IP 搜索门控：连续 3 次 403（退避重试后仍 403）→ 暂停搜索 10 分钟，
+        // 而不是进入「硬封控冷却」（两者语义不同：暂停只针对搜索，冷却会停全部豆瓣请求）。
+        var handler = new StubHandler((_, _) => Forbidden(SoftThrottleBody));
+        var client = new DoubanApiClient(new HttpClient(handler));
+
+        var resp = await client.SearchAsync(new MovieSearchRequest { Keyword = "片名甲" });
+
+        resp.Results.Should().BeEmpty();
+        handler.Urls.Should().HaveCount(3);            // 首次 + 两次退避重试
+        client.IsThrottled().Should().BeFalse();       // 软 403 不是硬封禁
+        DoubanApiClient.IsSearchSuspended.Should().BeTrue();
+
+        // 暂停期内的搜索直接短路：不再发请求，但必须标记为配额跳过（上层据此分类）
+        var before = handler.Urls.Count;
+        var skipped = await client.SearchAsync(new MovieSearchRequest { Keyword = "片名乙" });
+        skipped.Results.Should().BeEmpty();
+        handler.Urls.Should().HaveCount(before);
+        DoubanApiClient.LastSearchQuotaExceeded.Should().BeTrue();
     }
 
     // 实测（2026-09-11）：配额耗尽时网页搜索返回的是 **HTTP 200**，且 window.__DATA__ 里
@@ -214,48 +221,43 @@ public class DoubanThrottlePolicyTests : IDisposable
         "\"items\": [], \"text\": \"\\u795e\\u63a2\\u5764\\u6f583\"};</script></body></html>";
 
     [Fact]
-    public async Task HtmlSearch_QuotaExceeded_IsSoftSignal_NotBan_AndFlagsQuota()
+    public async Task HtmlQuotaExceeded_FlagsQuota_AndDisablesHtmlPath()
     {
-        var handler = new StubHandler((_, i) => i == 0
-            ? Forbidden(SoftThrottleBody)      // rexxar 概率性 403
-            : Ok(HtmlQuotaExceeded));          // 网页兜底 → 配额软限流
+        // rexxar 请求级失败 → 网页搜索兜底 → 命中配额页：打标记、停用网页路径，但不冷却
+        var handler = new StubHandler((_, i) => i switch
+        {
+            0 => ServerError(),
+            1 => Ok(HtmlQuotaExceeded),
+            _ => ServerError(),
+        });
         var client = new DoubanApiClient(new HttpClient(handler));
 
         var resp = await client.SearchAsync(new MovieSearchRequest { Keyword = "神探坤潘3", PageSize = 5 });
 
         resp.Results.Should().BeEmpty();
-        // 配额软限流不是封禁：绝不能进冷却，否则后续调度全被饿死
+        handler.Urls.Should().HaveCount(2);
         client.IsThrottled().Should().BeFalse();
-        // 但必须被识别出来，好让补全服务区分「配额用尽」与「豆瓣没这片」
         DoubanApiClient.LastSearchQuotaExceeded.Should().BeTrue();
+        DoubanApiClient.IsHtmlSearchDisabled.Should().BeTrue();
+
+        // 网页路径停用期间：只打一次 rexxar，不再白白消耗网页搜索配额
+        var before = handler.Urls.Count;
+        await client.SearchAsync(new MovieSearchRequest { Keyword = "神探坤潘4", PageSize = 5 });
+        handler.Urls.Should().HaveCount(before + 1);
+        handler.Urls[^1].Should().Contain("m.douban.com/rexxar");
     }
 
     [Fact]
-    public async Task HtmlSearch_RealResults_DoesNotFlagQuota()
+    public async Task HtmlRealResults_DoesNotFlagQuota()
     {
-        var handler = new StubHandler((_, _) => Ok(HtmlWithData));
+        var handler = new StubHandler((_, i) => i == 0 ? ServerError() : Ok(HtmlWithData));
         var client = new DoubanApiClient(new HttpClient(handler));
 
-        // 拉丁关键词 → 网页搜索优先，保证第一次请求就落在被测试的 HTML 路径上
         var resp = await client.SearchAsync(new MovieSearchRequest { Keyword = "The Wandering Earth II", PageSize = 5 });
 
         resp.Results.Should().HaveCount(1);
         DoubanApiClient.LastSearchQuotaExceeded.Should().BeFalse();
-    }
-
-    [Fact]
-    public async Task HtmlSearch_EmptyWithoutQuotaSignal_IsPlainMiss()
-    {
-        // 第 0 次是网页搜索（空结果、无 quota 信号）；后续调用是 rexxar 兜底，
-        // 必须返回它自己的 JSON 形态——把 HTML 塞给 rexxar 会被判成硬封禁（body 以 "<" 开头）。
-        var handler = new StubHandler((_, i) => i == 0 ? Ok(HtmlWithoutData) : Forbidden(SoftThrottleBody));
-        var client = new DoubanApiClient(new HttpClient(handler));
-
-        var resp = await client.SearchAsync(new MovieSearchRequest { Keyword = "不存在的片名XYZ", PageSize = 5 });
-
-        resp.Results.Should().BeEmpty();
-        DoubanApiClient.LastSearchQuotaExceeded.Should().BeFalse("真的没收录时不能谎报配额用尽");
-        client.IsThrottled().Should().BeFalse();
+        DoubanApiClient.IsHtmlSearchDisabled.Should().BeFalse();
     }
 
     [Fact]
