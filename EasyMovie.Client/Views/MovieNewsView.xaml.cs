@@ -410,6 +410,9 @@ public partial class MovieNewsView : UserControl
         var msg = string.Format(LanguageManager.GetString("News_AddConfirm"), item.Title);
         if (!AppMessageBox.Confirm(msg, LanguageManager.GetString("Msg_Confirm"))) return;
 
+        // 自动打标用的独立 context：必须在 SetTagsAsync 之后才释放，故提到 try 外由 finally 兜底，
+        // 异常路径下也不会泄漏（MovieDbContext 持有 SQLite 连接）。
+        MovieDbContext? tagCtx = null;
         try
         {
             // 获取详细信息
@@ -426,9 +429,15 @@ public partial class MovieNewsView : UserControl
             }
 
             Movie movie;
+            TagService? tagSvc = null;
             if (searchResult != null)
             {
-                movie = await MovieApiService.MapToMovieAsync(searchResult, new CategoryService(new CategoryRepository(DbHelper.CreateContext())));
+                // 与在线搜索同链路：传入标签服务，genres 才会被转成 Tag 挂到影片上。
+                // tagCtx 必须活到 SetTagsAsync 之后（下面 ctx2 入库完才释放），不能提前 Dispose。
+                tagCtx = DbHelper.CreateContext();
+                tagSvc = new TagService(new TagRepository(tagCtx));
+                movie = await MovieApiService.MapToMovieAsync(searchResult,
+                    new CategoryService(new CategoryRepository(DbHelper.CreateContext())), tagSvc);
             }
             else
             {
@@ -452,11 +461,22 @@ public partial class MovieNewsView : UserControl
             ctx2.Movies.Add(movie);
             await ctx2.SaveChangesAsync();
 
+            // 自动打标落库：MovieTag.MovieId 必须指向已存在的影片，AddAsync/SaveChanges 之后才有真实 Id
+            if (tagSvc != null && movie.MovieTags.Count > 0)
+            {
+                var movieSvc = new MovieService(new MovieRepository(ctx2), new TagRepository(ctx2));
+                await movieSvc.SetTagsAsync(movie.Id, movie.MovieTags.Select(mt => mt.TagId).ToList());
+            }
+
             AppMessageBox.ShowInfo(string.Format(LanguageManager.GetString("OnlineSearch_Added"), item.Title));
         }
         catch (Exception ex)
         {
             AppMessageBox.ShowError(LanguageManager.GetString("Msg_LoadFailed") + ex.Message);
+        }
+        finally
+        {
+            tagCtx?.Dispose();
         }
     }
 

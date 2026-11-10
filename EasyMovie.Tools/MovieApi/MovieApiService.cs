@@ -84,9 +84,20 @@ public class MovieApiService
     }
 
     /// <summary>
-    /// 将搜索结果映射为 Movie 实体，并按国家自动创建分类
+    /// 将搜索结果映射为 Movie 实体，并按国家自动创建分类、按类型自动挂标签。
     /// </summary>
-    public static async Task<Movie> MapToMovieAsync(MovieSearchResult result, ICategoryService? categoryService = null)
+    /// <param name="tagService">
+    /// 可选。提供时会把 <see cref="MovieSearchResult.Genres"/> 幂等地转成 Tag 并挂到
+    /// <see cref="Movie.MovieTags"/>。这是 MovieTags 关联的唯一自动来源——此前 genres
+    /// 整体被丢弃，导致统计页「类型分布」、推荐算法标签权重、关系图谱、AI 摘要、
+    /// 去重完整度打分五处全部空转（库里 290 部影片 0 条标签关联）。
+    /// 影片入库保存（拿到真实 Id）后需再调 MovieService.SetTagsAsync 落库，
+    /// 因为 MovieTag.MovieId 必须指向已存在的影片。
+    /// </param>
+    public static async Task<Movie> MapToMovieAsync(
+        MovieSearchResult result,
+        ICategoryService? categoryService = null,
+        ITagService? tagService = null)
     {
         var movie = MapToMovie(result);
 
@@ -97,6 +108,25 @@ public class MovieApiService
             {
                 var category = await categoryService.GetOrCreateByNameAsync(firstCountry);
                 movie.CategoryId = category.Id;
+            }
+        }
+
+        if (tagService != null && result.Genres is { Count: > 0 })
+        {
+            foreach (var genre in result.Genres)
+            {
+                if (string.IsNullOrWhiteSpace(genre)) continue;
+                try
+                {
+                    var tag = await tagService.GetOrCreateByNameAsync(genre);
+                    // TagId 先行挂上，MovieId 由 SetTagsAsync 在入库后补齐。
+                    if (!movie.MovieTags.Any(mt => mt.TagId == tag.Id))
+                        movie.MovieTags.Add(new MovieTag { TagId = tag.Id });
+                }
+                catch (ArgumentException)
+                {
+                    // 非法类型名（空白/纯数字/超长）——跳过即可，不该让整部影片导入失败
+                }
             }
         }
 

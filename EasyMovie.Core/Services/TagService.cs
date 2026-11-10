@@ -61,4 +61,21 @@ public class TagService : ITagService
 
         return await _tagRepo.GetMovieCountAsync(tagId);
     }
+
+    public async Task<Tag> GetOrCreateByNameAsync(string name)
+    {
+        var trimmed = name?.Trim();
+        if (string.IsNullOrWhiteSpace(trimmed))
+            throw new ArgumentException("标签名称不能为空");
+
+        // 豆瓣 genres 里偶有空白/超长噪声值；纯数字也不是有效类型名，直接拒绝以免污染标签表。
+        if (trimmed.Length > 50 || int.TryParse(trimmed, out _))
+            throw new ArgumentException($"无效的标签名称: {name}");
+
+        var all = await _tagRepo.GetAllAsync();
+        var existing = all.FirstOrDefault(t => t.Name == trimmed);
+        if (existing != null) return existing;
+
+        return await _tagRepo.AddAsync(new Tag { Name = trimmed });
+    }
 }
