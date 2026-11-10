@@ -25,6 +25,13 @@ packages/
 ## Database
 *.db
 
+## 备份与数据库旁文件（backup 目录、各类备份与 SQLite WAL/SHM 旁文件，勿提交）
+/backup/
+*.bak
+*.db-wal
+*.db-shm
+*.db.before
+
 ## Logs
 logs/
 
