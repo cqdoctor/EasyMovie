@@ -105,6 +105,48 @@ public static class AppSettings
         set { _current.MaxBackupCount = value; Save(); }
     }
 
+    // ── 播放器偏好 ──
+    // 此前 VideoPlayerHost 用 static 内存字段（_lastVolume/_lastRateIndex/_lastAspectMode），
+    // 只在同一进程内跨片沿用，**重启即归默认**（80 / 1.0x / 原始比例）。这里落盘到 settings.json。
+
+    /// <summary>上次音量（0-100）。</summary>
+    public static int PlayerVolume
+    {
+        get => _current.PlayerVolume;
+        // 越界值直接丢弃：配置文件被手改时不该让播放器拿到 -1 或 999
+        set { if (value is >= 0 and <= 100) { _current.PlayerVolume = value; Save(); } }
+    }
+
+    /// <summary>上次倍速档位索引（对应 VideoPlayerHost 的 _rates 数组，当前 7 档）。</summary>
+    public static int PlayerRateIndex
+    {
+        get => _current.PlayerRateIndex;
+        // 上界按 0-6 钳制：_rates 数组是 7 档，配置被手改成更大值会在索引时越界
+        set { if (value is >= 0 and <= 6) { _current.PlayerRateIndex = value; Save(); } }
+    }
+
+    /// <summary>上次画面比例模式：fit / fill / 169 / 43。</summary>
+    public static string PlayerAspectMode
+    {
+        get => _current.PlayerAspectMode;
+        set
+        {
+            // 只接受已知模式，避免配置文件里的脏值让 ApplyAspectMode 落到未定义分支
+            if (value is "fit" or "fill" or "169" or "43")
+            {
+                _current.PlayerAspectMode = value;
+                Save();
+            }
+        }
+    }
+
+    /// <summary>是否记住上次进度（关闭时）。</summary>
+    public static bool PlayerRememberPosition
+    {
+        get => _current.PlayerRememberPosition;
+        set { _current.PlayerRememberPosition = value; Save(); }
+    }
+
     public static string AiProvider
     {
         get => _current.AiProvider;
@@ -283,6 +325,12 @@ public static class AppSettings
         public string Language { get; set; } = "zh-CN";
         public int BackupIntervalDays { get; set; } = 7;
         public int MaxBackupCount { get; set; } = 10;
+
+        // 播放器偏好（后加字段，缺省值即旧行为：80 / 1.0x / fit / 记住进度）
+        public int PlayerVolume { get; set; } = 80;
+        public int PlayerRateIndex { get; set; } = 2;
+        public string PlayerAspectMode { get; set; } = "fit";
+        public bool PlayerRememberPosition { get; set; } = true;
         public string AiProvider { get; set; } = "";
         public string? AiApiKey { get; set; }
         public string AiApiEndpoint { get; set; } = "https://api.openai.com/v1";

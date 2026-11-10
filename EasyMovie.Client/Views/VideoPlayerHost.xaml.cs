@@ -209,11 +209,35 @@ public partial class VideoPlayerHost : UserControl
     private long _subtitleDelay; // 字幕延迟，单位微秒
     private long _audioDelay;    // 音画同步延迟，单位微秒
 
-    // 跨电影记忆的播放偏好（同一会话内沿用）
+    // 跨电影记忆的播放偏好。
+    // 以前这三个是纯 static 内存字段，只在同一进程内沿用，**重启即归默认**；
+    // 现在以 AppSettings（settings.json）为准，static 仅作同进程缓存。
+    // 写入点：SetVolume / SetRateIndex / CycleAspectMode。
     private static readonly string[] _videoExts = { ".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".ts", ".m2ts", ".mpg", ".mpeg", ".webm", ".vob" };
-    private static int _lastVolume = 80;
-    private static int _lastRateIndex = 2;
-    private static string _lastAspectMode = "fit"; // 默认按原始画面比例播放
+
+    // 三者默认值与 AppSettings 内的字段缺省值保持一致（80 / 1.0x / fit）
+    private static int _lastVolume = ReadPref(80, v => AppSettings.PlayerVolume = v, () => AppSettings.PlayerVolume);
+    private static int _lastRateIndex = ReadPref(2, v => AppSettings.PlayerRateIndex = v, () => AppSettings.PlayerRateIndex);
+    private static string _lastAspectMode = ReadPref("fit", v => AppSettings.PlayerAspectMode = v, () => AppSettings.PlayerAspectMode);
+
+    /// <summary>
+    /// 读播放偏好：取持久化设置，非法/缺失时回退到默认并补写回设置。
+    /// 首次升级后配置缺字段时也能自动落一份合法默认，不会每次读空。
+    /// </summary>
+    private static T ReadPref<T>(T fallback, Action<T> persist, Func<T> read) where T : notnull
+    {
+        try
+        {
+            var v = read();
+            if (v is not null) return v;
+        }
+        catch
+        {
+            // 配置文件损坏 / 字段类型不符：降级到默认，不让播放器起不来
+        }
+        try { persist(fallback); } catch { }
+        return fallback;
+    }
 
     /// <summary>读取视频原始尺寸（播放后才有效）。</summary>
     private bool TryGetVideoSize(out int w, out int h)
@@ -245,6 +269,8 @@ public partial class VideoPlayerHost : UserControl
             _ => "fit"
         };
         _lastAspectMode = _aspectMode;
+        // 落盘：让下次启动沿用同一画面比例（AppSettings 内部只接受 fit/fill/169/43）
+        AppSettings.PlayerAspectMode = _aspectMode;
         ApplyAspectMode();
         _overlay?.SetAspectDisplay(AspectModeShortLabel(_aspectMode));
         return AspectModeLabel(_aspectMode);
@@ -501,6 +527,8 @@ public partial class VideoPlayerHost : UserControl
         if (_mediaPlayer == null) return;
         _mediaPlayer.Volume = v;
         _lastVolume = v;
+        // 落盘：音量是最常调的一项，重启后沿用免得每次重设（SetVolume 内部已做 0-100 越界丢弃）
+        AppSettings.PlayerVolume = v;
         _overlay?.SetVolumeDisplay(v);
     }
 
@@ -997,9 +1025,13 @@ public partial class VideoPlayerHost : UserControl
     private void ApplyRate()
     {
         if (_mediaPlayer == null) return;
+        // 钳制档位下标：配置可能被手改成越界值（如 rateIndex=10），直接索引 _rates 会抛
+        _rateIndex = Math.Clamp(_rateIndex, 0, _rates.Length - 1);
         var r = _rates[_rateIndex];
         _mediaPlayer.SetRate((float)r);
         _lastRateIndex = _rateIndex;
+        // 落盘：下次启动沿用同一倍速档
+        AppSettings.PlayerRateIndex = _rateIndex;
         _overlay?.SetRateDisplay(r);
     }
 
