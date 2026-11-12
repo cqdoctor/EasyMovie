@@ -32,6 +32,9 @@ packages/
 *.db-shm
 *.db.before
 
+## 本地助手配置（.trae 规则与记忆仅本机使用，不入库，磁盘文件保留）
+.trae/
+
 ## Logs
 logs/
 
