@@ -96,6 +96,9 @@ query3.csx
 test_douban/
 tools/probe/
 
+## Machine-local ops script (hard-coded local absolute paths; not committed, file kept on disk)
+docs/ops/backfill_scheduler_gate.ps1
+
 ## mpv POC self-test output (decoded frames and logs, not source)
 MpvHeadlessTest/*.jpg
 MpvHeadlessTest/*.png
